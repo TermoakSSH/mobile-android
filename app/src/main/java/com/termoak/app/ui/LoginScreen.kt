@@ -77,10 +77,11 @@ fun LoginScreen(app: TermoakApp, welcome: Boolean, onDone: () -> Unit, onBack: (
         error = null
         scope.launch {
             try {
-                app.account.login(server.trim().trimEnd('/'), email.trim(), password, code.trim().ifEmpty { null })
+                val signedIn = app.account.login(server.trim().trimEnd('/'), email.trim(), password, code.trim().ifEmpty { null })
                 app.prefs.lastServer = server.trim().trimEnd('/')
                 app.prefs.lastEmail = email.trim()
-                onDone()
+                // Otherwise the email must be verified first: AppRoot opens the code screen.
+                if (signedIn) onDone()
             } catch (e: TermoakException.TotpRequired) {
                 needsCode = true
                 error = null

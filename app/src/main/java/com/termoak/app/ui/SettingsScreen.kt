@@ -111,6 +111,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     val loggedIn by app.account.loggedIn.collectAsState()
+    val verification by app.account.verification.collectAsState()
     val server by app.account.serverUrl.collectAsState()
     val user by app.account.user.collectAsState()
     val online by app.account.online.collectAsState()
@@ -168,6 +169,18 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                                 Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.padding(end = 6.dp))
                                 Text(stringResource(R.string.settings_my_account))
                             }
+                        }
+                    }
+                } else if (verification != null) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(stringResource(R.string.verify_pending), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            stringResource(R.string.verify_prompt, verification?.email ?: ""),
+                            Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(onClick = { nav.navigate(Routes.VERIFY_EMAIL) }, modifier = Modifier.padding(top = 12.dp)) {
+                            Text(stringResource(R.string.verify_enter_code))
                         }
                     }
                 } else {

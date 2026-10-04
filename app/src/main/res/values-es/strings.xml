@@ -45,6 +45,7 @@
     <string name="error_decide_failed">No se pudo decidir</string>
     <string name="error_session_expired">La sesión ha caducado: vuelve a iniciar sesión</string>
     <string name="error_sync_failed">No se pudo sincronizar</string>
+    <string name="error_email_not_verified">Confirma tu correo para sincronizar: escribe el código que te hemos enviado</string>
     <string name="error_ai_key_required">La IA necesita una clave de API: añade la tuya en Ajustes → IA</string>
     <string name="error_ai_budget_exceeded">Has gastado el crédito de IA de este mes. Añade tu propia clave de API para seguir</string>
 
@@ -82,6 +83,20 @@
     <string name="login_verify">Verificar</string>
     <string name="login_skip">Usar sin servidor, solo en este móvil</string>
     <string name="login_no_account">¿Sin cuenta? Pídesela a quien administra el servidor.</string>
+
+    <!-- Email verification -->
+    <string name="verify_title">Revisa tu correo</string>
+    <string name="verify_prompt">Hemos enviado un código de 6 dígitos a %1$s. Escríbelo para terminar de iniciar sesión.</string>
+    <string name="verify_code">Código del correo</string>
+    <string name="verify_code_invalid">El código no es correcto o ha caducado. Mira el último correo o pide uno nuevo.</string>
+    <string name="verify_totp">Código de autenticación</string>
+    <string name="verify_resend">Reenviar código</string>
+    <string name="verify_resend_in">Reenviar código en %1$d s</string>
+    <string name="verify_resent">Hemos enviado un código nuevo a %1$s.</string>
+    <string name="verify_different_email">Usar otro correo</string>
+    <string name="verify_spam_hint">¿No lo encuentras? Mira en la carpeta de spam. El código vale 15 minutos.</string>
+    <string name="verify_pending">Confirma tu correo</string>
+    <string name="verify_enter_code">Escribir el código</string>
 
     <!-- Settings -->
     <string name="settings_account">Cuenta</string>

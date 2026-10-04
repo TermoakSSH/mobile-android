@@ -46,6 +46,7 @@
     <string name="error_decide_failed">Couldn\'t send your decision</string>
     <string name="error_session_expired">Your session has expired: sign in again</string>
     <string name="error_sync_failed">Couldn\'t sync</string>
+    <string name="error_email_not_verified">Confirm your email to sync: enter the code we sent you</string>
     <string name="error_ai_key_required">The AI needs an API key: add yours in Settings → AI</string>
     <string name="error_ai_budget_exceeded">You\'ve used this month\'s AI credit. Add your own API key to keep going</string>
 
@@ -83,6 +84,20 @@
     <string name="login_verify">Verify</string>
     <string name="login_skip">Use without a server, on this phone only</string>
     <string name="login_no_account">No account? Ask whoever runs the server.</string>
+
+    <!-- Email verification -->
+    <string name="verify_title">Check your email</string>
+    <string name="verify_prompt">We sent a 6-digit code to %1$s. Enter it to finish signing in.</string>
+    <string name="verify_code">Code from the email</string>
+    <string name="verify_code_invalid">That code isn\'t right or has expired. Check the latest email or ask for a new code.</string>
+    <string name="verify_totp">Authenticator code</string>
+    <string name="verify_resend">Resend code</string>
+    <string name="verify_resend_in">Resend code in %1$d s</string>
+    <string name="verify_resent">We sent a new code to %1$s.</string>
+    <string name="verify_different_email">Use a different email</string>
+    <string name="verify_spam_hint">Can\'t find it? Check your spam folder. The code is valid for 15 minutes.</string>
+    <string name="verify_pending">Confirm your email</string>
+    <string name="verify_enter_code">Enter the code</string>
 
     <!-- Settings -->
     <string name="settings_account">Account</string>

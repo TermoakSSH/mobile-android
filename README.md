@@ -64,13 +64,13 @@ Docker.
 ## Releases
 
 The app is released as the `android-vX.Y.Z` GitHub release (currently
-0.3.6, `termoakVersion` in `gradle.properties`), with an APK signed with
+0.3.7, `termoakVersion` in `gradle.properties`), with an APK signed with
 your keystore, built in the `core/scripts/android-builder.Dockerfile` image
 (JDK 17, SDK 37, NDK 30, Rust and `cargo-ndk`):
 
 ```sh
 scripts/release-local.sh android-keystore     # once: the signing key
-scripts/release-local.sh version android 0.3.7
+scripts/release-local.sh version android 0.3.8
 scripts/release-local.sh build android        # dist/android/Termoak-android-vX.Y.Z.apk
 scripts/release-local.sh publish android
 ```

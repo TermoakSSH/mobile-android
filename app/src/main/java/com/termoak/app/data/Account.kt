@@ -23,6 +23,17 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
+ * An account signed in on a server that requires a verified email and has
+ * not verified it yet: the app shows the "check your email" screen to enter
+ * the six-digit code. [sentAt] is when an email was just sent (sign-in or
+ * resend), to hold back the "resend" button for a minute; `null` if unknown.
+ */
+data class PendingVerification(val server: String, val email: String, val sentAt: Long? = null)
+
+/** How long the server makes you wait between verification emails. */
+const val RESEND_INTERVAL_MS = 60_000L
+
+/**
  * Account state on the server: sign-in, sync, pending AI approvals and live
  * events (WebSocket).
  */
@@ -30,8 +41,15 @@ class Account(private val core: TermoakCore) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val _loggedIn = MutableStateFlow<Boolean?>(null)
-    /** `null` while still unknown. */
+    /**
+     * `null` while still unknown. `false` too while the email is waiting for
+     * verification ([verification]): the server only lets that account
+     * manage itself.
+     */
     val loggedIn: StateFlow<Boolean?> = _loggedIn
+    private val _verification = MutableStateFlow<PendingVerification?>(null)
+    /** Signed in, but the email must be verified with the code first. */
+    val verification: StateFlow<PendingVerification?> = _verification
     private val _serverUrl = MutableStateFlow<String?>(null)
     val serverUrl: StateFlow<String?> = _serverUrl
     private val _user = MutableStateFlow<String?>(null)
@@ -67,23 +85,85 @@ class Account(private val core: TermoakCore) {
     private var eventsJob: Job? = null
 
     fun refresh() {
-        scope.launch {
-            val logged = runCatching { core.isLoggedIn() }.getOrDefault(false)
-            _loggedIn.value = logged
-            _serverUrl.value = runCatching { core.serverUrl() }.getOrNull()
-            _user.value = runCatching { core.serverUser() }.getOrNull()
-            if (logged) {
-                refreshApprovals()
-                startEvents()
-            } else {
-                stopEvents()
+        scope.launch { refreshNow() }
+    }
+
+    private suspend fun refreshNow() {
+        val logged = runCatching { core.isLoggedIn() }.getOrDefault(false)
+        if (!logged) _verification.value = null
+        _loggedIn.value = logged && _verification.value == null
+        _serverUrl.value = runCatching { core.serverUrl() }.getOrNull()
+        _user.value = runCatching { core.serverUser() }.getOrNull()
+        if (logged && _verification.value == null) {
+            // The account may still have to verify its email (signed up
+            // elsewhere, or the app closed on the code screen). Offline,
+            // assume it doesn't: the server will say so later.
+            if (runCatching { core.verificationRequired() }.getOrDefault(false)) {
+                markUnverified()
+                return
             }
+            refreshApprovals()
+            startEvents()
+        } else {
+            stopEvents()
         }
     }
 
-    suspend fun login(url: String, email: String, password: String, code: String?) {
+    /**
+     * Signs in. Returns `false` if the account must verify its email first:
+     * [verification] is then set and the app shows the code screen.
+     */
+    suspend fun login(url: String, email: String, password: String, code: String?): Boolean {
         core.login(url, email, password, code)
-        refresh()
+        if (runCatching { core.verificationRequired() }.getOrDefault(false)) {
+            // Signing in emails a new code if the last one can't be used.
+            _verification.value = PendingVerification(url, core.serverUser() ?: email, System.currentTimeMillis())
+            refreshNow()
+            return false
+        }
+        signedIn()
+        return true
+    }
+
+    /**
+     * Verifies the email with the six-digit code (spaces and dashes are
+     * ignored) and signs in. Fails with `Invalid` for a wrong or expired
+     * code and with `TotpRequired`/`TotpInvalid` if the account has 2FA.
+     */
+    suspend fun verifyCode(code: String, totpCode: String?) {
+        val pending = _verification.value ?: return
+        core.verifyCode(pending.server, pending.email, code.filter { it.isDigit() }, totpCode?.trim()?.ifEmpty { null })
+        _verification.value = null
+        signedIn()
+    }
+
+    /** Emails a new code (once a minute at most: fails with `Server` if asked too often). */
+    suspend fun resendCode() {
+        val pending = _verification.value ?: return
+        core.resendCode(pending.server, pending.email)
+        _verification.value = pending.copy(sentAt = System.currentTimeMillis())
+    }
+
+    /** Leaves the code screen: signs out to sign in with another account. */
+    fun useDifferentEmail() {
+        _verification.value = null
+        logout()
+    }
+
+    /** The server answered `email_not_verified`: show the code screen. */
+    private suspend fun markUnverified() {
+        if (_verification.value == null) {
+            val url = runCatching { core.serverUrl() }.getOrNull()
+            val email = runCatching { core.serverUser() }.getOrNull()
+            if (url != null && email != null) _verification.value = PendingVerification(url, email)
+        }
+        _loggedIn.value = false
+        stopEvents()
+        _pendingApprovals.value = 0
+    }
+
+    private suspend fun signedIn() {
+        refreshNow()
         sync()
         // A language chosen in the app wins over the one in the account.
         AppLanguage.chosen()?.let { saveLocale(it) }
@@ -93,6 +173,7 @@ class Account(private val core: TermoakCore) {
         scope.launch {
             stopEvents()
             runCatching { core.logout() }
+            _verification.value = null
             _pendingApprovals.value = 0
             refresh()
         }
@@ -114,7 +195,8 @@ class Account(private val core: TermoakCore) {
     }
 
     fun sync() {
-        if (_syncing.value) return
+        // Until the email is verified, the server refuses to sync.
+        if (_syncing.value || _verification.value != null) return
         scope.launch {
             _syncing.value = true
             try {
@@ -127,6 +209,9 @@ class Account(private val core: TermoakCore) {
             } catch (e: TermoakException.SessionExpired) {
                 _syncError.value = uiText(R.string.error_session_expired)
                 refresh()
+            } catch (e: TermoakException.EmailNotVerified) {
+                _syncError.value = uiText(R.string.error_email_not_verified)
+                markUnverified()
             } catch (e: TermoakException) {
                 _syncError.value = e.toUiText(R.string.error_sync_failed)
             } finally {
@@ -159,6 +244,9 @@ class Account(private val core: TermoakCore) {
                     backoff = 2_000L
                     closed.await()
                 } catch (e: TermoakException.NotLoggedIn) {
+                    break
+                } catch (e: TermoakException.EmailNotVerified) {
+                    markUnverified()
                     break
                 } catch (e: TermoakException) {
                     Log.w("termoak", "events: ${e.message}")

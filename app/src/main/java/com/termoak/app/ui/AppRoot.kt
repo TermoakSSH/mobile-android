@@ -103,6 +103,7 @@ object Routes {
     const val SNIPPETS = "snippets"
     const val KNOWN_HOSTS = "known-hosts"
     const val LOGIN = "login"
+    const val VERIFY_EMAIL = "verify-email"
 
     fun hostEdit(id: String?) = "host/${id ?: "new"}"
     fun group(id: String) = "group/$id"
@@ -133,6 +134,7 @@ fun AppRoot(app: TermoakApp) {
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val loggedIn by app.account.loggedIn.collectAsState()
+    val verification by app.account.verification.collectAsState()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
 
@@ -156,7 +158,7 @@ fun AppRoot(app: TermoakApp) {
                 // The terminal handles its own insets; the rest leaves room for the gesture bar.
                 contentWindowInsets = if (route == Routes.TERMINAL) WindowInsets(0, 0, 0, 0) else WindowInsets.navigationBars,
                 bottomBar = {
-                    if (route != Routes.TERMINAL && route != Routes.WELCOME) {
+                    if (route != Routes.TERMINAL && route != Routes.WELCOME && route != Routes.VERIFY_EMAIL) {
                         TerminalsBar(app) { nav.navigate(Routes.TERMINAL) { launchSingleTop = true } }
                     }
                 },
@@ -167,6 +169,13 @@ fun AppRoot(app: TermoakApp) {
                     }
                     composable(Routes.LOGIN) {
                         LoginScreen(app, welcome = false, onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.VERIFY_EMAIL) {
+                        VerifyEmailScreen(
+                            app,
+                            onDone = { nav.goTab(Routes.HOSTS, clear = true) },
+                            onDifferentEmail = { nav.goTab(Routes.WELCOME, clear = true) },
+                        )
                     }
                     composable(Routes.HOSTS) { HostsScreen(app, nav, groupId = null) }
                     composable(Routes.GROUP) { e -> HostsScreen(app, nav, groupId = e.arguments?.getString("id")) }
@@ -191,6 +200,17 @@ fun AppRoot(app: TermoakApp) {
         if (loggedIn == false && route == Routes.AI) nav.goTab(Routes.HOSTS)
         if (loggedIn == false && route == Routes.AI_KEYS) nav.popBackStack()
     }
+    // The account must verify its email (after signing in, or the server said
+    // so): open the code screen, except over a terminal in use.
+    LaunchedEffect(verification != null) {
+        val current = nav.currentDestination?.route
+        if (verification == null || current == Routes.VERIFY_EMAIL || current == Routes.TERMINAL) return@LaunchedEffect
+        nav.navigate(Routes.VERIFY_EMAIL) {
+            // The sign-in form is done: back from the code screen doesn't return to it.
+            if (current == Routes.LOGIN || current == Routes.WELCOME) popUpTo(current) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
     // Server sessions already open: on startup or sign-in, as sleeping tabs.
     LaunchedEffect(loggedIn) {
         if (loggedIn == true) app.sessions.loadServerSessions() else app.sessions.forgetServerSessions()
@@ -207,6 +227,7 @@ fun AppRoot(app: TermoakApp) {
 private fun Drawer(app: TermoakApp, route: String?, drawer: DrawerState, go: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     val loggedIn by app.account.loggedIn.collectAsState()
+    val verification by app.account.verification.collectAsState()
     val user by app.account.user.collectAsState()
     val server by app.account.serverUrl.collectAsState()
     val online by app.account.online.collectAsState()
@@ -234,19 +255,32 @@ private fun Drawer(app: TermoakApp, route: String?, drawer: DrawerState, go: (St
             // Account
             Surface(
                 Modifier.padding(horizontal = 12.dp).fillMaxWidth().clip(MaterialTheme.shapes.medium)
-                    .clickable { select(if (loggedIn == true) Routes.SETTINGS else Routes.LOGIN) },
+                    .clickable {
+                        select(
+                            when {
+                                loggedIn == true -> Routes.SETTINGS
+                                verification != null -> Routes.VERIFY_EMAIL
+                                else -> Routes.LOGIN
+                            },
+                        )
+                    },
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     HostTile(user ?: "?", null, size = 36.dp)
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Text(
-                            if (loggedIn == true) user ?: stringResource(R.string.drawer_signed_in) else stringResource(R.string.common_sign_in),
+                            when {
+                                loggedIn == true -> user ?: stringResource(R.string.drawer_signed_in)
+                                verification != null -> verification?.email ?: ""
+                                else -> stringResource(R.string.common_sign_in)
+                            },
                             style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             stringResource(
                                 when {
+                                    loggedIn != true && verification != null -> R.string.verify_pending
                                     loggedIn != true -> R.string.drawer_sync_prompt
                                     online -> R.string.drawer_synced_live
                                     else -> R.string.drawer_synced
