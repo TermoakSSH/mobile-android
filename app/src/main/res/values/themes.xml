@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The UI is Compose (Material 3); this only sets the background at startup.
+         AppCompat parent: MainActivity is an AppCompatActivity (per-app language). -->
+    <style name="Theme.Termoak" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+    </style>
+</resources>

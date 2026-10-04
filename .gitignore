@@ -1,0 +1,11 @@
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
+keystore.properties
+
+# Release builds (scripts/release-local.sh)
+/dist
+/target
+.DS_Store

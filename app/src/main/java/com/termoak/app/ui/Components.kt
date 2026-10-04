@@ -1,0 +1,199 @@
+package com.termoak.app.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.termoak.app.R
+
+/** Short notices ("Copied", errors...) from any screen. */
+val LocalSnackbar = staticCompositionLocalOf { SnackbarHostState() }
+
+/** Label and color for a host's detected OS (as on the desktop). */
+fun osBadge(os: String?): Pair<String, Color>? = when (os?.trim()?.lowercase()) {
+    null, "" -> null
+    "ubuntu" -> "Ubuntu" to Color(0xFFE95420)
+    "debian" -> "Debian" to Color(0xFFD70A53)
+    "raspbian" -> "Raspbian" to Color(0xFFC51A4A)
+    "linuxmint", "mint" -> "Mint" to Color(0xFF87CF3E)
+    "fedora" -> "Fedora" to Color(0xFF51A2DA)
+    "centos" -> "CentOS" to Color(0xFF932279)
+    "rocky" -> "Rocky" to Color(0xFF10B981)
+    "almalinux" -> "Alma" to Color(0xFF0F4266)
+    "rhel" -> "RHEL" to Color(0xFFEE0000)
+    "arch" -> "Arch" to Color(0xFF1793D1)
+    "alpine" -> "Alpine" to Color(0xFF0D597F)
+    "opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles" -> "SUSE" to Color(0xFF73BA25)
+    "freebsd" -> "FreeBSD" to Color(0xFFAB2B28)
+    "macos", "darwin" -> "macOS" to Color(0xFF8E8E93)
+    "windows" -> "Windows" to Color(0xFF0078D4)
+    else -> os.replaceFirstChar { it.uppercase() } to Color(0xFF6B7A99)
+}
+
+/** Square filled with the color of the host's OS (like Termius'). */
+@Composable
+fun HostTile(label: String, os: String?, color: String? = null, size: Dp = 42.dp) {
+    val badge = osBadge(os)
+    val bg = color?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+        ?: badge?.second ?: MaterialTheme.colorScheme.primary
+    // With a detected OS, its initials (UB, DE...); otherwise the name's.
+    val text = badge?.first?.take(2)?.uppercase()
+        ?: label.split(' ', '-', '_', '.').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1).uppercase() }
+            .ifEmpty { "?" }
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(size / 4.5f)).background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.34f).sp)
+    }
+}
+
+@Composable
+fun StatusDot(color: Color, size: Dp = 8.dp) {
+    Box(Modifier.size(size).clip(CircleShape).background(color))
+}
+
+/** Small chip with a status text. */
+@Composable
+fun Pill(text: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = color.copy(alpha = 0.15f),
+        contentColor = color,
+        shape = RoundedCornerShape(50),
+    ) {
+        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+fun EmptyState(
+    icon: ImageVector,
+    title: String,
+    text: String,
+    modifier: Modifier = Modifier,
+    action: String? = null,
+    onAction: () -> Unit = {},
+) {
+    Column(
+        modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+        Text(title, Modifier.padding(top = 20.dp), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Text(
+            text,
+            Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        if (action != null) {
+            Button(onClick = onAction, modifier = Modifier.padding(top = 20.dp)) { Text(action) }
+        }
+    }
+}
+
+/** Title of a group of items in a list. */
+@Composable
+fun SectionLabel(text: String, modifier: Modifier = Modifier, trailing: @Composable (() -> Unit)? = null) {
+    Row(
+        modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 18.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text.uppercase(LocalConfiguration.current.locales[0]),
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 0.8.sp,
+        )
+        trailing?.invoke()
+    }
+}
+
+/** List card in the app style. */
+@Composable
+fun CardBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.large,
+        content = content,
+    )
+}
+
+@Composable
+fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirm: String,
+    destructive: Boolean = false,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(); onDismiss() }) {
+                Text(confirm, color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+/** "5 min ago", "yesterday"... in the app language. [millis] may also be in seconds. */
+@Composable
+fun relativeTime(millis: Long?): String {
+    if (millis == null || millis <= 0) return ""
+    val ms = if (millis < 10_000_000_000L) millis * 1000 else millis
+    val diff = (System.currentTimeMillis() - ms) / 1000
+    return when {
+        diff < 45 -> stringResource(R.string.time_now)
+        diff < 3600 -> stringResource(R.string.time_minutes_ago, (diff / 60).toInt())
+        diff < 86_400 -> stringResource(R.string.time_hours_ago, (diff / 3600).toInt())
+        diff < 172_800 -> stringResource(R.string.time_yesterday)
+        diff < 30 * 86_400 -> (diff / 86_400).toInt().let { pluralStringResource(R.plurals.time_days_ago, it, it) }
+        else -> java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, LocalConfiguration.current.locales[0])
+            .format(java.util.Date(ms))
+    }
+}

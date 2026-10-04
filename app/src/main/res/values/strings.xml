@@ -1,0 +1,429 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English (default). Translations: values-<lang>/strings.xml with the same keys (core/docs/I18N.md). -->
+<resources>
+    <string name="app_name" translatable="false">Termoak</string>
+
+    <!-- Language and app -->
+    <string name="language_name">English</string>
+
+    <!-- Common -->
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_save">Save</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_delete_named">Delete “%1$s”?</string>
+    <string name="common_edit">Edit</string>
+    <string name="common_close">Close</string>
+    <string name="common_open">Open</string>
+    <string name="common_new">New</string>
+    <string name="common_show">Show</string>
+    <string name="common_ok">OK</string>
+    <string name="common_paste">Paste</string>
+    <string name="common_name">Name</string>
+    <string name="common_optional">Optional</string>
+    <string name="common_choose">Choose…</string>
+    <string name="common_sync">Sync</string>
+    <string name="common_syncing">Syncing…</string>
+    <string name="common_sign_in">Sign in</string>
+    <string name="common_send">Send</string>
+    <string name="common_more">More</string>
+    <string name="common_menu">Menu</string>
+    <string name="common_options">Options</string>
+    <string name="common_port">Port</string>
+    <string name="common_username">Username</string>
+    <string name="common_password">Password</string>
+    <string name="common_key">Key</string>
+    <string name="common_identity">Identity</string>
+    <string name="common_no_key">No key</string>
+    <string name="common_session">Session</string>
+    <string name="common_saved_secret">•••••• saved</string>
+    <string name="common_device_only">This phone only</string>
+    <string name="common_permissions">Permissions</string>
+
+    <!-- Errors -->
+    <string name="error_save_failed">Couldn\'t save</string>
+    <string name="error_send_failed">Couldn\'t send</string>
+    <string name="error_decide_failed">Couldn\'t send your decision</string>
+    <string name="error_session_expired">Your session has expired: sign in again</string>
+    <string name="error_sync_failed">Couldn\'t sync</string>
+    <string name="error_ai_key_required">The AI needs an API key: add yours in Settings → AI</string>
+    <string name="error_ai_budget_exceeded">You\'ve used this month\'s AI credit. Add your own API key to keep going</string>
+
+    <!-- Relative time -->
+    <string name="time_now">just now</string>
+    <string name="time_minutes_ago">%1$d min ago</string>
+    <string name="time_hours_ago">%1$d h ago</string>
+    <string name="time_yesterday">yesterday</string>
+
+    <!-- Sections and side menu -->
+    <string name="section_hosts">Hosts</string>
+    <string name="section_keychain">Keychain</string>
+    <string name="section_snippets">Snippets</string>
+    <string name="section_known_hosts">Known hosts</string>
+    <string name="section_sessions">Sessions</string>
+    <string name="section_ai">AI</string>
+    <string name="section_settings">Settings</string>
+    <string name="drawer_device_only">This device only</string>
+    <string name="drawer_signed_in">Signed in</string>
+    <string name="drawer_synced_live">Synced · live</string>
+    <string name="drawer_synced">Synced</string>
+    <string name="drawer_sync_prompt">Sync with your server</string>
+    <string name="drawer_group_vault">Vault</string>
+    <string name="drawer_group_server">Server</string>
+    <string name="drawer_group_terminals">Terminals</string>
+
+    <!-- Sign in -->
+    <string name="login_tagline">Your hosts, keys and sessions, synced with your server.</string>
+    <string name="login_code_prompt">Enter the code from your authenticator app.</string>
+    <string name="login_server">Server</string>
+    <string name="login_email">Email</string>
+    <string name="login_code">Verification code</string>
+    <string name="login_code_hint">A recovery code also works.</string>
+    <string name="login_code_invalid">That code isn\'t right. Try the next one.</string>
+    <string name="login_verify">Verify</string>
+    <string name="login_skip">Use without a server, on this phone only</string>
+    <string name="login_no_account">No account? Ask whoever runs the server.</string>
+
+    <!-- Settings -->
+    <string name="settings_account">Account</string>
+    <string name="settings_synced_ago">Synced %1$s</string>
+    <string name="settings_never_synced">Not synced yet</string>
+    <string name="settings_sync_live">%1$s · live updates</string>
+    <string name="settings_my_account">My account</string>
+    <string name="settings_no_server">No server</string>
+    <string name="settings_no_server_text">Your hosts and keys are only on this phone. With an account they sync with your other devices, and you get sessions that don\'t drop and AI.</string>
+    <string name="settings_two_factor">Two-step verification</string>
+    <string name="settings_two_factor_off">Off: turn it on from the web to protect your account</string>
+    <string name="settings_two_factor_active">On</string>
+    <string name="settings_two_factor_inactive">Off</string>
+    <string name="settings_vault">Vault</string>
+    <string name="settings_keychain_hint">SSH keys to sign in without a password</string>
+    <string name="settings_snippets_hint">Saved commands to paste into the terminal</string>
+    <string name="settings_terminal">Terminal</string>
+    <string name="settings_font_size">Font size</string>
+    <string name="settings_font_size_value">%1$d pt</string>
+    <string name="settings_font_size_hint">You can also pinch the terminal with two fingers.</string>
+    <string name="settings_keep_screen_on">Keep screen on</string>
+    <string name="settings_keep_screen_on_hint">While a terminal is open</string>
+    <string name="settings_vibrate_bell">Vibrate on bell</string>
+    <string name="settings_vibrate_bell_hint">When the remote program rings the bell (BEL)</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_about">About</string>
+    <string name="settings_update_checking">Checking for updates…</string>
+    <string name="settings_update_available">A new version is available: %1$s</string>
+    <string name="settings_update_latest">You have the latest version</string>
+    <string name="settings_update_check">Check for updates</string>
+    <string name="settings_version">Version %1$s · engine %2$s</string>
+    <string name="settings_download">Download</string>
+    <string name="settings_update_failed">Couldn\'t reach %1$s</string>
+    <string name="settings_website">Termoak website</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_sign_out_hint">Your local data stays on this phone</string>
+    <string name="settings_signed_out">Signed out</string>
+
+    <!-- Hosts -->
+    <string name="hosts_search">Search hosts</string>
+    <string name="hosts_empty_title">Create your first host</string>
+    <string name="hosts_empty_text_synced">Hosts you add here or on the desktop show up on all your devices.</string>
+    <string name="hosts_empty_text_local">Add a server to connect over SSH from your phone.</string>
+    <string name="hosts_new_host">New host</string>
+    <string name="hosts_new_group">New group</string>
+    <string name="hosts_groups">Groups</string>
+    <string name="hosts_results">Results</string>
+    <string name="hosts_no_match">No host matches “%1$s”.</string>
+    <string name="hosts_connect">Connect</string>
+    <string name="hosts_connect_on_server">Persistent session on the server</string>
+    <string name="hosts_favorite_remove">Remove from favorites</string>
+    <string name="hosts_favorite_add">Add to favorites</string>
+    <string name="hosts_duplicate">Duplicate</string>
+    <string name="hosts_copy_label">%1$s (copy)</string>
+    <string name="hosts_rename">Rename</string>
+    <string name="hosts_delete_group">Delete group</string>
+    <string name="hosts_delete_title">Delete %1$s?</string>
+    <string name="hosts_delete_text">It\'s deleted from this phone and, when syncing, from your other devices.</string>
+    <string name="hosts_deleted">%1$s deleted</string>
+    <string name="hosts_delete_group_title">Delete the group %1$s?</string>
+    <string name="hosts_delete_group_text">Its hosts aren\'t deleted: they\'re left without a group.</string>
+    <string name="hosts_port">port %1$s</string>
+
+    <!-- Host editor -->
+    <string name="host_edit_title">Edit host</string>
+    <string name="host_auth_key">SSH key</string>
+    <string name="host_proxy_incomplete">The proxy needs an address and a port</string>
+    <string name="host_section_general">General</string>
+    <string name="host_address">Address</string>
+    <string name="host_address_placeholder">server.example.com or 10.0.0.5</string>
+    <string name="host_label">Label</string>
+    <string name="host_group">Group</string>
+    <string name="host_no_group">No group</string>
+    <string name="host_tags">Tags</string>
+    <string name="host_section_credentials">Credentials</string>
+    <string name="host_password_placeholder">Asked when connecting</string>
+    <string name="host_clear_password">Delete the saved password</string>
+    <string name="host_no_keys">No keys yet. Create them in the Keychain.</string>
+    <string name="host_no_identities">No identities yet. Create them in the Keychain.</string>
+    <string name="host_section_jumps">Host chain</string>
+    <string name="host_no_jumps">No jumps: it connects directly. Add hosts to go through before reaching it (ProxyJump).</string>
+    <string name="host_deleted_host">Deleted host</string>
+    <string name="host_remove">Remove</string>
+    <string name="host_add_jump">Add jump</string>
+    <string name="host_choose_host">Choose a host…</string>
+    <string name="host_section_proxy">Proxy</string>
+    <string name="host_proxy_type">Type</string>
+    <string name="host_no_proxy">No proxy</string>
+    <string name="host_proxy_address">Proxy address</string>
+    <string name="host_proxy_address_placeholder">proxy.example.com</string>
+    <string name="host_clear_proxy_password">Delete the saved proxy password</string>
+    <string name="host_proxy_note">The proxy is used for the first connection: the first jump\'s, if there\'s a chain.</string>
+    <string name="host_favorite">Favorite</string>
+    <string name="host_favorite_hint">Shows first in the list</string>
+    <string name="host_device_only_hint">Not synced with your other devices</string>
+    <string name="host_notes">Notes</string>
+
+    <!-- Keychain: keys -->
+    <string name="keys_public_key_clip_label">public key</string>
+    <string name="keys_public_key_copied">Public key copied: paste it into ~/.ssh/authorized_keys on the server</string>
+    <string name="keys_add">Add key</string>
+    <string name="keys_generate_new">Generate a new one</string>
+    <string name="keys_import_paste">Import (paste)</string>
+    <string name="keys_tab_keys">Keys (%1$d)</string>
+    <string name="keys_tab_identities">Identities (%1$d)</string>
+    <string name="keys_empty_title">No SSH keys</string>
+    <string name="keys_empty_text">Generate a key here and copy its public part to the server. It\'s stored encrypted and, if you want, synced.</string>
+    <string name="keys_generate_title">Generate key</string>
+    <string name="keys_with_passphrase">%1$s · with passphrase</string>
+    <string name="keys_copy_public">Copy public key</string>
+    <string name="keys_name_placeholder">My phone</string>
+    <string name="keys_passphrase_optional">Passphrase (optional)</string>
+    <string name="keys_device_only_check">This phone only (not synced)</string>
+    <string name="keys_generating">Generating…</string>
+    <string name="keys_generate">Generate</string>
+    <string name="keys_generate_failed">Couldn\'t generate the key</string>
+    <string name="keys_import_title">Import key</string>
+    <string name="keys_private_key">Private key</string>
+    <string name="keys_passphrase_if_any">Passphrase (if it has one)</string>
+    <string name="keys_imported_label">Imported</string>
+    <string name="keys_import_failed">Couldn\'t import the key</string>
+    <string name="keys_import">Import</string>
+    <string name="keys_delete_text">Hosts that use it will no longer be able to connect with it.</string>
+
+    <!-- Keychain: identities -->
+    <string name="identities_empty_title">No identities</string>
+    <string name="identities_empty_text">An identity pairs a username with its password or key so you can use it on several hosts.</string>
+    <string name="identities_new">New identity</string>
+    <string name="identities_edit">Edit identity</string>
+    <string name="identities_has_password">password</string>
+    <string name="identities_key">key %1$s</string>
+    <string name="identities_password_keep">Password (empty = keep)</string>
+    <string name="identities_password_optional">Password (optional)</string>
+    <string name="identities_delete_text">Hosts that use it will have to use another one.</string>
+
+    <!-- Snippets -->
+    <string name="snippets_new">New snippet</string>
+    <string name="snippets_empty_title">No snippets</string>
+    <string name="snippets_empty_text">Save commands you use often and paste them into the terminal with one tap. They support variables like {{service}}.</string>
+    <string name="snippets_edit">Edit snippet</string>
+    <string name="snippets_command">Command</string>
+    <string name="snippets_variables_hint">Variables: {{name}}</string>
+    <string name="snippets_description_optional">Description (optional)</string>
+    <string name="snippets_delete_text">It\'s deleted on all your devices when syncing.</string>
+    <string name="snippets_none_yet">You don\'t have any snippets yet. Create them in Settings › Snippets or on the desktop.</string>
+    <string name="snippets_run">Run</string>
+
+    <!-- Known hosts -->
+    <string name="known_hosts_empty_title">No known hosts</string>
+    <string name="known_hosts_empty_text">When you connect to a server for the first time and trust its fingerprint, it shows up here.</string>
+    <string name="known_hosts_forget">Forget</string>
+    <string name="known_hosts_forget_title">Forget %1$s?</string>
+    <string name="known_hosts_forget_text">Next time you connect you\'ll be asked again whether you trust its fingerprint.</string>
+
+    <!-- Sessions -->
+    <string name="sessions_load_failed">Couldn\'t load the sessions</string>
+    <string name="sessions_empty_title">No open sessions</string>
+    <string name="sessions_empty_text_synced">Open a host from the Hosts tab. Persistent sessions stay alive on the server even if you close the app.</string>
+    <string name="sessions_empty_text_local">Open a host from the Hosts tab. With an account on a server, sessions also stay alive when you close the app.</string>
+    <string name="sessions_open_here">Open on this phone</string>
+    <string name="sessions_connected_server">Connected · on the server</string>
+    <string name="sessions_connected_ssh">Connected · SSH from the phone</string>
+    <string name="sessions_asleep">Not connected · tap to attach</string>
+    <string name="sessions_on_server">On the server</string>
+    <string name="sessions_shared">Shared with you</string>
+    <string name="sessions_recent">Recent</string>
+    <string name="sessions_terminate_named">End “%1$s”?</string>
+    <string name="sessions_terminate_text">It\'s closed on the server for everyone connected to it.</string>
+    <string name="sessions_terminate">End</string>
+    <string name="sessions_close_failed">Couldn\'t close the session</string>
+    <string name="session_state_connecting">Connecting</string>
+    <string name="session_state_running">Running</string>
+    <string name="session_state_host_offline">Host offline</string>
+    <string name="session_state_closed">Closed</string>
+    <string name="session_state_failed">Failed</string>
+
+    <!-- Terminal -->
+    <string name="term_connecting">Connecting…</string>
+    <string name="term_connecting_to">Connecting to %1$s…</string>
+    <string name="term_connecting_server">Connecting to the server…</string>
+    <string name="term_reconnecting">Reconnecting…</string>
+    <string name="term_connect_failed">Couldn\'t connect</string>
+    <string name="term_session_ended_code">The session ended (code %1$s)</string>
+    <string name="term_connection_closed">Connection closed</string>
+    <string name="term_password_for">Password for %1$s</string>
+    <string name="term_key_passphrase">Key passphrase</string>
+    <string name="term_open_session_failed">Couldn\'t open the session</string>
+    <string name="term_server_session_closed">The server session has been closed</string>
+    <string name="term_host_offline_waiting">The host is offline; waiting for it to come back…</string>
+    <string name="term_session_closed">Session closed</string>
+    <string name="term_server_session">Server session</string>
+    <string name="term_server_session_lower">server session</string>
+    <string name="term_ssh_from_phone">SSH from the phone</string>
+    <string name="term_disconnected">Disconnected</string>
+    <string name="term_not_connected">Not connected</string>
+    <string name="term_keyboard">Keyboard</string>
+    <string name="term_copy_screen">Copy screen</string>
+    <string name="term_font_bigger">Larger text</string>
+    <string name="term_font_smaller">Smaller text</string>
+    <string name="term_reconnect">Reconnect</string>
+    <string name="term_terminate_server_session">End the server session</string>
+    <string name="term_close_tab_keep">Close tab (stays on the server)</string>
+    <string name="term_open_another">Open another session</string>
+    <string name="term_trust_title">Trust %1$s?</string>
+    <string name="term_trust_text">This is the first time you connect to this server. Check that its fingerprint is the right one:</string>
+    <string name="term_trust_connect">Trust and connect</string>
+    <string name="term_terminate_title">End the session?</string>
+    <string name="term_terminate_text">It\'s closed on the server for everyone connected to it. Whatever is running stops.</string>
+    <string name="term_retry">Retry</string>
+    <string name="term_answer">Answer</string>
+
+    <!-- Background service notification -->
+    <string name="notification_channel_terminals">Open terminals</string>
+    <string name="notification_channel_terminals_description">Keeps SSH connections alive while the app is in the background</string>
+    <string name="notification_tap_to_return">Tap to return to Termoak</string>
+    <string name="notification_close_all">Close all</string>
+
+    <!-- AI tasks -->
+    <string name="ai_status_queued">Queued</string>
+    <string name="ai_status_running">Working</string>
+    <string name="ai_status_waiting">Waiting for your approval</string>
+    <string name="ai_status_completed">Done</string>
+    <string name="ai_status_failed">Failed</string>
+    <string name="ai_status_cancelled">Cancelled</string>
+    <string name="ai_load_tasks_failed">Couldn\'t load the tasks</string>
+    <string name="ai_signed_out_title">The AI lives on the server</string>
+    <string name="ai_signed_out_text">Sign in to your server to start tasks, follow them and approve what the AI wants to do.</string>
+    <string name="ai_new_task">New task</string>
+    <string name="ai_empty_title">No tasks yet</string>
+    <string name="ai_empty_text">Ask the AI to check a server, track down an error or make a change. It works in the background and asks before touching anything.</string>
+    <string name="ai_waiting_approval">Waiting for your approval</string>
+    <string name="ai_tasks">Tasks</string>
+    <string name="ai_asks_permission">The AI is asking for permission</string>
+    <string name="ai_approve">Approve</string>
+    <string name="ai_deny">Deny</string>
+    <string name="ai_approve_always">Always approve</string>
+    <string name="ai_mode_ask">Ask</string>
+    <string name="ai_mode_confirm">Always ask</string>
+    <string name="ai_mode_auto">Autonomous</string>
+    <string name="ai_mode_read_only">Read only</string>
+    <string name="ai_mode_read_only_hint">Only runs commands that don\'t change anything.</string>
+    <string name="ai_mode_ask_hint">Asks for permission before any change.</string>
+    <string name="ai_mode_confirm_hint">Asks for permission before every command on a host, even if it only reads.</string>
+    <string name="ai_mode_auto_hint">Makes changes without asking. Use it with care.</string>
+    <string name="ai_prompt_label">What do you want it to do?</string>
+    <string name="ai_prompt_placeholder">Find out why nginx returns 502 on web-1</string>
+    <string name="ai_no_hosts">You don\'t have any hosts.</string>
+    <string name="ai_create_failed">Couldn\'t create the task</string>
+    <string name="ai_creating">Creating…</string>
+    <string name="ai_start">Start</string>
+    <string name="ai_load_task_failed">Couldn\'t load the task</string>
+    <string name="ai_task">Task</string>
+    <string name="ai_reply_placeholder">Reply or ask for something else</string>
+
+    <!-- Copilot -->
+    <string name="copilot_title">Copilot</string>
+    <string name="copilot_suggestion_error">What does this error mean?</string>
+    <string name="copilot_suggestion_resources">Check disk and memory usage</string>
+    <string name="copilot_suggestion_slow">Why is this server slow?</string>
+    <string name="copilot_signed_out_title">The AI works on the server</string>
+    <string name="copilot_signed_out_text">To use the copilot, sign in to your server (Settings › Account).</string>
+    <string name="copilot_stop">Stop</string>
+    <string name="copilot_new_conversation">New conversation</string>
+    <string name="copilot_this_terminal">This terminal</string>
+    <string name="copilot_will_share">When you ask, the AI will be able to type the commands in this terminal (it\'s shared with your server, only for you).</string>
+    <string name="copilot_terminal_access">The AI types the commands in this terminal: you\'ll see them run.</string>
+    <string name="copilot_no_access">Couldn\'t give the AI access to this terminal: it sees the screen but can\'t type in it.</string>
+    <string name="copilot_empty_title">Ask it something about this terminal</string>
+    <string name="copilot_empty_text">It types the commands in your terminal (you see them run) and tells you here what it\'s doing and what it needs you to approve.</string>
+    <string name="copilot_working">Working…</string>
+    <string name="copilot_input_placeholder">Ask a question or for a task</string>
+    <string name="copilot_share_title">Copilot · %1$s</string>
+    <string name="copilot_change_mode_failed">Couldn\'t change the permissions</string>
+    <string name="copilot_load_failed">Couldn\'t load the conversation</string>
+
+    <!-- Plurals -->
+    <plurals name="time_days_ago">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <plurals name="drawer_terminals_open">
+        <item quantity="one">%d open</item>
+        <item quantity="other">%d open</item>
+    </plurals>
+    <plurals name="settings_two_factor_on">
+        <item quantity="one">On · %d recovery code</item>
+        <item quantity="other">On · %d recovery codes</item>
+    </plurals>
+    <plurals name="hosts_count">
+        <item quantity="one">%d host</item>
+        <item quantity="other">%d hosts</item>
+    </plurals>
+    <plurals name="hosts_server_sessions">
+        <item quantity="one">%d session running on the server</item>
+        <item quantity="other">%d sessions running on the server</item>
+    </plurals>
+    <plurals name="sessions_viewers">
+        <item quantity="one">%d connected</item>
+        <item quantity="other">%d connected</item>
+    </plurals>
+    <plurals name="notification_terminals_open">
+        <item quantity="one">%d open terminal</item>
+        <item quantity="other">%d open terminals</item>
+    </plurals>
+
+    <!-- Settings → AI: your own API keys and the AI credit -->
+    <string name="settings_ai_hint">Your own API keys and this month\'s credit</string>
+    <string name="ai_keys_open">AI settings</string>
+    <string name="ai_keys_load_failed">Couldn\'t load the AI settings</string>
+    <string name="ai_keys_retry">Try again</string>
+    <string name="ai_keys_own_only">AI runs with your own API keys</string>
+    <string name="ai_keys_own_only_none">Add a key from one of these providers to use the AI.</string>
+    <string name="ai_keys_credit_used">%1$s of %2$s used this month</string>
+    <string name="ai_keys_credit_left">%1$s left</string>
+    <string name="ai_keys_server_ai">Your plan includes the server\'s AI</string>
+    <string name="ai_keys_spent">%1$s spent this month</string>
+    <string name="ai_keys_own_first">Your keys are used first and don\'t spend credit</string>
+    <string name="ai_keys_providers">Your API keys</string>
+    <string name="ai_keys_saved">Saved</string>
+    <string name="ai_keys_saved_line">•••• %1$s · %2$s</string>
+    <string name="ai_keys_model_default">Default model</string>
+    <string name="ai_keys_model_default_named">%1$s (default)</string>
+    <string name="ai_keys_key_label">API key</string>
+    <string name="ai_keys_key_replace">New API key</string>
+    <string name="ai_keys_model_label">Model</string>
+    <string name="ai_keys_model_hint">Pick one or type its name. Empty: the provider\'s default</string>
+    <string name="ai_keys_test">Test</string>
+    <string name="ai_keys_testing">Testing…</string>
+    <string name="ai_keys_test_ok">The key works</string>
+    <string name="ai_keys_test_rejected">The provider rejected the key: %1$s</string>
+    <string name="ai_keys_test_rejected_plain">The provider rejected the key</string>
+    <string name="ai_keys_test_failed">Couldn\'t test the key</string>
+    <string name="ai_keys_saved_ok">Key saved</string>
+    <string name="ai_keys_deleted">Key deleted</string>
+    <string name="ai_keys_delete_failed">Couldn\'t delete the key</string>
+    <string name="ai_keys_delete_title">Delete your %1$s key?</string>
+    <string name="ai_keys_delete_text">The AI will stop using it. You can add it again at any time.</string>
+    <string name="ai_keys_privacy">Keys are stored encrypted on your server and are never shown again, not even to you: only their last 4 characters are kept so you can tell them apart.</string>
+</resources>

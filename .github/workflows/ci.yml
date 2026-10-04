@@ -1,0 +1,41 @@
+name: CI
+
+# Builds a debug APK (engine for arm64-v8a and x86_64) in the same image as
+# the releases (core/scripts/android-builder.Dockerfile). Public repository:
+# GitHub Actions minutes are free.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md", "LICENSE"]
+  pull_request:
+    paths-ignore: ["docs/**", "**/*.md", "LICENSE"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Build image
+        run: docker build -t termoak-android-builder - < core/scripts/android-builder.Dockerfile
+      - name: Engine and APK
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src termoak-android-builder bash -c "set -e
+            export PATH=/usr/local/cargo/bin:\$PATH
+            cd core
+            cargo ndk -t arm64-v8a -t x86_64 --platform 26 -o bindings/kotlin/src/main/jniLibs \
+              build -p termoak-ffi --lib --locked
+            cd ..
+            ./gradlew --no-daemon assembleDebug"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: termoak-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
