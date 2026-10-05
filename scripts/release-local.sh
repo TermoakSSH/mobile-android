@@ -151,6 +151,11 @@ cmd_android_keystore() {
 
 build_android_image() {
   [[ -f core/Cargo.toml ]] || die "the core submodule is missing: git submodule update --init"
+  # Built only when missing (it is ~7 GB and slow to rebuild without the Docker
+  # cache); REBUILD_IMAGE=1 rebuilds it, e.g. after the Dockerfile changes.
+  if [[ "${REBUILD_IMAGE:-0}" != 1 ]] && docker image inspect termoak-android-builder >/dev/null 2>&1; then
+    return
+  fi
   say "Android build image"
   docker build -q -t termoak-android-builder - <core/scripts/android-builder.Dockerfile >/dev/null
 }
