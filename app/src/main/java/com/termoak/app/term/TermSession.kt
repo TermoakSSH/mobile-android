@@ -53,6 +53,8 @@ val InitialConnecting = TermState.Connecting(uiText(R.string.term_connecting))
  */
 abstract class TermSession(val label: String, val hostId: String?) {
     val id: String = UUID.randomUUID().toString()
+    /** When the tab was opened (for the Connections list). */
+    val openedAt: Long = System.currentTimeMillis()
     val screen = TerminalScreen(80u, 24u, 0u)
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 

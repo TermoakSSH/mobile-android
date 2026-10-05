@@ -26,7 +26,6 @@
     <string name="common_sign_in">Iniciar sesión</string>
     <string name="common_send">Enviar</string>
     <string name="common_more">Más</string>
-    <string name="common_menu">Menú</string>
     <string name="common_options">Opciones</string>
     <string name="common_port">Puerto</string>
     <string name="common_username">Usuario</string>
@@ -60,17 +59,9 @@
     <string name="section_keychain">Llavero</string>
     <string name="section_snippets">Snippets</string>
     <string name="section_known_hosts">Hosts conocidos</string>
-    <string name="section_sessions">Sesiones</string>
     <string name="section_ai">IA</string>
     <string name="section_settings">Ajustes</string>
-    <string name="drawer_device_only">Solo en este dispositivo</string>
     <string name="drawer_signed_in">Conectado</string>
-    <string name="drawer_synced_live">Sincronizado · en directo</string>
-    <string name="drawer_synced">Sincronizado</string>
-    <string name="drawer_sync_prompt">Sincroniza con tu servidor</string>
-    <string name="drawer_group_vault">Vault</string>
-    <string name="drawer_group_server">Servidor</string>
-    <string name="drawer_group_terminals">Terminales</string>
 
     <!-- Sign in -->
     <string name="login_tagline">Tus hosts, claves y sesiones, sincronizados con tu servidor.</string>
@@ -259,8 +250,8 @@
     <!-- Sessions -->
     <string name="sessions_load_failed">No se pudieron cargar las sesiones</string>
     <string name="sessions_empty_title">No hay sesiones abiertas</string>
-    <string name="sessions_empty_text_synced">Abre un host desde la pestaña Hosts. Las sesiones persistentes siguen vivas en el servidor aunque cierres la app.</string>
-    <string name="sessions_empty_text_local">Abre un host desde la pestaña Hosts. Con una cuenta en el servidor, además, las sesiones siguen vivas aunque cierres la app.</string>
+    <string name="sessions_empty_text_synced">Abre un host desde el Vault. Las sesiones persistentes siguen vivas en el servidor aunque cierres la app.</string>
+    <string name="sessions_empty_text_local">Abre un host desde el Vault. Con una cuenta en el servidor, además, las sesiones siguen vivas aunque cierres la app.</string>
     <string name="sessions_open_here">Abiertas en este móvil</string>
     <string name="sessions_connected_server">Conectada · en el servidor</string>
     <string name="sessions_connected_ssh">Conectada · SSH desde el móvil</string>
@@ -383,11 +374,6 @@
         <item quantity="many">hace %d días</item>
         <item quantity="other">hace %d días</item>
     </plurals>
-    <plurals name="drawer_terminals_open">
-        <item quantity="one">%d abierto</item>
-        <item quantity="many">%d abiertos</item>
-        <item quantity="other">%d abiertos</item>
-    </plurals>
     <plurals name="settings_two_factor_on">
         <item quantity="one">Activada · %d código de recuperación</item>
         <item quantity="many">Activada · %d códigos de recuperación</item>
@@ -447,4 +433,98 @@
     <string name="ai_keys_delete_title">¿Borrar tu clave de %1$s?</string>
     <string name="ai_keys_delete_text">La IA dejará de usarla. Puedes volver a añadirla cuando quieras.</string>
     <string name="ai_keys_privacy">Las claves se guardan cifradas en tu servidor y no se vuelven a mostrar, ni siquiera a ti: solo se conservan sus 4 últimos caracteres para distinguirlas.</string>
+
+    <!-- Navigation (bottom bar / rail), the Vault sections, Connections, tunnels and import -->
+    <string name="nav_vault">Vault</string>
+    <string name="nav_connections">Conexiones</string>
+    <string name="section_tunnels">Túneles</string>
+    <string name="hosts_copy_address">Copiar dirección</string>
+    <string name="hosts_address_copied">Dirección copiada</string>
+    <string name="hosts_new_key">Nueva clave</string>
+    <string name="hosts_import_config_hint">Hosts de un fichero de configuración de OpenSSH</string>
+    <string name="hosts_search_clear">Borrar la búsqueda</string>
+    <string name="hosts_favorite">Favorito</string>
+    <string name="hosts_no_match_text">La búsqueda mira nombres, direcciones, usuarios y etiquetas.</string>
+    <string name="hosts_group_empty_title">Este grupo está vacío</string>
+    <string name="hosts_group_empty_text">Añade un host, o mueve aquí uno desde su editor.</string>
+    <string name="connections_close_all">Cerrar todas</string>
+    <string name="connections_close_all_text">Se cortan las conexiones SSH desde este teléfono. Las sesiones del servidor siguen vivas allí.</string>
+    <string name="connections_open_vault">Ir al Vault</string>
+    <string name="forwards_new">Nuevo túnel</string>
+    <string name="forwards_edit">Editar túnel</string>
+    <string name="forwards_empty_title">No hay túneles</string>
+    <string name="forwards_empty_text">Crea un túnel para llegar a servicios internos (bases de datos, paneles web…) a través de tus servidores SSH.</string>
+    <string name="forwards_no_hosts">Primero crea el host por el que pasará el túnel</string>
+    <string name="forwards_note">Los túneles se sincronizan con tus dispositivos y los arranca Termoak para escritorio.</string>
+    <string name="forwards_auto">automático</string>
+    <string name="forwards_route_local">%1$s → %2$s vía %3$s</string>
+    <string name="forwards_route_remote">%2$s en %1$s → %3$s</string>
+    <string name="forwards_route_dynamic">SOCKS5 en %1$s vía %2$s</string>
+    <string name="forwards_kind_local">Local</string>
+    <string name="forwards_kind_remote">Remoto</string>
+    <string name="forwards_kind_dynamic">SOCKS</string>
+    <string name="forwards_kind_local_hint">Un puerto de tu equipo llega a un destino a través del servidor (-L).</string>
+    <string name="forwards_kind_remote_hint">Un puerto del servidor llega a un destino desde tu equipo (-R).</string>
+    <string name="forwards_kind_dynamic_hint">Un proxy SOCKS5 en tu equipo que sale por el servidor (-D).</string>
+    <string name="forwards_label_placeholder">Base de datos</string>
+    <string name="forwards_ssh_host">Host SSH</string>
+    <string name="forwards_bind_address">Dirección de escucha</string>
+    <string name="forwards_destination">Destino</string>
+    <string name="forwards_auto_start">Arrancar automáticamente al conectar con el host</string>
+    <string name="import_title">Importar configuración SSH</string>
+    <string name="import_intro">Crea un host por cada «Host» de un fichero de configuración de OpenSSH (~/.ssh/config), con su usuario, puerto, saltos (ProxyJump) y túneles. Los hosts que ya existen con el mismo nombre se saltan, y las claves (IdentityFile) solo se encuentran si su ruta existe en este teléfono.</string>
+    <string name="import_choose_file">Elegir un fichero</string>
+    <string name="import_config">Configuración</string>
+    <string name="import_config_placeholder">Host web\n  HostName 203.0.113.10\n  User deploy</string>
+    <string name="import_group">Grupo (opcional)</string>
+    <string name="import_group_placeholder">p. ej. «Importados»</string>
+    <string name="import_device_only_hint">No sincronizar los hosts y claves importados</string>
+    <string name="import_preview">Vista previa</string>
+    <string name="import_run">Importar</string>
+    <string name="import_failed">No se pudo importar</string>
+    <string name="import_read_failed">No se pudo leer el fichero</string>
+    <string name="import_nothing">No hay hosts nuevos que importar.</string>
+    <string name="import_section_hosts">Hosts que se crearán</string>
+    <string name="import_section_skipped">Se omitirán</string>
+    <string name="import_section_warnings">Avisos</string>
+    <plurals name="connections_close_all_title">
+        <item quantity="one">¿Cerrar %d conexión?</item>
+        <item quantity="many">¿Cerrar %d conexiones?</item>
+        <item quantity="other">¿Cerrar %d conexiones?</item>
+    </plurals>
+    <plurals name="import_done">
+        <item quantity="one">%d host importado</item>
+        <item quantity="many">%d hosts importados</item>
+        <item quantity="other">%d hosts importados</item>
+    </plurals>
+    <plurals name="import_new_hosts">
+        <item quantity="one">%d host nuevo</item>
+        <item quantity="many">%d hosts nuevos</item>
+        <item quantity="other">%d hosts nuevos</item>
+    </plurals>
+    <plurals name="import_jump_hosts">
+        <item quantity="one">%d salto</item>
+        <item quantity="many">%d saltos</item>
+        <item quantity="other">%d saltos</item>
+    </plurals>
+    <plurals name="import_new_keys">
+        <item quantity="one">%d clave nueva</item>
+        <item quantity="many">%d claves nuevas</item>
+        <item quantity="other">%d claves nuevas</item>
+    </plurals>
+    <plurals name="import_tunnels">
+        <item quantity="one">%d túnel</item>
+        <item quantity="many">%d túneles</item>
+        <item quantity="other">%d túneles</item>
+    </plurals>
+    <plurals name="import_skipped">
+        <item quantity="one">%d omitido</item>
+        <item quantity="many">%d omitidos</item>
+        <item quantity="other">%d omitidos</item>
+    </plurals>
+    <plurals name="import_warnings">
+        <item quantity="one">%d aviso</item>
+        <item quantity="many">%d avisos</item>
+        <item quantity="other">%d avisos</item>
+    </plurals>
 </resources>

@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.toColorInt
 import com.termoak.app.R
 
 /** Short notices ("Copied", errors...) from any screen. */
@@ -43,38 +44,61 @@ val LocalSnackbar = staticCompositionLocalOf { SnackbarHostState() }
 fun osBadge(os: String?): Pair<String, Color>? = when (os?.trim()?.lowercase()) {
     null, "" -> null
     "ubuntu" -> "Ubuntu" to Color(0xFFE95420)
-    "debian" -> "Debian" to Color(0xFFD70A53)
+    "debian", "devuan" -> "Debian" to Color(0xFFD70A53)
     "raspbian" -> "Raspbian" to Color(0xFFC51A4A)
     "linuxmint", "mint" -> "Mint" to Color(0xFF87CF3E)
-    "fedora" -> "Fedora" to Color(0xFF51A2DA)
+    "pop" -> "Pop!_OS" to Color(0xFF48B9C7)
+    "elementary" -> "elementary" to Color(0xFF64BAFF)
+    "zorin" -> "Zorin" to Color(0xFF15A6F0)
+    "kali" -> "Kali" to Color(0xFF557C94)
+    "fedora", "nobara" -> "Fedora" to Color(0xFF51A2DA)
     "centos" -> "CentOS" to Color(0xFF932279)
     "rocky" -> "Rocky" to Color(0xFF10B981)
     "almalinux" -> "Alma" to Color(0xFF0F4266)
     "rhel" -> "RHEL" to Color(0xFFEE0000)
-    "arch" -> "Arch" to Color(0xFF1793D1)
-    "alpine" -> "Alpine" to Color(0xFF0D597F)
-    "opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles" -> "SUSE" to Color(0xFF73BA25)
+    "arch", "artix", "garuda" -> "Arch" to Color(0xFF1793D1)
+    "manjaro" -> "Manjaro" to Color(0xFF35BF5C)
+    "endeavouros" -> "EndeavourOS" to Color(0xFF7F3FBF)
+    "alpine", "postmarketos" -> "Alpine" to Color(0xFF0D597F)
+    "opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles", "sled" -> "SUSE" to Color(0xFF73BA25)
+    "gentoo" -> "Gentoo" to Color(0xFF54487A)
+    "nixos" -> "NixOS" to Color(0xFF5277C3)
+    "void" -> "Void" to Color(0xFF478061)
     "freebsd" -> "FreeBSD" to Color(0xFFAB2B28)
     "macos", "darwin" -> "macOS" to Color(0xFF8E8E93)
     "windows" -> "Windows" to Color(0xFF0078D4)
+    "linux" -> "Linux" to Color(0xFF4A5468)
     else -> os.replaceFirstChar { it.uppercase() } to Color(0xFF6B7A99)
 }
 
-/** Square filled with the color of the host's OS (like Termius'). */
+/** Tile colors for hosts without a color or a detected system (picked by name). */
+private val TilePalette = listOf(
+    Color(0xFF4F7CFF), Color(0xFF3FB27F), Color(0xFFE8A33D), Color(0xFF9B6BFF),
+    Color(0xFFE5534B), Color(0xFF2BA6B5), Color(0xFFD9640F), Color(0xFF6B7A99),
+)
+
+/**
+ * Rounded square of a host, like Termius': the logo of its detected system
+ * (on the host color or the system's), or the initial of its name.
+ */
 @Composable
 fun HostTile(label: String, os: String?, color: String? = null, size: Dp = 42.dp) {
     val badge = osBadge(os)
-    val bg = color?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
-        ?: badge?.second ?: MaterialTheme.colorScheme.primary
-    // With a detected OS, its initials (UB, DE...); otherwise the name's.
-    val text = badge?.first?.take(2)?.uppercase()
-        ?: label.split(' ', '-', '_', '.').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1).uppercase() }
-            .ifEmpty { "?" }
+    val logo = osLogo(os)
+    val bg = color?.let { runCatching { Color(it.toColorInt()) }.getOrNull() }
+        ?: badge?.second
+        ?: TilePalette[Math.floorMod(label.lowercase().hashCode(), TilePalette.size)]
     Box(
         Modifier.size(size).clip(RoundedCornerShape(size / 4.5f)).background(bg),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.34f).sp)
+        if (logo != null) {
+            Icon(logo, badge?.first, Modifier.size(size * 0.56f), tint = Color.White)
+        } else {
+            // With a detected system without a logo, its initial; otherwise the name's.
+            val initial = (badge?.first ?: label).trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
+            Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.42f).sp)
+        }
     }
 }
 

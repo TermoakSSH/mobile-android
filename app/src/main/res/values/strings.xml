@@ -27,7 +27,6 @@
     <string name="common_sign_in">Sign in</string>
     <string name="common_send">Send</string>
     <string name="common_more">More</string>
-    <string name="common_menu">Menu</string>
     <string name="common_options">Options</string>
     <string name="common_port">Port</string>
     <string name="common_username">Username</string>
@@ -61,17 +60,9 @@
     <string name="section_keychain">Keychain</string>
     <string name="section_snippets">Snippets</string>
     <string name="section_known_hosts">Known hosts</string>
-    <string name="section_sessions">Sessions</string>
     <string name="section_ai">AI</string>
     <string name="section_settings">Settings</string>
-    <string name="drawer_device_only">This device only</string>
     <string name="drawer_signed_in">Signed in</string>
-    <string name="drawer_synced_live">Synced · live</string>
-    <string name="drawer_synced">Synced</string>
-    <string name="drawer_sync_prompt">Sync with your server</string>
-    <string name="drawer_group_vault">Vault</string>
-    <string name="drawer_group_server">Server</string>
-    <string name="drawer_group_terminals">Terminals</string>
 
     <!-- Sign in -->
     <string name="login_tagline">Your hosts, keys and sessions, synced with your server.</string>
@@ -260,8 +251,8 @@
     <!-- Sessions -->
     <string name="sessions_load_failed">Couldn\'t load the sessions</string>
     <string name="sessions_empty_title">No open sessions</string>
-    <string name="sessions_empty_text_synced">Open a host from the Hosts tab. Persistent sessions stay alive on the server even if you close the app.</string>
-    <string name="sessions_empty_text_local">Open a host from the Hosts tab. With an account on a server, sessions also stay alive when you close the app.</string>
+    <string name="sessions_empty_text_synced">Open a host from the Vault. Persistent sessions stay alive on the server even if you close the app.</string>
+    <string name="sessions_empty_text_local">Open a host from the Vault. With an account on a server, sessions also stay alive when you close the app.</string>
     <string name="sessions_open_here">Open on this phone</string>
     <string name="sessions_connected_server">Connected · on the server</string>
     <string name="sessions_connected_ssh">Connected · SSH from the phone</string>
@@ -383,10 +374,6 @@
         <item quantity="one">%d day ago</item>
         <item quantity="other">%d days ago</item>
     </plurals>
-    <plurals name="drawer_terminals_open">
-        <item quantity="one">%d open</item>
-        <item quantity="other">%d open</item>
-    </plurals>
     <plurals name="settings_two_factor_on">
         <item quantity="one">On · %d recovery code</item>
         <item quantity="other">On · %d recovery codes</item>
@@ -441,4 +428,90 @@
     <string name="ai_keys_delete_title">Delete your %1$s key?</string>
     <string name="ai_keys_delete_text">The AI will stop using it. You can add it again at any time.</string>
     <string name="ai_keys_privacy">Keys are stored encrypted on your server and are never shown again, not even to you: only their last 4 characters are kept so you can tell them apart.</string>
+
+    <!-- Navigation (bottom bar / rail), the Vault sections, Connections, tunnels and import -->
+    <string name="nav_vault">Vault</string>
+    <string name="nav_connections">Connections</string>
+    <string name="section_tunnels">Tunnels</string>
+    <string name="hosts_copy_address">Copy address</string>
+    <string name="hosts_address_copied">Address copied</string>
+    <string name="hosts_new_key">New key</string>
+    <string name="hosts_import_config_hint">Hosts from an OpenSSH config file</string>
+    <string name="hosts_search_clear">Clear search</string>
+    <string name="hosts_favorite">Favorite</string>
+    <string name="hosts_no_match_text">The search looks at names, addresses, users and tags.</string>
+    <string name="hosts_group_empty_title">This group is empty</string>
+    <string name="hosts_group_empty_text">Add a host, or move one here from its editor.</string>
+    <string name="connections_close_all">Close all</string>
+    <string name="connections_close_all_text">SSH connections from this phone are cut. Sessions on the server stay alive there.</string>
+    <string name="connections_open_vault">Go to the Vault</string>
+    <string name="forwards_new">New tunnel</string>
+    <string name="forwards_edit">Edit tunnel</string>
+    <string name="forwards_empty_title">No tunnels</string>
+    <string name="forwards_empty_text">Create a tunnel to reach internal services (databases, web panels…) through your SSH servers.</string>
+    <string name="forwards_no_hosts">First create the host the tunnel will go through</string>
+    <string name="forwards_note">Tunnels sync with your devices and Termoak for desktop starts them.</string>
+    <string name="forwards_auto">automatic</string>
+    <string name="forwards_route_local">%1$s → %2$s via %3$s</string>
+    <string name="forwards_route_remote">%2$s on %1$s → %3$s</string>
+    <string name="forwards_route_dynamic">SOCKS5 on %1$s via %2$s</string>
+    <string name="forwards_kind_local">Local</string>
+    <string name="forwards_kind_remote">Remote</string>
+    <string name="forwards_kind_dynamic">SOCKS</string>
+    <string name="forwards_kind_local_hint">A port on your computer reaches a destination through the server (-L).</string>
+    <string name="forwards_kind_remote_hint">A port on the server reaches a destination from your computer (-R).</string>
+    <string name="forwards_kind_dynamic_hint">A SOCKS5 proxy on your computer that goes out through the server (-D).</string>
+    <string name="forwards_label_placeholder">Database</string>
+    <string name="forwards_ssh_host">SSH host</string>
+    <string name="forwards_bind_address">Listen address</string>
+    <string name="forwards_destination">Destination</string>
+    <string name="forwards_auto_start">Start automatically when connecting to the host</string>
+    <string name="import_title">Import SSH config</string>
+    <string name="import_intro">Creates a host for each “Host” of an OpenSSH config file (~/.ssh/config), with its user, port, jump hosts (ProxyJump) and tunnels. Hosts that already exist with the same name are skipped, and keys (IdentityFile) are only found if their path exists on this phone.</string>
+    <string name="import_choose_file">Choose a file</string>
+    <string name="import_config">Configuration</string>
+    <string name="import_config_placeholder">Host web\n  HostName 203.0.113.10\n  User deploy</string>
+    <string name="import_group">Group (optional)</string>
+    <string name="import_group_placeholder">e.g. “Imported”</string>
+    <string name="import_device_only_hint">Don\'t sync the imported hosts and keys</string>
+    <string name="import_preview">Preview</string>
+    <string name="import_run">Import</string>
+    <string name="import_failed">Couldn\'t import</string>
+    <string name="import_read_failed">Couldn\'t read the file</string>
+    <string name="import_nothing">There are no new hosts to import.</string>
+    <string name="import_section_hosts">Hosts that will be created</string>
+    <string name="import_section_skipped">Will be skipped</string>
+    <string name="import_section_warnings">Warnings</string>
+    <plurals name="connections_close_all_title">
+        <item quantity="one">Close %d connection?</item>
+        <item quantity="other">Close %d connections?</item>
+    </plurals>
+    <plurals name="import_done">
+        <item quantity="one">%d host imported</item>
+        <item quantity="other">%d hosts imported</item>
+    </plurals>
+    <plurals name="import_new_hosts">
+        <item quantity="one">%d new host</item>
+        <item quantity="other">%d new hosts</item>
+    </plurals>
+    <plurals name="import_jump_hosts">
+        <item quantity="one">%d jump host</item>
+        <item quantity="other">%d jump hosts</item>
+    </plurals>
+    <plurals name="import_new_keys">
+        <item quantity="one">%d new key</item>
+        <item quantity="other">%d new keys</item>
+    </plurals>
+    <plurals name="import_tunnels">
+        <item quantity="one">%d tunnel</item>
+        <item quantity="other">%d tunnels</item>
+    </plurals>
+    <plurals name="import_skipped">
+        <item quantity="one">%d skipped</item>
+        <item quantity="other">%d skipped</item>
+    </plurals>
+    <plurals name="import_warnings">
+        <item quantity="one">%d warning</item>
+        <item quantity="other">%d warnings</item>
+    </plurals>
 </resources>

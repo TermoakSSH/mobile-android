@@ -127,7 +127,7 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
     LaunchedEffect(Unit) { app.account.changes.collect { if (it == "ai" || it == "lagged") reload() } }
 
     if (loggedIn != true) {
-        ScreenScaffold(title = stringResource(R.string.section_ai)) { padding ->
+        ScreenScaffold(title = stringResource(R.string.section_ai), large = true) { padding ->
             EmptyState(
                 Icons.Outlined.CloudOff, stringResource(R.string.ai_signed_out_title),
                 stringResource(R.string.ai_signed_out_text),
@@ -139,6 +139,7 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
 
     ScreenScaffold(
         title = stringResource(R.string.section_ai),
+        large = true,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { nav.navigate(Routes.AI_NEW) },

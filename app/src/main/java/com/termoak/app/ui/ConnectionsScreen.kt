@@ -1,18 +1,24 @@
 package com.termoak.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Terminal
@@ -22,8 +28,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,26 +41,37 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
+import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
 import com.termoak.ffi.ServerSession
 import com.termoak.ffi.ServerSessionList
 import com.termoak.ffi.ServerSessionState
+import com.termoak.ffi.SshHost
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.launch
 
+/**
+ * Connections, like Termius': the terminals open on this phone (tap to go
+ * back to one, swipe or ✕ to close it) and, with an account, the sessions
+ * that live on the server, the ones shared with you and the recent ones.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SessionsScreen(app: TermoakApp, nav: NavHostController) {
+fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
@@ -60,6 +80,7 @@ fun SessionsScreen(app: TermoakApp, nav: NavHostController) {
     var server by remember { mutableStateOf<ServerSessionList?>(null) }
     var loading by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf<ServerSession?>(null) }
+    var closingAll by remember { mutableStateOf(false) }
     val hosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).associateBy { it.id } }
     val untitled = stringResource(R.string.common_session)
 
@@ -79,12 +100,24 @@ fun SessionsScreen(app: TermoakApp, nav: NavHostController) {
     LaunchedEffect(loggedIn) { reload() }
     LaunchedEffect(Unit) { app.account.changes.collect { if (it == "session" || it == "lagged") reload() } }
 
+    fun openTab(s: TermSession) {
+        app.sessions.select(s.id)
+        nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
+    }
     fun attach(s: ServerSession) {
         app.sessions.attach(s.id, s.title.ifBlank { s.hostId?.let { hosts[it]?.label } ?: untitled }, s.hostId)
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
 
-    ScreenScaffold(title = stringResource(R.string.section_sessions)) { padding ->
+    ScreenScaffold(
+        title = stringResource(R.string.nav_connections),
+        large = true,
+        actions = {
+            if (local.isNotEmpty()) {
+                IconButton(onClick = { closingAll = true }) { Icon(Icons.Outlined.LinkOff, stringResource(R.string.connections_close_all)) }
+            }
+        },
+    ) { padding ->
         PullToRefreshBox(isRefreshing = loading, onRefresh = { reload() }, modifier = Modifier.fillMaxSize().padding(padding)) {
             val active = server?.active.orEmpty()
             val shared = server?.shared.orEmpty()
@@ -94,61 +127,32 @@ fun SessionsScreen(app: TermoakApp, nav: NavHostController) {
                     Icons.Outlined.Terminal,
                     stringResource(R.string.sessions_empty_title),
                     stringResource(if (loggedIn == true) R.string.sessions_empty_text_synced else R.string.sessions_empty_text_local),
+                    action = stringResource(R.string.connections_open_vault),
+                    onAction = { nav.goTab(Routes.HOSTS) },
                 )
                 return@PullToRefreshBox
             }
-            LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (local.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_open_here)) }
                     items(local, key = { it.id }) { s ->
-                        val state by s.state.collectAsState()
-                        val title by s.title.collectAsState()
-                        ListItem(
-                            modifier = Modifier.clickable { app.sessions.select(s.id); nav.navigate(Routes.TERMINAL) { launchSingleTop = true } },
-                            headlineContent = { Text(title ?: s.label) },
-                            supportingContent = {
-                                Text(
-                                    when (val st = state) {
-                                        TermState.Running -> stringResource(
-                                            if (s.persistent) R.string.sessions_connected_server else R.string.sessions_connected_ssh,
-                                        )
-                                        is TermState.Connecting -> st.message.asString()
-                                        is TermState.Closed -> st.message.asString()
-                                        TermState.Asleep -> stringResource(R.string.sessions_asleep)
-                                    },
-                                    maxLines = 1,
-                                )
-                            },
-                            leadingContent = {
-                                Icon(
-                                    if (s.persistent) Icons.Outlined.CloudQueue else Icons.Outlined.PhoneAndroid, null,
-                                    tint = when (state) {
-                                        TermState.Running -> Brand.Green
-                                        is TermState.Connecting -> Brand.Amber
-                                        is TermState.Closed -> MaterialTheme.colorScheme.error
-                                        TermState.Asleep -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            },
-                            trailingContent = {
-                                IconButton(onClick = { app.sessions.close(s.id) }) {
-                                    Icon(Icons.Outlined.Close, stringResource(R.string.common_close))
-                                }
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        )
+                        SwipeToClose(Icons.Outlined.Close, onSwiped = { app.sessions.close(s.id) }) {
+                            LocalSessionRow(s, s.hostId?.let { hosts[it] }, onClick = { openTab(s) }, onClose = { app.sessions.close(s.id) })
+                        }
                     }
                 }
                 if (loggedIn == true && active.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_on_server)) }
                     items(active, key = { "a" + it.id }) { s ->
-                        ServerSessionRow(s, hosts[s.hostId ?: ""]?.label, onClick = { attach(s) }, onClose = { closing = s })
+                        SwipeToClose(Icons.Outlined.PowerSettingsNew, resetAfter = true, onSwiped = { closing = s }) {
+                            ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = { closing = s })
+                        }
                     }
                 }
                 if (loggedIn == true && shared.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_shared)) }
                     items(shared, key = { "s" + it.id }) { s ->
-                        ServerSessionRow(s, hosts[s.hostId ?: ""]?.label, onClick = { attach(s) }, onClose = null)
+                        ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = null)
                     }
                 }
                 if (loggedIn == true && recent.isNotEmpty()) {
@@ -163,7 +167,11 @@ fun SessionsScreen(app: TermoakApp, nav: NavHostController) {
                                     maxLines = 1,
                                 )
                             },
-                            leadingContent = { Icon(Icons.Outlined.History, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            leadingContent = {
+                                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Outlined.History, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         )
                     }
@@ -188,6 +196,91 @@ fun SessionsScreen(app: TermoakApp, nav: NavHostController) {
             }
         }
     }
+    if (closingAll) {
+        ConfirmDialog(
+            title = pluralStringResource(R.plurals.connections_close_all_title, local.size, local.size),
+            text = stringResource(R.string.connections_close_all_text),
+            confirm = stringResource(R.string.connections_close_all),
+            onDismiss = { closingAll = false },
+        ) { app.sessions.closeAll() }
+    }
+}
+
+/** A row that closes (or asks to) when swiped to either side. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToClose(icon: ImageVector, resetAfter: Boolean = false, onSwiped: () -> Unit, content: @Composable () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val state = rememberSwipeToDismissBoxState()
+    SwipeToDismissBox(
+        state,
+        backgroundContent = {
+            val end = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            Row(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
+                horizontalArrangement = if (end) Arrangement.End else Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically,
+            ) { Icon(icon, null, tint = MaterialTheme.colorScheme.onErrorContainer) }
+        },
+        onDismiss = {
+            onSwiped()
+            // Ending a server session asks first: the row comes back in the meantime.
+            if (resetAfter) scope.launch { state.reset() }
+        },
+    ) {
+        Box(Modifier.background(MaterialTheme.colorScheme.surface)) { content() }
+    }
+}
+
+/** Host tile with a dot of the given color on its corner. */
+@Composable
+private fun StatusTile(host: SshHost?, label: String, dot: Color) {
+    Box {
+        HostTile(host?.label ?: label, host?.os, host?.color, size = 44.dp)
+        Box(
+            Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp).size(14.dp).clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface).padding(2.dp).clip(CircleShape).background(dot),
+        )
+    }
+}
+
+@Composable
+private fun LocalSessionRow(s: TermSession, host: SshHost?, onClick: () -> Unit, onClose: () -> Unit) {
+    val state by s.state.collectAsState()
+    val title by s.title.collectAsState()
+    val status = when (val st = state) {
+        TermState.Running -> stringResource(if (s.persistent) R.string.sessions_connected_server else R.string.sessions_connected_ssh)
+        is TermState.Connecting -> st.message.asString()
+        is TermState.Closed -> st.message.asString()
+        TermState.Asleep -> stringResource(R.string.sessions_asleep)
+    }
+    ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        headlineContent = { Text(title ?: s.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (s.persistent) Icons.Outlined.CloudQueue else Icons.Outlined.PhoneAndroid, null,
+                    Modifier.size(14.dp).padding(end = 2.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    listOfNotNull(
+                        host?.let { (it.settings.username?.let { u -> "$u@" } ?: "") + it.address }?.takeIf { title != null },
+                        status,
+                        relativeTime(s.openedAt),
+                    ).joinToString(" · "),
+                    Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        leadingContent = { StatusTile(host, s.label, stateColor(state)) },
+        trailingContent = {
+            IconButton(onClick = onClose) {
+                Icon(Icons.Outlined.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+    )
 }
 
 /** Status of a finished session (`connecting`, `running`, `closed` or `failed`), translated when known. */
@@ -201,25 +294,31 @@ private fun recentStatus(status: String): String = when (status) {
 }
 
 @Composable
-private fun ServerSessionRow(s: ServerSession, hostLabel: String?, onClick: () -> Unit, onClose: (() -> Unit)?) {
+private fun ServerSessionRow(s: ServerSession, host: SshHost?, onClick: () -> Unit, onClose: (() -> Unit)?) {
     val (text, color) = when (val st = s.state) {
         is ServerSessionState.Running -> stringResource(R.string.session_state_running) to Brand.Green
         is ServerSessionState.Connecting -> st.message to Brand.Amber
         is ServerSessionState.HostOffline -> stringResource(R.string.session_state_host_offline) to Brand.Amber
         is ServerSessionState.Closed -> (st.reason ?: stringResource(R.string.session_state_closed)) to MaterialTheme.colorScheme.error
     }
+    val title = s.title.ifBlank { host?.label ?: stringResource(R.string.common_session) }
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
-        headlineContent = { Text(s.title.ifBlank { hostLabel ?: stringResource(R.string.common_session) }) },
+        headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             val viewers = s.viewers.size.takeIf { it > 1 }?.let { pluralStringResource(R.plurals.sessions_viewers, it, it) }
-            Text(listOfNotNull(text, relativeTime(s.createdAt), viewers).joinToString(" · "), maxLines = 1)
-        },
-        leadingContent = {
-            Box {
-                Icon(if (onClose == null) Icons.Outlined.Group else Icons.Outlined.CloudQueue, null, tint = color)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (onClose == null) Icons.Outlined.Group else Icons.Outlined.CloudQueue, null,
+                    Modifier.size(14.dp).padding(end = 2.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    listOfNotNull(text, relativeTime(s.createdAt), viewers).joinToString(" · "),
+                    Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
         },
+        leadingContent = { StatusTile(host, title, color) },
         trailingContent = {
             if (onClose != null) {
                 IconButton(onClick = onClose) {
@@ -233,3 +332,4 @@ private fun ServerSessionRow(s: ServerSession, hostLabel: String?, onClick: () -
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
     )
 }
+

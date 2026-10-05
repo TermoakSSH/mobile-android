@@ -11,9 +11,18 @@ The app is built in Docker, with nothing else to install:
 
 What it does:
 
-- **Hosts**: search, filters by group and favorites, detected OS, full
-  editor (password, key or identity, group, tags, notes, only on this phone)
-  and pull-to-refresh sync.
+- **Navigation** in the style of Termius: a bottom bar with Vault,
+  Connections, AI and Settings on phones, and a navigation rail on tablets.
+- **Vault**: hosts with search, groups as folders, favorites, tags and the
+  logo of the detected OS, a full editor (password, key or identity, group,
+  tags, notes, only on this phone) and pull-to-refresh sync. The "+" creates
+  hosts, groups and keys, or imports an OpenSSH config. Its sections also
+  hold the keychain (generate and import keys, copy the public key,
+  identities), tunnels (port forwarding rules, synced and started by the
+  desktop app), snippets and known hosts.
+- **Connections**: the terminals open on the phone (swipe to close them)
+  and, with an account, the sessions on the server, those shared with you
+  and the recent ones.
 - **Terminal**: the desktop emulator (`TerminalScreen`) with several tabs,
   pinch to zoom, two rows of extra keys (Esc, Ctrl, Alt, Tab, arrows…),
   snippets with variables, copy/paste, reconnect, and dialogs for the
@@ -24,10 +33,11 @@ What it does:
 - **AI**: tasks with their conversation, new tasks on specific hosts with a
   permission mode, and approving or denying actions from the phone (with a
   live notice in the tab).
-- **Keychain and snippets**: generate and import keys, copy the public key,
-  and create or edit snippets.
 - **Settings**: account, 2FA, font size, keep screen on, theme, and checking
   your server for APK updates.
+
+The OS logos come from [Simple Icons](https://simpleicons.org) (CC0); they
+are trademarks of their owners.
 
 ## Building
 
@@ -64,13 +74,13 @@ Docker.
 ## Releases
 
 The app is released as the `android-vX.Y.Z` GitHub release (currently
-0.3.7, `termoakVersion` in `gradle.properties`), with an APK signed with
+0.3.8, `termoakVersion` in `gradle.properties`), with an APK signed with
 your keystore, built in the `core/scripts/android-builder.Dockerfile` image
 (JDK 17, SDK 37, NDK 30, Rust and `cargo-ndk`):
 
 ```sh
 scripts/release-local.sh android-keystore     # once: the signing key
-scripts/release-local.sh version android 0.3.8
+scripts/release-local.sh version android 0.3.9
 scripts/release-local.sh build android        # dist/android/Termoak-android-vX.Y.Z.apk
 scripts/release-local.sh publish android
 ```

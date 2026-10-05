@@ -34,11 +34,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.ffi.KeyType
@@ -69,15 +71,21 @@ import com.termoak.ffi.SyncMode
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.launch
 
+/** What the keychain opens with, from the Vault's "+" ([Routes.keys]). */
+object KeysAction {
+    const val GENERATE = "generate"
+    const val IMPORT = "import"
+}
+
 @Composable
-fun KeysScreen(app: TermoakApp) {
+fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     var keys by remember { mutableStateOf(runCatching { app.core.listKeys() }.getOrDefault(emptyList())) }
-    var creating by remember { mutableStateOf(false) }
-    var importing by remember { mutableStateOf(false) }
+    var creating by rememberSaveable { mutableStateOf(action == KeysAction.GENERATE) }
+    var importing by rememberSaveable { mutableStateOf(action == KeysAction.IMPORT) }
     var deleting by remember { mutableStateOf<SshKey?>(null) }
     var fab by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(0) }
@@ -90,8 +98,8 @@ fun KeysScreen(app: TermoakApp) {
         scope.launch { snackbar.showSnackbar(resources.getString(R.string.keys_public_key_copied)) }
     }
 
-    ScreenScaffold(
-        title = stringResource(R.string.section_keychain),
+    VaultScaffold(
+        VaultSection.KEYCHAIN, nav,
         floatingActionButton = {
             if (tab == 0) Box {
                 ExtendedFloatingActionButton(
@@ -108,7 +116,7 @@ fun KeysScreen(app: TermoakApp) {
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-        TabRow(selectedTabIndex = tab) {
+        PrimaryTabRow(selectedTabIndex = tab) {
             Tab(tab == 0, { tab = 0 }, text = { Text(stringResource(R.string.keys_tab_keys, keys.size)) })
             Tab(tab == 1, { tab = 1 }, text = { Text(stringResource(R.string.keys_tab_identities, identities.size)) })
         }
@@ -263,7 +271,7 @@ fun KeysScreen(app: TermoakApp) {
 }
 
 @Composable
-fun SnippetsScreen(app: TermoakApp) {
+fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
     var snippets by remember { mutableStateOf(runCatching { app.core.listSnippets() }.getOrDefault(emptyList())) }
     var editing by remember { mutableStateOf<Snippet?>(null) }
     var deleting by remember { mutableStateOf<Snippet?>(null) }
@@ -272,8 +280,8 @@ fun SnippetsScreen(app: TermoakApp) {
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
 
-    ScreenScaffold(
-        title = stringResource(R.string.section_snippets),
+    VaultScaffold(
+        VaultSection.SNIPPETS, nav,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { editing = Snippet(id = "", name = "", script = "", description = "", tags = emptyList(), syncMode = null, updatedAt = 0L) },
@@ -458,10 +466,10 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
 
 /** Known hosts: the fingerprints of the servers you trust. */
 @Composable
-fun KnownHostsScreen(app: TermoakApp) {
+fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
     var list by remember { mutableStateOf(runCatching { app.core.listKnownHosts() }.getOrDefault(emptyList())) }
     var deleting by remember { mutableStateOf<KnownHost?>(null) }
-    ScreenScaffold(title = stringResource(R.string.section_known_hosts)) { padding ->
+    VaultScaffold(VaultSection.KNOWN_HOSTS, nav) { padding ->
         if (list.isEmpty()) {
             EmptyState(
                 Icons.Outlined.VerifiedUser, stringResource(R.string.known_hosts_empty_title),

@@ -135,7 +135,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
 
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
-    ScreenScaffold(title = stringResource(R.string.section_settings)) { padding ->
+    ScreenScaffold(title = stringResource(R.string.section_settings), large = true) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             // ----- Account -----
             SectionLabel(stringResource(R.string.settings_account))
@@ -221,10 +221,10 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             // ----- Vault -----
             SectionLabel(stringResource(R.string.settings_vault))
             Row0(Icons.Outlined.Key, stringResource(R.string.section_keychain), stringResource(R.string.settings_keychain_hint)) {
-                nav.navigate(Routes.KEYS)
+                nav.goTab(Routes.keys())
             }
             Row0(Icons.Outlined.Code, stringResource(R.string.section_snippets), stringResource(R.string.settings_snippets_hint)) {
-                nav.navigate(Routes.SNIPPETS)
+                nav.goTab(Routes.SNIPPETS)
             }
 
             // ----- Terminal -----
