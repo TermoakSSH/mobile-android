@@ -42,6 +42,14 @@ class Prefs(context: Context) {
         sp.edit().putBoolean("vibrate_bell", on).apply()
     }
 
+    private val _checkUpdates = MutableStateFlow(sp.getBoolean("check_updates", true))
+    /** Look for a new version of the app once a day (Updates). */
+    val checkUpdates: StateFlow<Boolean> = _checkUpdates
+    fun setCheckUpdates(on: Boolean) {
+        _checkUpdates.value = on
+        sp.edit { putBoolean("check_updates", on) }
+    }
+
     var lastServer: String?
         get() = sp.getString("last_server", null)
         set(v) = sp.edit().putString("last_server", v).apply()

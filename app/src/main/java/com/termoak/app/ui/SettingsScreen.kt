@@ -66,43 +66,7 @@ import com.termoak.app.data.Prefs
 import com.termoak.app.data.ThemeMode
 import com.termoak.ffi.TwoFactorStatus
 import com.termoak.ffi.libraryVersion
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-
-private data class AppUpdate(val version: String, val url: String)
-
-/** Latest APK published on the server (android component of /api/v1/downloads). */
-private suspend fun checkUpdate(server: String): AppUpdate? = withContext(Dispatchers.IO) {
-    val conn = URL("${server.trimEnd('/')}/api/v1/downloads").openConnection() as HttpURLConnection
-    conn.connectTimeout = 10_000
-    conn.readTimeout = 10_000
-    try {
-        if (conn.responseCode != 200) return@withContext null
-        val json = JSONObject(conn.inputStream.bufferedReader().readText())
-        val version = json.optJSONObject("components")?.optJSONObject("android")?.optString("version") ?: return@withContext null
-        val files = json.optJSONArray("files") ?: return@withContext null
-        val apk = (0 until files.length()).map { files.getJSONObject(it) }
-            .firstOrNull { it.optString("name").endsWith(".apk") } ?: return@withContext null
-        AppUpdate(version, apk.optString("url"))
-    } finally {
-        conn.disconnect()
-    }
-}
-
-/** Is `a` newer than `b`? (X.Y.Z) */
-private fun newer(a: String, b: String): Boolean {
-    val pa = a.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
-    val pb = b.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
-    for (i in 0 until maxOf(pa.size, pb.size)) {
-        val d = pa.getOrElse(i) { 0 } - pb.getOrElse(i) { 0 }
-        if (d != 0) return d > 0
-    }
-    return false
-}
 
 @Composable
 fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
@@ -122,7 +86,10 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val vibrate by app.prefs.vibrateOnBell.collectAsState()
     val theme by app.prefs.theme.collectAsState()
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
-    var update by remember { mutableStateOf<AppUpdate?>(null) }
+    val checkUpdates by app.prefs.checkUpdates.collectAsState()
+    val latest by app.updates.latest.collectAsState()
+    // Checked from this screen: says "latest version" when there's nothing newer.
+    var checked by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
     val languages = remember { AppLanguage.available(context) }
     // Changing it recreates the screen, so it is read once.
@@ -134,6 +101,8 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     }
 
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    // Updates come from the server signed in to, or from termoak.com.
+    val updateServer = server.takeIf { loggedIn == true || verification != null }
 
     ScreenScaffold(title = stringResource(R.string.section_settings), large = true) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
@@ -267,30 +236,40 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
 
             // ----- About -----
             SectionLabel(stringResource(R.string.settings_about))
+            val update = latest?.takeIf { it.isNewer }
             Row0(
                 Icons.Outlined.SystemUpdate,
                 when {
                     checking -> stringResource(R.string.settings_update_checking)
-                    update != null && newer(update!!.version, BuildConfig.VERSION_NAME) ->
-                        stringResource(R.string.settings_update_available, update!!.version)
-                    update != null -> stringResource(R.string.settings_update_latest)
-                    else -> stringResource(R.string.settings_update_check)
+                    update != null -> stringResource(R.string.settings_update_available, update.version)
+                    checked -> stringResource(R.string.settings_update_latest)
+                    else -> stringResource(R.string.settings_update_check_now)
                 },
                 stringResource(R.string.settings_version, BuildConfig.VERSION_NAME, runCatching { libraryVersion() }.getOrDefault("?")),
                 trailing = {
-                    update?.takeIf { newer(it.version, BuildConfig.VERSION_NAME) }?.let { u ->
-                        Button(onClick = { open(u.url) }) { Text(stringResource(R.string.settings_download)) }
+                    update?.let { u ->
+                        Button(onClick = { openUpdate(context, u) }) { Text(stringResource(R.string.settings_download)) }
                     }
                 },
             ) {
-                val base = server ?: BuildConfig.DEFAULT_SERVER
+                if (checking) return@Row0
                 checking = true
                 scope.launch {
-                    update = runCatching { checkUpdate(base) }.getOrNull()
+                    val ok = app.updates.check(updateServer)
                     checking = false
-                    if (update == null) snackbar.showSnackbar(resources.getString(R.string.settings_update_failed, base))
+                    checked = ok
+                    if (!ok) {
+                        snackbar.showSnackbar(
+                            resources.getString(R.string.settings_update_failed, (updateServer ?: BuildConfig.DEFAULT_SERVER).removePrefix("https://")),
+                        )
+                    }
                 }
             }
+            SwitchRow(
+                stringResource(R.string.settings_update_check),
+                stringResource(R.string.settings_update_auto_hint, (updateServer ?: BuildConfig.DEFAULT_SERVER).removePrefix("https://")),
+                checkUpdates,
+            ) { app.prefs.setCheckUpdates(it) }
             Row0(
                 Icons.Outlined.Info, stringResource(R.string.settings_website),
                 (server ?: BuildConfig.DEFAULT_SERVER).removePrefix("https://"),

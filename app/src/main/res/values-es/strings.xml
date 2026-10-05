@@ -123,6 +123,9 @@
     <string name="settings_update_available">Hay una versión nueva: %1$s</string>
     <string name="settings_update_latest">Tienes la última versión</string>
     <string name="settings_update_check">Buscar actualizaciones</string>
+    <string name="settings_update_check_now">Buscar ahora</string>
+    <string name="settings_update_auto_hint">Una vez al día, en %1$s. Si hay una versión nueva, aparece un aviso en el Vault.</string>
+    <string name="update_banner">Termoak %1$s ya está disponible</string>
     <string name="settings_version">Versión %1$s · motor %2$s</string>
     <string name="settings_download">Descargar</string>
     <string name="settings_update_failed">No se pudo consultar %1$s</string>

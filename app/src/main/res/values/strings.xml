@@ -124,6 +124,9 @@
     <string name="settings_update_available">A new version is available: %1$s</string>
     <string name="settings_update_latest">You have the latest version</string>
     <string name="settings_update_check">Check for updates</string>
+    <string name="settings_update_check_now">Check now</string>
+    <string name="settings_update_auto_hint">Once a day, on %1$s. A new version shows a notice in the Vault.</string>
+    <string name="update_banner">Termoak %1$s is available</string>
     <string name="settings_version">Version %1$s · engine %2$s</string>
     <string name="settings_download">Download</string>
     <string name="settings_update_failed">Couldn\'t reach %1$s</string>

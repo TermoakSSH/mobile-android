@@ -32,7 +32,9 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="termoak" android:host="join" />
             </intent-filter>
-            <intent-filter android:autoVerify="false">
+            <!-- Android App Links: verified with /.well-known/assetlinks.json on each
+                 host (TermoakSSH/public-web), so these links open the app directly. -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />

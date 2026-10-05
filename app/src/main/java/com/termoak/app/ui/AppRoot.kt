@@ -350,6 +350,13 @@ fun AppRoot(app: TermoakApp) {
             launchSingleTop = true
         }
     }
+    // A new version of the app, once the account is known (at most once a day):
+    // from the server signed in to, or from termoak.com.
+    LaunchedEffect(loggedIn != null) {
+        if (loggedIn == null) return@LaunchedEffect
+        val signedIn = loggedIn == true || app.account.verification.value != null
+        app.updates.checkIfDue(app.account.serverUrl.value.takeIf { signedIn })
+    }
     // Server sessions already open: on startup or sign-in, as sleeping tabs.
     LaunchedEffect(loggedIn) {
         if (loggedIn == true) app.sessions.loadServerSessions() else app.sessions.forgetServerSessions()

@@ -34,7 +34,18 @@ What it does:
   permission mode, and approving or denying actions from the phone (with a
   live notice in the tab).
 - **Settings**: account, 2FA, font size, keep screen on, theme, and checking
-  your server for APK updates.
+  for APK updates.
+- **Updates**: on startup, at most once a day (Settings → "Check for
+  updates"), the app asks the server it is signed in to, or termoak.com,
+  for the latest Android release (`GET /api/v1/downloads`). A newer version
+  shows a notice in the Vault, dismissible per version, whose "Download"
+  opens the APK in the browser.
+- **Invitation links**: `https://termoak.com/join/…` and
+  `https://next.termoak.com/join/…` open the app directly (Android App
+  Links, verified against the release signing key in
+  `/.well-known/assetlinks.json`, served from
+  [TermoakSSH/public-web](https://github.com/TermoakSSH/public-web)), as
+  does `termoak://join`.
 
 The OS logos come from [Simple Icons](https://simpleicons.org) (CC0); they
 are trademarks of their owners.
@@ -87,7 +98,9 @@ scripts/release-local.sh publish android
 
 The keystore is kept in `~/.config/termoak/android/` (`keystore.jks` and its
 password in `keystore.env`). **Keep a copy outside the machine**: Android
-only installs an update over the app if it is signed with the same key.
+only installs an update over the app if it is signed with the same key, and
+the App Links of the invitation links are verified against its SHA-256
+fingerprint (public-web's `site/.well-known/assetlinks.json`).
 
 ## Documentation
 
