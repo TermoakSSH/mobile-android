@@ -24,6 +24,8 @@ data class LiveShare(
     /** Participant with the keyboard (`null`: the owner). */
     val driver: String? = null,
     val driverName: String? = null,
+    /** When the driver's timed grant ends (ms since the epoch); `null`: until it is given back or taken. */
+    val driverUntil: Long? = null,
     /** Guest: you asked for the keyboard and wait for the owner. */
     val controlRequested: Boolean = false,
     val waiting: ShareWaiting? = null,
@@ -54,6 +56,8 @@ data class LiveShare(
         return copy(
             participants = list,
             driver = driver,
+            // Another driver: the right time arrives with its `Control`.
+            driverUntil = if (driver == this.driver) driverUntil else null,
             driverName = list.firstOrNull { it.id == driver }?.name ?: if (driver == null) null else driverName,
             controlRequested = if (isOwner) false else me?.requestedControl ?: controlRequested,
             joinRequests = if (isOwner) list.filter { it.waiting } else emptyList(),
@@ -66,6 +70,9 @@ data class LiveShare(
 
     fun addControlRequest(p: SessionParticipant) =
         copy(controlRequests = controlRequests.filterNot { it.id == p.id } + p)
+
+    /** Name of a participant, if they are still in the list. */
+    fun nameOf(id: String?): String? = participants.firstOrNull { it.id == id }?.name
 
     fun dropRequest(id: String) = copy(
         joinRequests = joinRequests.filterNot { it.id == id },

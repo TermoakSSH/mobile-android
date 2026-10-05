@@ -545,6 +545,8 @@
     <string name="share_auto_grant">Give control automatically</string>
     <string name="share_auto_grant_hint">Requests for the keyboard are granted without asking you.</string>
     <string name="share_auto_grant_short">Control given automatically</string>
+    <string name="share_auto_grant_limited">Control given automatically for %1$d min</string>
+    <string name="share_control_limit_hint">The keyboard comes back to you when the time is up.</string>
     <string name="share_invite">Invite</string>
     <string name="share_create_link">Create link</string>
     <string name="share_invited">Invitation sent</string>
@@ -600,6 +602,14 @@
     <string name="share_waiting_for_keyboard">Waiting for the owner to give you the keyboard…</string>
     <string name="share_you_have_keyboard">You have the keyboard</string>
     <string name="share_keyboard_taken">The keyboard went back to the owner</string>
+    <string name="share_control_how_long">For how long?</string>
+    <string name="share_control_until_taken">Until I take it back</string>
+    <string name="share_control_minutes">%1$d min</string>
+    <string name="share_change_time">Change the time</string>
+    <string name="share_time_left">%1$s left</string>
+    <string name="share_control_expired_you">Your time with the keyboard is up: it went back to the owner</string>
+    <string name="share_control_expired_owner">%1$s\'s time with the keyboard is up: you have it again</string>
+    <string name="share_control_expired_owner_anon">The time with the keyboard is up: you have it again</string>
     <string name="share_control_denied">The owner said no to your request</string>
     <string name="share_wants_to_join">%1$s wants to join</string>
     <string name="share_wants_keyboard">%1$s asks for the keyboard</string>
@@ -668,5 +678,9 @@
     <plurals name="share_watching">
         <item quantity="one">Shared · %d person watching</item>
         <item quantity="other">Shared · %d people watching</item>
+    </plurals>
+    <plurals name="share_control_limit">
+        <item quantity="one">Limit automatic control to %d minute</item>
+        <item quantity="other">Limit automatic control to %d minutes</item>
     </plurals>
 </resources>

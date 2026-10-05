@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -44,7 +45,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +72,8 @@ import com.termoak.app.term.TermSession
 import com.termoak.ffi.ParticipantKind
 import com.termoak.ffi.SessionAccess
 import com.termoak.ffi.SessionParticipant
+import kotlinx.coroutines.delay
+import java.util.Locale
 
 private val AvatarPalette = listOf(
     Color(0xFF4F7CFF), Color(0xFF3FB27F), Color(0xFFE8A33D), Color(0xFF9B6BFF),
@@ -120,6 +125,64 @@ private fun accessLabel(p: SessionParticipant): String = when {
     else -> stringResource(R.string.share_perm_view)
 }
 
+/** How long "Give control" hands the keyboard over, in minutes (`null`: until you take it back). */
+private val ControlDurations = listOf<UInt?>(null, 5u, 15u, 30u, 60u)
+
+/** Milliseconds left until [until] (ms since the epoch), ticking every second; `null` without a limit. */
+@Composable
+fun rememberTimeLeft(until: Long?): Long? {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(until) {
+        while (until != null) {
+            now = System.currentTimeMillis()
+            if (now >= until) break
+            delay(1_000 - (until - now) % 1_000 + 1)
+        }
+    }
+    return until?.let { (it - now).coerceAtLeast(0) }
+}
+
+/** "4:59", "1:02:03". */
+fun formatTimeLeft(ms: Long): String {
+    val total = (ms + 999) / 1_000
+    val h = total / 3_600
+    val m = total % 3_600 / 60
+    val sec = total % 60
+    return if (h > 0) String.format(Locale.ROOT, "%d:%02d:%02d", h, m, sec) else String.format(Locale.ROOT, "%d:%02d", m, sec)
+}
+
+/** "4:59 left" for a timed grant of the keyboard; `null` without a limit. */
+@Composable
+fun timeLeftText(until: Long?): String? = rememberTimeLeft(until)?.let { stringResource(R.string.share_time_left, formatTimeLeft(it)) }
+
+/** [text] with the time left of the timed grant after it, if any. */
+@Composable
+private fun withTimeLeft(text: String, until: Long?): String = listOfNotNull(text, timeLeftText(until)).joinToString(" · ")
+
+@Composable
+private fun durationLabel(minutes: UInt?): String =
+    if (minutes == null) stringResource(R.string.share_control_until_taken) else stringResource(R.string.share_control_minutes, minutes.toInt())
+
+/** The choices of "Give control" (how long), as menu items under a small heading. */
+@Composable
+private fun ControlDurationItems(onPick: (UInt?) -> Unit) {
+    Text(
+        stringResource(R.string.share_control_how_long), Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    ControlDurations.forEach { m -> DropdownMenuItem({ Text(durationLabel(m)) }, { onPick(m) }) }
+}
+
+/** "Give control" button that asks for how long first. */
+@Composable
+private fun GiveControlButton(onPick: (UInt?) -> Unit) {
+    Box {
+        var open by remember { mutableStateOf(false) }
+        Button(onClick = { open = true }) { Text(stringResource(R.string.share_give_control)) }
+        DropdownMenu(open, { open = false }) { ControlDurationItems { open = false; onPick(it) } }
+    }
+}
+
 /**
  * Who is in the terminal: name, avatar, who drives, who asked for the
  * keyboard. The owner can let people in, hand over or take back the
@@ -141,7 +204,7 @@ fun ParticipantsSheet(session: TermSession, live: LiveShare, onShare: (() -> Uni
         }
         // Your own keyboard.
         if (live.isOwner && live.guestDriving) {
-            OwnerDriverRow(live.driverLabel().orEmpty()) { session.takeControl() }
+            OwnerDriverRow(live.driverLabel().orEmpty(), live.driverUntil) { session.takeControl() }
         } else if (!live.isOwner && session is ServerTerminal) {
             GuestControlRow(session, live)
         }
@@ -174,12 +237,12 @@ fun ParticipantsSheet(session: TermSession, live: LiveShare, onShare: (() -> Uni
 }
 
 @Composable
-private fun OwnerDriverRow(name: String, onTake: () -> Unit) {
+private fun OwnerDriverRow(name: String, until: Long?, onTake: () -> Unit) {
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.secondaryContainer,
         shape = RoundedCornerShape(12.dp)) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Keyboard, null)
-            Text(stringResource(R.string.share_driver_is, name), Modifier.weight(1f).padding(horizontal = 12.dp))
+            Text(withTimeLeft(stringResource(R.string.share_driver_is, name), until), Modifier.weight(1f).padding(horizontal = 12.dp))
             Button(onClick = onTake) { Text(stringResource(R.string.share_take_back)) }
         }
     }
@@ -194,7 +257,7 @@ private fun GuestControlRow(session: ServerTerminal, live: LiveShare) {
             Icon(if (live.canWrite) Icons.Outlined.Keyboard else Icons.Outlined.Visibility, null)
             Text(
                 when {
-                    live.canWrite -> stringResource(R.string.share_you_have_keyboard)
+                    live.canWrite -> withTimeLeft(stringResource(R.string.share_you_have_keyboard), live.driverUntil)
                     live.controlRequested -> stringResource(R.string.share_waiting_for_keyboard)
                     live.access == SessionAccess.CONTROL -> stringResource(R.string.share_view_only_can_ask)
                     else -> stringResource(R.string.share_view_only)
@@ -236,7 +299,10 @@ private fun ParticipantRow(session: TermSession, live: LiveShare, p: SessionPart
                 )
                 when {
                     p.waiting -> Pill(stringResource(R.string.share_waiting_to_join), Brand.Amber, Modifier.padding(top = 4.dp))
-                    p.isDriver -> Pill(stringResource(R.string.share_typing), Brand.Green, Modifier.padding(top = 4.dp))
+                    p.isDriver -> Pill(
+                        withTimeLeft(stringResource(R.string.share_typing), live.driverUntil.takeIf { live.driver == p.id }),
+                        Brand.Green, Modifier.padding(top = 4.dp),
+                    )
                     p.requestedControl -> Pill(stringResource(R.string.share_asked_keyboard), Brand.Amber, Modifier.padding(top = 4.dp))
                 }
             }
@@ -251,7 +317,7 @@ private fun ParticipantRow(session: TermSession, live: LiveShare, p: SessionPart
                         }
                         p.requestedControl -> {
                             TextButton(onClick = { session.denyControl(p.id) }) { Text(stringResource(R.string.share_deny)) }
-                            Button(onClick = { session.grantControl(p.id) }) { Text(stringResource(R.string.share_give_control)) }
+                            GiveControlButton { session.grantControl(p.id, it) }
                         }
                     }
                     if (!p.waiting) ParticipantMenu(session, p, onKick)
@@ -266,22 +332,31 @@ private fun ParticipantRow(session: TermSession, live: LiveShare, p: SessionPart
 private fun ParticipantMenu(session: TermSession, p: SessionParticipant, onKick: (Boolean) -> Unit) {
     Box {
         var open by remember { mutableStateOf(false) }
-        IconButton(onClick = { open = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more)) }
+        // "Give control" turns the menu into the list of durations.
+        var durations by remember { mutableStateOf(false) }
+        IconButton(onClick = { durations = false; open = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more)) }
         DropdownMenu(open, { open = false }) {
-            if (p.isDriver) {
-                DropdownMenuItem({ Text(stringResource(R.string.share_take_back)) }, { open = false; session.takeControl() },
-                    leadingIcon = { Icon(Icons.Outlined.Keyboard, null) })
-            } else if (p.access == SessionAccess.CONTROL) {
-                DropdownMenuItem({ Text(stringResource(R.string.share_give_control)) }, { open = false; session.grantControl(p.id) },
-                    leadingIcon = { Icon(Icons.Outlined.Keyboard, null) })
+            if (durations) {
+                ControlDurationItems { open = false; session.grantControl(p.id, it) }
+            } else {
+                if (p.isDriver) {
+                    DropdownMenuItem({ Text(stringResource(R.string.share_take_back)) }, { open = false; session.takeControl() },
+                        leadingIcon = { Icon(Icons.Outlined.Keyboard, null) })
+                    // Granting it again changes the time.
+                    DropdownMenuItem({ Text(stringResource(R.string.share_change_time)) }, { durations = true },
+                        leadingIcon = { Icon(Icons.Outlined.Timer, null) })
+                } else if (p.access == SessionAccess.CONTROL) {
+                    DropdownMenuItem({ Text(stringResource(R.string.share_give_control)) }, { durations = true },
+                        leadingIcon = { Icon(Icons.Outlined.Keyboard, null) })
+                }
+                DropdownMenuItem({ Text(stringResource(R.string.share_kick)) }, { open = false; onKick(false) },
+                    leadingIcon = { Icon(Icons.Outlined.PersonRemove, null) })
+                DropdownMenuItem(
+                    { Text(stringResource(R.string.share_kick_block), color = MaterialTheme.colorScheme.error) },
+                    { open = false; onKick(true) },
+                    leadingIcon = { Icon(Icons.Outlined.Block, null, tint = MaterialTheme.colorScheme.error) },
+                )
             }
-            DropdownMenuItem({ Text(stringResource(R.string.share_kick)) }, { open = false; onKick(false) },
-                leadingIcon = { Icon(Icons.Outlined.PersonRemove, null) })
-            DropdownMenuItem(
-                { Text(stringResource(R.string.share_kick_block), color = MaterialTheme.colorScheme.error) },
-                { open = false; onKick(true) },
-                leadingIcon = { Icon(Icons.Outlined.Block, null, tint = MaterialTheme.colorScheme.error) },
-            )
         }
     }
 }
@@ -304,8 +379,10 @@ fun RequestBanners(session: TermSession, live: LiveShare, modifier: Modifier = M
                     TextButton(onClick = { if (join) session.denyJoin(p.id) else session.denyControl(p.id) }) {
                         Text(stringResource(R.string.share_deny), color = TermKeyFg.copy(alpha = 0.8f))
                     }
-                    Button(onClick = { if (join) session.allowJoin(p.id) else session.grantControl(p.id) }) {
-                        Text(stringResource(if (join) R.string.share_let_in else R.string.share_give_control))
+                    if (join) {
+                        Button(onClick = { session.allowJoin(p.id) }) { Text(stringResource(R.string.share_let_in)) }
+                    } else {
+                        GiveControlButton { session.grantControl(p.id, it) }
                     }
                 }
             }
@@ -333,13 +410,13 @@ fun KeyboardStrip(session: TermSession, live: LiveShare) {
         live.isOwner -> {
             if (!live.guestDriving) return
             icon = Icons.Outlined.Keyboard
-            text = stringResource(R.string.share_driver_is, live.driverLabel().orEmpty())
+            text = withTimeLeft(stringResource(R.string.share_driver_is, live.driverLabel().orEmpty()), live.driverUntil)
             action = stringResource(R.string.share_take_back) to { session.takeControl() }
         }
         guest == null -> return
         live.canWrite -> {
             icon = Icons.Outlined.Keyboard
-            text = stringResource(R.string.share_you_have_keyboard)
+            text = withTimeLeft(stringResource(R.string.share_you_have_keyboard), live.driverUntil)
             action = stringResource(R.string.share_give_back) to { guest.releaseControl() }
         }
         else -> {
@@ -347,6 +424,7 @@ fun KeyboardStrip(session: TermSession, live: LiveShare) {
             text = listOfNotNull(
                 stringResource(R.string.share_view_only),
                 who?.let { stringResource(R.string.share_is_typing, it) },
+                if (who != null) timeLeftText(live.driverUntil) else null,
             ).joinToString(" · ")
             action = when {
                 live.controlRequested -> stringResource(R.string.share_cancel_request) to { guest.releaseControl() }

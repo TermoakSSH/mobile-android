@@ -183,9 +183,9 @@ class ServerTerminal(
         io { it.denyJoin(participantId) }
     }
 
-    override fun grantControl(participantId: String) {
+    override fun grantControl(participantId: String, minutes: UInt?) {
         _live.update { it.dropRequest(participantId) }
-        io { it.grantControl(participantId) }
+        io { it.grantControl(participantId, minutes) }
     }
 
     override fun denyControl(participantId: String) {
@@ -226,6 +226,7 @@ class ServerTerminal(
                 _live.update {
                     it.copy(isOwner = owner, access = s.access, canWrite = canWrite, waiting = null)
                         .withParticipants(s.participants, s.driver)
+                        .copy(driverUntil = s.driverUntil)
                 }
                 if (canWrite) sendSize()
                 applySize()
@@ -255,14 +256,27 @@ class ServerTerminal(
                         canWrite = event.canWrite,
                         driver = event.driver,
                         driverName = event.driverName,
+                        driverUntil = event.until,
                         controlRequested = if (event.canWrite) false else it.controlRequested,
                     )
                 }
-                if (!before.isOwner && before.canWrite != event.canWrite) {
+                // A timed grant that ran out says so itself (`ControlExpired`).
+                val timeUp = before.driverUntil?.let { System.currentTimeMillis() >= it - 2_000 } == true
+                if (!before.isOwner && before.canWrite != event.canWrite && !(timeUp && !event.canWrite)) {
                     toast(uiText(if (event.canWrite) R.string.share_you_have_keyboard else R.string.share_keyboard_taken))
                 }
                 if (event.canWrite) sendSize()
                 applySize()
+            }
+            is ServerTerminalEvent.ControlExpired -> {
+                val live = _live.value
+                toast(
+                    when {
+                        !live.isOwner -> uiText(R.string.share_control_expired_you)
+                        else -> live.nameOf(event.participantId)?.let { uiText(R.string.share_control_expired_owner, it) }
+                            ?: uiText(R.string.share_control_expired_owner_anon)
+                    },
+                )
             }
             is ServerTerminalEvent.Waiting -> {
                 _live.update {

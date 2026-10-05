@@ -134,6 +134,39 @@ private enum class Target { PEOPLE, TEAM, LINK }
 /** Expiry choices, in minutes (`null`: never). */
 private val Expiries = listOf<Long?>(null, 60, 24 * 60, 7 * 24 * 60)
 
+/** Time limits for automatic grants of the keyboard, in minutes. */
+private val ControlLimits = listOf(5u, 15u, 30u, 60u, 120u, 240u)
+
+/**
+ * "Limit automatic control to N minutes": a switch and, when on, the
+ * minutes to choose from. [limit] `null`: no limit.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ControlLimitPicker(limit: UInt?, last: UInt, enabled: Boolean, inDialog: Boolean, onChange: (UInt?) -> Unit) {
+    val title = pluralStringResource(R.plurals.share_control_limit, (limit ?: last).toInt(), (limit ?: last).toInt())
+    if (inDialog) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f))
+            Switch(enabled && limit != null, { onChange(if (it) last else null) }, enabled = enabled)
+        }
+    } else {
+        SwitchRow(title, stringResource(R.string.share_control_limit_hint), enabled && limit != null, enabled = enabled) {
+            onChange(if (it) last else null)
+        }
+    }
+    if (enabled && limit != null) {
+        FlowRow(
+            Modifier.padding(horizontal = if (inDialog) 0.dp else 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ControlLimits.forEach { m ->
+                FilterChip(limit == m, { onChange(m) }, { Text(stringResource(R.string.share_control_minutes, m.toInt())) })
+            }
+        }
+    }
+}
+
 @Composable
 private fun expiryLabel(minutes: Long?): String = when (minutes) {
     null -> stringResource(R.string.share_expiry_never)
@@ -173,6 +206,9 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
     var expiry by remember { mutableStateOf<Long?>(null) }
     var approval by remember { mutableStateOf(true) }
     var autoGrant by remember { mutableStateOf(false) }
+    // Time limit of automatic grants (`null`: none); [lastLimit] is what the switch turns on.
+    var controlLimit by remember { mutableStateOf<UInt?>(null) }
+    var lastLimit by remember { mutableStateOf(15u) }
     var created by remember { mutableStateOf<ShareInvite?>(null) }
     var done by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<SessionShareInfo?>(null) }
@@ -212,7 +248,7 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
             busy = true
             error = null
             try {
-                val invite = backend.invite(t, ShareOptions(control, expiry, approval, control && autoGrant))
+                val invite = backend.invite(t, ShareOptions(control, expiry, approval, control && autoGrant, controlLimit.takeIf { control && autoGrant }))
                 if (target == Target.LINK) {
                     created = invite
                 } else {
@@ -318,6 +354,10 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
                 stringResource(R.string.share_auto_grant), stringResource(R.string.share_auto_grant_hint),
                 control && autoGrant, enabled = control,
             ) { autoGrant = it }
+            ControlLimitPicker(controlLimit, lastLimit, enabled = control && autoGrant, inDialog = false) {
+                controlLimit = it
+                if (it != null) lastLimit = it
+            }
 
             Row(Modifier.padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(
@@ -465,7 +505,12 @@ private fun ShareRow(s: SessionShareInfo, onClick: () -> Unit, onRevoke: () -> U
                     stringResource(if (s.control) R.string.share_perm_control else R.string.share_perm_view),
                     expiresText(s.expiresAt),
                     if (s.requireApproval) stringResource(R.string.share_asks_first) else null,
-                    if (s.control && s.autoGrant) stringResource(R.string.share_auto_grant_short) else null,
+                    if (s.control && s.autoGrant) {
+                        s.controlMinutes?.let { stringResource(R.string.share_auto_grant_limited, it.toInt()) }
+                            ?: stringResource(R.string.share_auto_grant_short)
+                    } else {
+                        null
+                    },
                     s.participants.toInt().takeIf { it > 0 }?.let { pluralStringResource(R.plurals.share_people_inside, it, it) },
                 ).joinToString(" · "),
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -485,6 +530,8 @@ private fun EditShareDialog(s: SessionShareInfo, onDismiss: () -> Unit, onSave: 
     var control by remember { mutableStateOf(s.control) }
     var approval by remember { mutableStateOf(s.requireApproval) }
     var autoGrant by remember { mutableStateOf(s.autoGrant) }
+    var controlLimit by remember { mutableStateOf(s.controlMinutes) }
+    var lastLimit by remember { mutableStateOf(s.controlMinutes ?: 15u) }
     // `KEEP` (-1): leave the expiry as it is.
     var expiry by remember { mutableStateOf<Long?>(KEEP) }
     AlertDialog(
@@ -509,6 +556,10 @@ private fun EditShareDialog(s: SessionShareInfo, onDismiss: () -> Unit, onSave: 
                     Text(stringResource(R.string.share_auto_grant), Modifier.weight(1f))
                     Switch(control && autoGrant, { autoGrant = it }, enabled = control)
                 }
+                ControlLimitPicker(controlLimit, lastLimit, enabled = control && autoGrant, inDialog = true) {
+                    controlLimit = it
+                    if (it != null) lastLimit = it
+                }
                 Text(stringResource(R.string.share_expiry), Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(expiry == KEEP, { expiry = KEEP }, { Text(stringResource(R.string.share_expiry_keep)) })
@@ -518,6 +569,8 @@ private fun EditShareDialog(s: SessionShareInfo, onDismiss: () -> Unit, onSave: 
         },
         confirmButton = {
             TextButton(onClick = {
+                // Without automatic grants the limit goes too.
+                val limit = controlLimit.takeIf { control && autoGrant }
                 onSave(
                     ShareChanges(
                         control = control.takeIf { it != s.control },
@@ -525,6 +578,8 @@ private fun EditShareDialog(s: SessionShareInfo, onDismiss: () -> Unit, onSave: 
                         noExpiry = expiry == null,
                         requireApproval = approval.takeIf { it != s.requireApproval },
                         autoGrant = (control && autoGrant).takeIf { it != s.autoGrant },
+                        controlMinutes = limit.takeIf { it != s.controlMinutes },
+                        noControlLimit = limit == null && s.controlMinutes != null,
                     ),
                 )
                 onDismiss()

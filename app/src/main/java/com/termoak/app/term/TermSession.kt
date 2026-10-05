@@ -170,7 +170,8 @@ abstract class TermSession(val label: String, val hostId: String?) {
 
     open fun allowJoin(participantId: String) {}
     open fun denyJoin(participantId: String) {}
-    open fun grantControl(participantId: String) {}
+    /** Hands the keyboard over for [minutes] (1-240), or until it is given back or taken (`null`). */
+    open fun grantControl(participantId: String, minutes: UInt? = null) {}
     open fun denyControl(participantId: String) {}
     open fun takeControl() {}
     /** Sends someone away; with [block], their invitation is revoked too. */

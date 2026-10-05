@@ -154,9 +154,9 @@ class LocalTerminal(
         owner { it.denyJoin(participantId) }
     }
 
-    override fun grantControl(participantId: String) {
+    override fun grantControl(participantId: String, minutes: UInt?) {
         _live.update { it.dropRequest(participantId) }
-        owner { it.grantControl(participantId) }
+        owner { it.grantControl(participantId, minutes) }
     }
 
     override fun denyControl(participantId: String) {
@@ -177,7 +177,13 @@ class LocalTerminal(
             if (shared !== share) return
             when (event) {
                 is SharedTerminalEvent.Participants -> _live.update { it.withParticipants(event.participants, event.driver) }
-                is SharedTerminalEvent.Control -> _live.update { it.copy(driver = event.driver, driverName = event.driverName) }
+                is SharedTerminalEvent.Control -> _live.update {
+                    it.copy(driver = event.driver, driverName = event.driverName, driverUntil = event.until)
+                }
+                is SharedTerminalEvent.ControlExpired -> toast(
+                    _live.value.nameOf(event.participantId)?.let { uiText(R.string.share_control_expired_owner, it) }
+                        ?: uiText(R.string.share_control_expired_owner_anon),
+                )
                 is SharedTerminalEvent.JoinRequest -> {
                     _live.update { it.addJoinRequest(event.participant) }
                     notice(ShareNotice.Kind.JOIN_REQUEST, event.participant.name, event.participant.id)

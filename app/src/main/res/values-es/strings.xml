@@ -558,6 +558,8 @@
     <string name="share_auto_grant">Dar el control automáticamente</string>
     <string name="share_auto_grant_hint">Las peticiones del teclado se conceden sin preguntarte.</string>
     <string name="share_auto_grant_short">Control automático</string>
+    <string name="share_auto_grant_limited">Control automático durante %1$d min</string>
+    <string name="share_control_limit_hint">El teclado vuelve a ti cuando se acaba el tiempo.</string>
     <string name="share_invite">Invitar</string>
     <string name="share_create_link">Crear enlace</string>
     <string name="share_invited">Invitación enviada</string>
@@ -613,6 +615,14 @@
     <string name="share_waiting_for_keyboard">Esperando a que el dueño te dé el teclado…</string>
     <string name="share_you_have_keyboard">Tienes el teclado</string>
     <string name="share_keyboard_taken">El teclado ha vuelto al dueño</string>
+    <string name="share_control_how_long">¿Durante cuánto tiempo?</string>
+    <string name="share_control_until_taken">Hasta que lo recupere</string>
+    <string name="share_control_minutes">%1$d min</string>
+    <string name="share_change_time">Cambiar el tiempo</string>
+    <string name="share_time_left">quedan %1$s</string>
+    <string name="share_control_expired_you">Se acabó tu tiempo con el teclado: ha vuelto al dueño</string>
+    <string name="share_control_expired_owner">Se acabó el tiempo de %1$s con el teclado: vuelves a tenerlo</string>
+    <string name="share_control_expired_owner_anon">Se acabó el tiempo con el teclado: vuelves a tenerlo</string>
     <string name="share_control_denied">El dueño ha rechazado tu petición</string>
     <string name="share_wants_to_join">%1$s quiere entrar</string>
     <string name="share_wants_keyboard">%1$s pide el teclado</string>
@@ -685,5 +695,10 @@
         <item quantity="one">Compartida · %d persona mirando</item>
         <item quantity="many">Compartida · %d personas mirando</item>
         <item quantity="other">Compartida · %d personas mirando</item>
+    </plurals>
+    <plurals name="share_control_limit">
+        <item quantity="one">Limitar el control automático a %d minuto</item>
+        <item quantity="many">Limitar el control automático a %d minutos</item>
+        <item quantity="other">Limitar el control automático a %d minutos</item>
     </plurals>
 </resources>
