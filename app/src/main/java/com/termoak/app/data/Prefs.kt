@@ -1,6 +1,7 @@
 package com.termoak.app.data
 
 import android.content.Context
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -48,6 +49,11 @@ class Prefs(context: Context) {
     var lastEmail: String?
         get() = sp.getString("last_email", null)
         set(v) = sp.edit().putString("last_email", v).apply()
+
+    /** Name used last time to join a shared session with a link (without an account). */
+    var guestName: String?
+        get() = sp.getString("guest_name", null)
+        set(v) = sp.edit { putString("guest_name", v) }
 
     /** Already used without a server: don't show the welcome screen again. */
     var skippedLogin: Boolean

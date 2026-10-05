@@ -12,7 +12,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
@@ -64,6 +66,18 @@ abstract class TermSession(val label: String, val hostId: String?) {
     val pending: StateFlow<Pending?> = _pending
     protected val _title = MutableStateFlow<String?>(null)
     val title: StateFlow<String?> = _title
+    protected val _live = MutableStateFlow(LiveShare())
+    /** Who else is in it and who has the keyboard (shared terminals). */
+    val live: StateFlow<LiveShare> = _live
+    private val _toasts = MutableSharedFlow<UiText>(extraBufferCapacity = 8)
+    /** Short notices for whoever looks at this terminal ("You have the keyboard"...). */
+    val toasts: SharedFlow<UiText> = _toasts
+    /** Requests and notices for the whole app (set by [Sessions]). */
+    @Volatile var onShareNotice: (ShareNotice) -> Unit = {}
+
+    protected fun toast(text: UiText) {
+        _toasts.tryEmit(text)
+    }
 
     /** Ctrl and Alt from the key bar: they apply to the next key press. */
     val ctrl = MutableStateFlow(false)
@@ -121,8 +135,11 @@ abstract class TermSession(val label: String, val hostId: String?) {
         return m
     }
 
+    /** Typing reaches the terminal (not while someone else has the keyboard). */
+    val canType: Boolean get() = _live.value.canWrite
+
     fun write(bytes: ByteArray) {
-        if (bytes.isEmpty() || _state.value != TermState.Running) return
+        if (bytes.isEmpty() || _state.value != TermState.Running || !canType) return
         screen.scrollToBottom()
         send(bytes)
     }
@@ -142,12 +159,22 @@ abstract class TermSession(val label: String, val hostId: String?) {
 
     fun paste(text: String) = write(screen.paste(text))
 
-    fun resize(cols: Int, rows: Int) {
+    open fun resize(cols: Int, rows: Int) {
         if (cols.toUInt() == screen.cols() && rows.toUInt() == screen.rows()) return
         screen.resize(cols.toUInt(), rows.toUInt())
         resizeRemote(cols.toUInt(), rows.toUInt())
         onScreenChanged()
     }
+
+    // ----- Owner actions on a shared terminal (no-ops if it isn't shared) -----
+
+    open fun allowJoin(participantId: String) {}
+    open fun denyJoin(participantId: String) {}
+    open fun grantControl(participantId: String) {}
+    open fun denyControl(participantId: String) {}
+    open fun takeControl() {}
+    /** Sends someone away; with [block], their invitation is revoked too. */
+    open fun kick(participantId: String, block: Boolean) {}
 
     open fun close() {
         release()

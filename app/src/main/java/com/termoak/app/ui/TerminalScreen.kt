@@ -44,8 +44,10 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.TextDecrease
@@ -83,7 +85,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -112,6 +116,9 @@ private val TermBg = Color(0xFF12151D)
 private val BarBg = Color(0xFF1A1F2B)
 private val KeyBg = Color(0xFF252C3B)
 private val KeyFg = Color(0xFFD6DBE4)
+internal val TermBarBg = BarBg
+internal val TermKeyBg = KeyBg
+internal val TermKeyFg = KeyFg
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,6 +147,15 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val state by session.state.collectAsState()
     val pending by session.pending.collectAsState()
     val title by session.title.collectAsState()
+    val live by session.live.collectAsState()
+    val loggedIn by app.account.loggedIn.collectAsState()
+    val snackbar = LocalSnackbar.current
+    val resources = LocalResources.current
+    var showShare by remember { mutableStateOf(false) }
+    var showParticipants by remember { mutableStateOf(false) }
+    val sharable = canShare(session, loggedIn == true, live.isOwner)
+    // Notices of this terminal ("You have the keyboard", an action that wasn't allowed...).
+    LaunchedEffect(session.id) { session.toasts.collect { snackbar.showSnackbar(it.resolve(resources)) } }
     // Connection steps (like Termius' connection screen).
     val steps = remember(session.id) { androidx.compose.runtime.mutableStateListOf<UiText>() }
     var everRan by remember(session.id) { mutableStateOf(false) }
@@ -196,15 +212,27 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                         )
                         Text(
                             when (val s = state) {
-                                is TermState.Connecting -> s.message.asString()
-                                TermState.Running -> stringResource(
-                                    if (session.persistent) R.string.term_server_session else R.string.term_ssh_from_phone,
-                                )
+                                is TermState.Connecting -> if (live.waiting != null) stringResource(R.string.share_waiting_short)
+                                else s.message.asString()
+                                TermState.Running -> when {
+                                    !live.isOwner && live.canWrite -> stringResource(R.string.share_you_have_keyboard)
+                                    live.driverLabel() != null -> stringResource(R.string.share_is_typing, live.driverLabel()!!)
+                                    !live.isOwner -> stringResource(R.string.share_view_only)
+                                    live.others.isNotEmpty() -> pluralStringResource(
+                                        R.plurals.share_watching, live.others.size, live.others.size,
+                                    )
+                                    else -> stringResource(
+                                        if (session.persistent) R.string.term_server_session else R.string.term_ssh_from_phone,
+                                    )
+                                }
                                 is TermState.Closed -> stringResource(R.string.term_disconnected)
                                 TermState.Asleep -> stringResource(R.string.term_not_connected)
                             },
                             color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1,
                         )
+                    }
+                    if (live.others.isNotEmpty() || live.pendingRequests > 0) {
+                        ParticipantsChip(live) { showParticipants = true }
                     }
                     IconButton(onClick = {
                         if (copilotOpen) {
@@ -238,9 +266,19 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                             DropdownMenuItem({ Text(stringResource(R.string.term_font_smaller)) }, { app.prefs.setFontSize(fontSize - 1) },
                                 leadingIcon = { Icon(Icons.Outlined.TextDecrease, null) })
                             HorizontalDivider()
-                            DropdownMenuItem({ Text(stringResource(R.string.term_reconnect)) }, { menu = false; session.reconnect() },
-                                leadingIcon = { Icon(Icons.Outlined.Refresh, null) })
-                            if (session is ServerTerminal) {
+                            if (sharable) {
+                                DropdownMenuItem({ Text(stringResource(R.string.share_action)) }, { menu = false; showShare = true },
+                                    leadingIcon = { Icon(Icons.Outlined.PersonAdd, null) })
+                            }
+                            if (live.participants.size > 1 || !live.isOwner) {
+                                DropdownMenuItem({ Text(stringResource(R.string.share_participants)) }, { menu = false; showParticipants = true },
+                                    leadingIcon = { Icon(Icons.Outlined.Group, null) })
+                            }
+                            if (live.ended == null) {
+                                DropdownMenuItem({ Text(stringResource(R.string.term_reconnect)) }, { menu = false; session.reconnect() },
+                                    leadingIcon = { Icon(Icons.Outlined.Refresh, null) })
+                            }
+                            if (session is ServerTerminal && live.isOwner) {
                                 DropdownMenuItem(
                                     { Text(stringResource(R.string.term_terminate_server_session), color = MaterialTheme.colorScheme.error) },
                                     { menu = false; terminating = session },
@@ -248,7 +286,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                                 )
                             }
                             DropdownMenuItem(
-                                { Text(stringResource(if (session.persistent) R.string.term_close_tab_keep else R.string.common_close)) },
+                                { Text(stringResource(if (session.persistent && live.isOwner) R.string.term_close_tab_keep else R.string.common_close)) },
                                 { menu = false; app.sessions.close(session.id) },
                                 leadingIcon = { Icon(Icons.Outlined.Close, null) },
                             )
@@ -285,6 +323,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                         update = { v ->
                             v.session = session
                             v.setFontSize(fontSize)
+                            // Watching only: no keyboard (nothing would reach the terminal).
+                            v.readOnly = !live.canWrite
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -294,7 +334,18 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                         DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { longPressMenu = false; copyScreen() },
                             leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
                     }
-                    when (val s = state) {
+                    val waiting = live.waiting
+                    val ended = live.ended
+                    if (ended != null) {
+                        EndPanel(ended) { app.sessions.close(session.id) }
+                    } else if (waiting != null && session is ServerTerminal) {
+                        WaitingRoom(
+                            session, waiting,
+                            guestName = if (session.asGuest) app.prefs.guestName.orEmpty() else null,
+                            onRename = { name -> app.prefs.guestName = name; session.setName(name) },
+                            onLeave = { app.sessions.close(session.id) },
+                        )
+                    } else when (val s = state) {
                         is TermState.Connecting -> ConnectingPanel(session, host, steps, error = null)
                         is TermState.Closed -> if (!everRan) {
                             ConnectingPanel(session, host, steps, error = s.message.asString(),
@@ -323,8 +374,10 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                         }
                         TermState.Running, TermState.Asleep -> Unit
                     }
+                    RequestBanners(session, live, Modifier.align(Alignment.TopCenter)) { showParticipants = true }
                 }
-                ExtraKeys(session)
+                KeyboardStrip(session, live)
+                if (live.canWrite) ExtraKeys(session)
             }
             if (wide && copilotOpen) {
                 VerticalDivider(color = KeyBg)
@@ -388,6 +441,16 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             if (run) session.key(TerminalKey.Enter)
             showSnippets = false
         }
+    }
+    if (showShare) {
+        ShareSheet(app, session, title ?: session.label) { showShare = false }
+    }
+    if (showParticipants) {
+        ParticipantsSheet(
+            session, live,
+            onShare = if (sharable) ({ showParticipants = false; showShare = true }) else null,
+            onDismiss = { showParticipants = false },
+        )
     }
     terminating?.let { s ->
         ConfirmDialog(

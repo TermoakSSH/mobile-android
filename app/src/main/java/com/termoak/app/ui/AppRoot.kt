@@ -1,5 +1,6 @@
 package com.termoak.app.ui
 
+import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
@@ -63,8 +64,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -75,11 +78,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,8 +99,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.JoinLinkRef
+import com.termoak.app.term.ShareNotice
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
+import kotlinx.coroutines.launch
 
 object Routes {
     const val WELCOME = "welcome"
@@ -117,10 +125,13 @@ object Routes {
     const val IMPORT = "import"
     const val LOGIN = "login"
     const val VERIFY_EMAIL = "verify-email"
+    /** Joining a shared session with an invitation link. */
+    const val JOIN = "join?server={server}&token={token}"
 
     fun hostEdit(id: String?) = "host/${id ?: "new"}"
     fun group(id: String) = "group/$id"
     fun aiTask(id: String) = "ai/$id"
+    fun join(link: JoinLinkRef) = "join?server=${Uri.encode(link.server)}&token=${Uri.encode(link.token)}"
     fun keys(action: String? = null) = if (action == null) "keys" else "keys?action=$action"
 }
 
@@ -142,7 +153,7 @@ private val TopLevel = VaultRoutes + setOf(Routes.CONNECTIONS, Routes.AI, Routes
 private val Immersive = setOf(Routes.TERMINAL, Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
-private val Details = setOf(Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.LOGIN)
+private val Details = setOf(Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.LOGIN, Routes.JOIN)
 
 private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.IMPORT -> Tab.VAULT
@@ -310,6 +321,15 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.KNOWN_HOSTS) { KnownHostsScreen(app, nav) }
                         composable(Routes.FORWARDS) { ForwardsScreen(app, nav) }
                         composable(Routes.IMPORT) { ImportScreen(app) { nav.popBackStack() } }
+                        composable(
+                            Routes.JOIN,
+                            arguments = listOf(
+                                navArgument("server") { type = NavType.StringType; defaultValue = "" },
+                                navArgument("token") { type = NavType.StringType; defaultValue = "" },
+                            ),
+                        ) { e ->
+                            JoinScreen(app, nav, e.arguments?.getString("server").orEmpty(), e.arguments?.getString("token").orEmpty())
+                        }
                     }
                 }
             }
@@ -333,6 +353,55 @@ fun AppRoot(app: TermoakApp) {
     // Server sessions already open: on startup or sign-in, as sleeping tabs.
     LaunchedEffect(loggedIn) {
         if (loggedIn == true) app.sessions.loadServerSessions() else app.sessions.forgetServerSessions()
+    }
+    // An invitation link opened from outside the app.
+    val link by app.pendingLink.collectAsState()
+    LaunchedEffect(link) {
+        val l = link ?: return@LaunchedEffect
+        app.pendingLink.value = null
+        nav.navigate(Routes.join(l)) { launchSingleTop = true }
+    }
+    // Sharing notices: snackbars (unless that terminal is on screen) and taps on notifications.
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
+    fun openNotice(n: ShareNotice) {
+        val tab = n.tabId?.let { app.sessions.get(it) } ?: n.sessionId?.let { app.sessions.bySessionId(it) }
+        when {
+            tab != null -> app.sessions.select(tab.id)
+            n.sessionId != null -> app.sessions.attach(
+                n.sessionId, n.title.ifBlank { resources.getString(R.string.common_session) }, null,
+                owner = n.kind == ShareNotice.Kind.JOIN_REQUEST || n.kind == ShareNotice.Kind.CONTROL_REQUEST,
+            )
+            else -> return
+        }
+        nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
+    }
+    LaunchedEffect(Unit) {
+        app.shareNotices.notices.collect { n ->
+            val active = app.sessions.active.value?.let { app.sessions.get(it) }
+            val onScreen = nav.currentDestination?.route == Routes.TERMINAL && active != null &&
+                (active.id == n.tabId || (n.sessionId != null && app.sessions.bySessionId(n.sessionId)?.id == active.id))
+            if (onScreen) return@collect
+            val title = n.title.ifBlank { resources.getString(R.string.common_session) }
+            val text = when (n.kind) {
+                ShareNotice.Kind.JOIN_REQUEST -> resources.getString(R.string.share_notice_join, n.name, title)
+                ShareNotice.Kind.CONTROL_REQUEST -> resources.getString(R.string.share_notice_control, n.name, title)
+                ShareNotice.Kind.SHARED_WITH_YOU -> resources.getString(R.string.share_notice_shared, n.name, title)
+                ShareNotice.Kind.CONTROL_GRANTED -> resources.getString(R.string.share_notice_granted, title)
+                ShareNotice.Kind.CONTROL_REVOKED -> resources.getString(R.string.share_notice_revoked, title)
+            }
+            val action = if (n.kind == ShareNotice.Kind.CONTROL_REVOKED) null else resources.getString(R.string.common_open)
+            scope.launch {
+                val result = snackbar.showSnackbar(text, actionLabel = action, withDismissAction = true, duration = SnackbarDuration.Long)
+                if (result == SnackbarResult.ActionPerformed) openNotice(n)
+            }
+        }
+    }
+    val opened by app.shareNotices.openRequest.collectAsState()
+    LaunchedEffect(opened) {
+        val n = opened ?: return@LaunchedEffect
+        app.shareNotices.openRequest.value = null
+        openNotice(n)
     }
     LaunchedEffect(Unit) {
         app.account.changes.collect {

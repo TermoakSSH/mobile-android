@@ -6,6 +6,7 @@ import android.util.Log
 import com.termoak.app.data.Account
 import com.termoak.app.data.Copilot
 import com.termoak.app.data.Prefs
+import com.termoak.app.data.ShareNotices
 import com.termoak.app.term.Sessions
 import com.termoak.ffi.LogLevel
 import com.termoak.ffi.LogListener
@@ -24,6 +25,9 @@ class TermoakApp : Application() {
     val account: Account by lazy { Account(core) }
     val sessions: Sessions by lazy { Sessions(this, core) }
     val copilot: Copilot by lazy { Copilot(this, core, account, sessions) }
+    val shareNotices: ShareNotices by lazy { ShareNotices(this, sessions, account) }
+    /** An invitation link opened from outside (deep link), waiting for the app to show it. */
+    val pendingLink = kotlinx.coroutines.flow.MutableStateFlow<com.termoak.app.data.JoinLinkRef?>(null)
 
     override fun onCreate() {
         super.onCreate()

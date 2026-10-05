@@ -77,6 +77,13 @@ class Account(private val core: TermoakCore) {
      */
     private val _aiEvents = MutableSharedFlow<JSONObject>(extraBufferCapacity = 512)
     val aiEvents: SharedFlow<JSONObject> = _aiEvents
+    /**
+     * Session notices as they arrive (`session_shared`, `join_request`,
+     * `control_request`, `control_granted`, `control_revoked`...): the
+     * `notice` object of `{"type":"session","notice":{…}}`.
+     */
+    private val _sessionNotices = MutableSharedFlow<JSONObject>(extraBufferCapacity = 16)
+    val sessionNotices: SharedFlow<JSONObject> = _sessionNotices
     /** The local vault changed after a sync. */
     private val _vaultChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val vaultChanged: SharedFlow<Unit> = _vaultChanged
@@ -104,6 +111,7 @@ class Account(private val core: TermoakCore) {
             }
             refreshApprovals()
             startEvents()
+            registerPush()
         } else {
             stopEvents()
         }
@@ -224,6 +232,23 @@ class Account(private val core: TermoakCore) {
         _pendingApprovals.value = runCatching { core.listPendingApprovals().size }.getOrDefault(0)
     }
 
+    /**
+     * Push notifications (join and keyboard requests, sessions shared with
+     * you... while the app is closed).
+     *
+     * TODO(push): Firebase Cloud Messaging is not set up in this app yet (no
+     * Firebase dependency nor google-services.json: it needs the owner's
+     * Firebase project). Once it is, get the token with
+     * `FirebaseMessaging.getInstance().token` here and in
+     * `FirebaseMessagingService.onNewToken`, and send it with
+     * `core.registerPushToken(PushPlatform.FCM, token, false)` (again on
+     * every new token; `core.unregisterPushToken()` before signing out).
+     * Until then, the notices arrive through the events WebSocket while the
+     * app runs ([sessionNotices]), and the app shows them as snackbars or,
+     * in the background, as local notifications (ShareNotifier).
+     */
+    private fun registerPush() = Unit
+
     private fun startEvents() {
         if (eventsJob?.isActive == true) return
         eventsJob = scope.launch {
@@ -287,7 +312,10 @@ class Account(private val core: TermoakCore) {
                 refreshApprovals()
                 _changes.tryEmit(type)
             }
-            "session" -> _changes.tryEmit(type)
+            "session" -> {
+                event.optJSONObject("notice")?.let { _sessionNotices.tryEmit(it) }
+                _changes.tryEmit(type)
+            }
         }
     }
 }

@@ -11,7 +11,9 @@ import com.termoak.ffi.SessionAccess
 import com.termoak.ffi.SshHost
 import com.termoak.ffi.TermoakCore
 import com.termoak.ffi.TermoakException
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -31,7 +33,16 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
     /** The sleeping tabs were already added since startup or sign-in. */
     private var restored = false
 
+    private val _notices = MutableSharedFlow<ShareNotice>(extraBufferCapacity = 16)
+    /** Join and keyboard requests from the open terminals (owner), for the whole app. */
+    val notices: SharedFlow<ShareNotice> = _notices
+
     fun get(id: String): TermSession? = _list.value.firstOrNull { it.id == id }
+
+    /** The open tab of server session [sessionId] (attached, or a shared local terminal). */
+    fun bySessionId(sessionId: String): TermSession? = _list.value.firstOrNull {
+        (it is ServerTerminal && it.sessionId == sessionId) || (it is LocalTerminal && it.sharedId.value == sessionId)
+    }
 
     /** SSH from the phone. */
     fun openLocal(host: SshHost): TermSession =
@@ -41,13 +52,26 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
     fun openOnServer(host: SshHost): TermSession =
         add(ServerTerminal(core, host.label, host.id, null))
 
-    /** Attaches to a session that already lives on the server. */
-    fun attach(sessionId: String, label: String, hostId: String?): TermSession {
-        _list.value.firstOrNull { it is ServerTerminal && it.sessionId == sessionId }?.let {
+    /** Attaches to a session that already lives on the server ([owner]: yours, not shared with you). */
+    fun attach(sessionId: String, label: String, hostId: String?, owner: Boolean = true): TermSession {
+        bySessionId(sessionId)?.let {
             select(it.id)
             return it
         }
-        return add(ServerTerminal(core, label, hostId, sessionId))
+        return add(ServerTerminal(core, label, hostId, sessionId, owner))
+    }
+
+    /** Joins a shared session with an invitation link ([sessionId] from the link's details). */
+    fun joinLink(link: LinkJoin, label: String, sessionId: String?): TermSession {
+        sessionId?.let { id ->
+            bySessionId(id)?.let { open ->
+                // Already in (or a closed tab of it): use that tab.
+                if (open.state.value is TermState.Closed) open.reconnect()
+                select(open.id)
+                return open
+            }
+        }
+        return add(ServerTerminal(core, label, null, null, owner = false, link = link))
     }
 
     /**
@@ -76,7 +100,10 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
         val untitled = context.localized().getString(R.string.common_session)
         _list.value = _list.value + missing.map { s ->
             ServerTerminal(core, s.title.ifBlank { s.hostId?.let { labels[it] } ?: untitled }, s.hostId, s.id)
-                .apply { sleep() }
+                .apply {
+                    onShareNotice = { _notices.tryEmit(it) }
+                    sleep()
+                }
         }
     }
 
@@ -95,6 +122,7 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
     }
 
     private fun add(session: TermSession): TermSession {
+        session.onShareNotice = { _notices.tryEmit(it) }
         _list.value = _list.value + session
         _active.value = session.id
         session.start()

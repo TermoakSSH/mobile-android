@@ -42,6 +42,20 @@ class TerminalView(context: Context) : View(context) {
     /** Long press: copy/paste menu. */
     var onLongPress: () -> Unit = {}
 
+    /**
+     * Watching a shared terminal without the keyboard: the system keyboard
+     * stays hidden (nothing typed would reach the terminal).
+     */
+    var readOnly = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (value) hideKeyboard()
+        }
+
+    /** Scale to fit a terminal wider than the view (guests follow the owner's size). */
+    private var fit = 1f
+
     var session: TermSession? = null
         set(value) {
             if (field === value) return
@@ -91,6 +105,10 @@ class TerminalView(context: Context) : View(context) {
         canvas.drawColor(snap.background.toInt())
         val left = paddingLeft.toFloat()
         val top = paddingTop.toFloat()
+        val need = s.screen.cols().toInt() * cellWidth
+        val avail = (width - paddingLeft - paddingRight).toFloat()
+        fit = if (need > avail && need > 0f) avail / need else 1f
+        if (fit < 1f) canvas.scale(fit, fit, left, top)
         snap.lines.forEachIndexed { row, line ->
             val y = top + row * cellHeight
             for (run in line.runs) {
@@ -177,8 +195,8 @@ class TerminalView(context: Context) : View(context) {
             // A tap on a link opens it; otherwise it shows the keyboard.
             val s = session
             if (s != null && cellWidth > 0f) {
-                val col = ((e.x - paddingLeft) / cellWidth).toInt().coerceAtLeast(0)
-                val row = ((e.y - paddingTop) / cellHeight).toInt().coerceAtLeast(0)
+                val col = ((e.x - paddingLeft) / fit / cellWidth).toInt().coerceAtLeast(0)
+                val row = ((e.y - paddingTop) / fit / cellHeight).toInt().coerceAtLeast(0)
                 s.screen.linkAt(row.toUInt(), col.toUInt())?.let { url ->
                     runCatching {
                         context.startActivity(
@@ -228,6 +246,7 @@ class TerminalView(context: Context) : View(context) {
     }
 
     fun showKeyboard() {
+        if (readOnly) return
         requestFocus()
         context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
     }

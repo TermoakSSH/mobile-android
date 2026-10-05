@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Group
@@ -31,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
@@ -60,6 +63,7 @@ import com.termoak.app.term.TermState
 import com.termoak.ffi.ServerSession
 import com.termoak.ffi.ServerSessionList
 import com.termoak.ffi.ServerSessionState
+import com.termoak.ffi.SessionAccess
 import com.termoak.ffi.SshHost
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.launch
@@ -81,6 +85,9 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     var loading by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf<ServerSession?>(null) }
     var closingAll by remember { mutableStateOf(false) }
+    var joining by remember { mutableStateOf(false) }
+    // Who shares each session shared with you (by session id).
+    var owners by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val hosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).associateBy { it.id } }
     val untitled = stringResource(R.string.common_session)
 
@@ -90,6 +97,7 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
             loading = true
             try {
                 server = app.core.listServerSessions()
+                owners = sharedOwners(app)
             } catch (e: TermoakException) {
                 snackbar.showSnackbar(e.message ?: resources.getString(R.string.sessions_load_failed))
             } finally {
@@ -105,7 +113,10 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
     fun attach(s: ServerSession) {
-        app.sessions.attach(s.id, s.title.ifBlank { s.hostId?.let { hosts[it]?.label } ?: untitled }, s.hostId)
+        app.sessions.attach(
+            s.id, s.title.ifBlank { s.hostId?.let { hosts[it]?.label } ?: untitled }, s.hostId,
+            owner = s.access == SessionAccess.OWNER,
+        )
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
 
@@ -113,6 +124,7 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
         title = stringResource(R.string.nav_connections),
         large = true,
         actions = {
+            IconButton(onClick = { joining = true }) { Icon(Icons.Outlined.AddLink, stringResource(R.string.join_with_link)) }
             if (local.isNotEmpty()) {
                 IconButton(onClick = { closingAll = true }) { Icon(Icons.Outlined.LinkOff, stringResource(R.string.connections_close_all)) }
             }
@@ -123,13 +135,20 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
             val shared = server?.shared.orEmpty()
             val recent = server?.recent.orEmpty().take(15)
             if (local.isEmpty() && active.isEmpty() && shared.isEmpty() && recent.isEmpty()) {
-                EmptyState(
-                    Icons.Outlined.Terminal,
-                    stringResource(R.string.sessions_empty_title),
-                    stringResource(if (loggedIn == true) R.string.sessions_empty_text_synced else R.string.sessions_empty_text_local),
-                    action = stringResource(R.string.connections_open_vault),
-                    onAction = { nav.goTab(Routes.HOSTS) },
-                )
+                Column(Modifier.fillMaxSize()) {
+                    EmptyState(
+                        Icons.Outlined.Terminal,
+                        stringResource(R.string.sessions_empty_title),
+                        stringResource(if (loggedIn == true) R.string.sessions_empty_text_synced else R.string.sessions_empty_text_local),
+                        modifier = Modifier.weight(1f),
+                        action = stringResource(R.string.connections_open_vault),
+                        onAction = { nav.goTab(Routes.HOSTS) },
+                    )
+                    TextButton(onClick = { joining = true }, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 24.dp)) {
+                        Icon(Icons.Outlined.AddLink, null, Modifier.size(18.dp))
+                        Text(stringResource(R.string.join_with_link), Modifier.padding(start = 8.dp))
+                    }
+                }
                 return@PullToRefreshBox
             }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -152,8 +171,21 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                 if (loggedIn == true && shared.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_shared)) }
                     items(shared, key = { "s" + it.id }) { s ->
-                        ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = null)
+                        ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = null, owner = owners[s.id])
                     }
+                }
+                item {
+                    ListItem(
+                        modifier = Modifier.clickable { joining = true },
+                        headlineContent = { Text(stringResource(R.string.join_with_link)) },
+                        supportingContent = { Text(stringResource(R.string.join_with_link_row)) },
+                        leadingContent = {
+                            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.AddLink, null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
                 }
                 if (loggedIn == true && recent.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_recent)) }
@@ -196,6 +228,12 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
             }
         }
     }
+    if (joining) {
+        JoinLinkDialog(onDismiss = { joining = false }) { link ->
+            joining = false
+            nav.navigate(Routes.join(link))
+        }
+    }
     if (closingAll) {
         ConfirmDialog(
             title = pluralStringResource(R.plurals.connections_close_all_title, local.size, local.size),
@@ -205,6 +243,18 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
         ) { app.sessions.closeAll() }
     }
 }
+
+/** `owner_name` of the sessions shared with you (the typed list doesn't carry it). */
+private suspend fun sharedOwners(app: TermoakApp): Map<String, String> = runCatching {
+    val shared = org.json.JSONObject(app.core.apiGet("/api/v1/sessions")).optJSONArray("shared")
+    buildMap {
+        for (i in 0 until (shared?.length() ?: 0)) {
+            val o = shared!!.optJSONObject(i) ?: continue
+            val name = o.optString("owner_name")
+            if (name.isNotBlank()) put(o.optString("id"), name)
+        }
+    }
+}.getOrDefault(emptyMap())
 
 /** A row that closes (or asks to) when swiped to either side. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -294,7 +344,7 @@ private fun recentStatus(status: String): String = when (status) {
 }
 
 @Composable
-private fun ServerSessionRow(s: ServerSession, host: SshHost?, onClick: () -> Unit, onClose: (() -> Unit)?) {
+private fun ServerSessionRow(s: ServerSession, host: SshHost?, onClick: () -> Unit, onClose: (() -> Unit)?, owner: String? = null) {
     val (text, color) = when (val st = s.state) {
         is ServerSessionState.Running -> stringResource(R.string.session_state_running) to Brand.Green
         is ServerSessionState.Connecting -> st.message to Brand.Amber
@@ -306,16 +356,27 @@ private fun ServerSessionRow(s: ServerSession, host: SshHost?, onClick: () -> Un
         modifier = Modifier.clickable(onClick = onClick),
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
-            val viewers = s.viewers.size.takeIf { it > 1 }?.let { pluralStringResource(R.plurals.sessions_viewers, it, it) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    if (onClose == null) Icons.Outlined.Group else Icons.Outlined.CloudQueue, null,
-                    Modifier.size(14.dp).padding(end = 2.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    listOfNotNull(text, relativeTime(s.createdAt), viewers).joinToString(" · "),
-                    Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+            val people = s.participants.size.takeIf { it > 0 } ?: s.viewers.size
+            val viewers = people.takeIf { it > 1 }?.let { pluralStringResource(R.plurals.sessions_viewers, it, it) }
+            // Shared with you: who shares it and what you can do.
+            val sharedBy = if (s.access == SessionAccess.OWNER) null else listOfNotNull(
+                owner?.let { stringResource(R.string.sessions_shared_by, it) },
+                stringResource(if (s.access == SessionAccess.CONTROL) R.string.share_perm_control else R.string.share_perm_view),
+            ).joinToString(" · ")
+            Column {
+                if (sharedBy != null) {
+                    Text(sharedBy, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.primary)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (onClose == null) Icons.Outlined.Group else Icons.Outlined.CloudQueue, null,
+                        Modifier.size(14.dp).padding(end = 2.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        listOfNotNull(text, relativeTime(s.createdAt), viewers).joinToString(" · "),
+                        Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         },
         leadingContent = { StatusTile(host, title, color) },
