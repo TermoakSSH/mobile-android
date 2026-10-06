@@ -3,20 +3,24 @@ package com.termoak.app.ui
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -54,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -409,6 +415,7 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String) {
     val t = task
     val conversation = remember(t?.rawJson) { t?.let { parseConversation(it.rawJson) }.orEmpty() }
     LaunchedEffect(conversation.size) { if (conversation.isNotEmpty()) list.animateScrollToItem(conversation.size + 1) }
+    FollowKeyboard(list)
 
     ScreenScaffold(
         title = t?.title?.ifBlank { null } ?: stringResource(R.string.ai_task),
@@ -554,5 +561,31 @@ fun ToolRow(name: String, summary: String, output: String?, error: Boolean, runn
                 }
             }
         }
+    }
+}
+
+/** Scrolls [this] conversation to its very end (also the end of a long last message). */
+suspend fun LazyListState.scrollToEnd() {
+    val n = layoutInfo.totalItemsCount
+    if (n > 0) {
+        scrollToItem(n - 1)
+        scrollBy(100_000f)
+    }
+}
+
+/**
+ * While the keyboard opens, keeps the end of the conversation [list] in view:
+ * the list loses its bottom to the keyboard (it shrinks from the bottom) and
+ * the last message would end up hidden under the box to write in.
+ */
+@Composable
+fun FollowKeyboard(list: LazyListState) {
+    val ime = WindowInsets.ime.getBottom(LocalDensity.current)
+    var previous by remember { mutableIntStateOf(ime) }
+    LaunchedEffect(ime) {
+        // Every step of the keyboard's animation, only while it opens.
+        val opening = ime > previous
+        previous = ime
+        if (opening) list.scrollToEnd()
     }
 }

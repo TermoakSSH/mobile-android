@@ -3,7 +3,6 @@ package com.termoak.app.ui
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,9 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -79,8 +80,8 @@ import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.TermSession
 import com.termoak.ffi.AiTaskStatus
 import com.termoak.ffi.SshHost
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 private val Suggestions = listOf(
     R.string.copilot_suggestion_error,
@@ -264,7 +265,11 @@ private fun ModeMenu(chat: CopilotChat) {
 private fun CopilotConversation(chat: CopilotChat, onAiSettings: () -> Unit, modifier: Modifier) {
     val list = rememberLazyListState()
     if (chat.empty) {
-        Column(modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Scrolls: with the keyboard open there is little room left for it.
+        Column(
+            modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Text(stringResource(R.string.copilot_empty_title), style = MaterialTheme.typography.titleSmall)
             Text(
                 stringResource(R.string.copilot_empty_text),
@@ -295,13 +300,9 @@ private fun CopilotConversation(chat: CopilotChat, onAiSettings: () -> Unit, mod
         chat.turns.size, chat.liveText.length, chat.liveReasoning.length, chat.liveTools.size,
         chat.liveTools.count { it.output != null }, chat.approvals.size, chat.notices.size, working, chat.sending, chat.error,
     )
-    LaunchedEffect(tail) {
-        val n = list.layoutInfo.totalItemsCount
-        if (n > 0) {
-            list.scrollToItem(n - 1)
-            list.scrollBy(100_000f)
-        }
-    }
+    LaunchedEffect(tail) { list.scrollToEnd() }
+    // And when the keyboard opens, which takes the bottom of the list.
+    FollowKeyboard(list)
 
     LazyColumn(modifier.fillMaxWidth(), state = list, contentPadding = PaddingValues(vertical = 8.dp)) {
         items(chat.turns.size) { i ->

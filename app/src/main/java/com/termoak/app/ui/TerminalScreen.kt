@@ -17,12 +17,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -111,6 +114,7 @@ import com.termoak.ffi.Snippet
 import com.termoak.ffi.TerminalKey
 import com.termoak.ffi.renderSnippet
 import com.termoak.ffi.snippetVariables
+import kotlinx.coroutines.delay
 
 private val TermBg = Color(0xFF12151D)
 private val BarBg = Color(0xFF1A1F2B)
@@ -120,7 +124,7 @@ internal val TermBarBg = BarBg
 internal val TermKeyBg = KeyBg
 internal val TermKeyFg = KeyFg
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val context = LocalContext.current
@@ -197,8 +201,24 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.let { session.paste(it.toString()) }
     }
 
-    Box(Modifier.fillMaxSize().background(TermBg).statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Row(Modifier.fillMaxSize()) {
+    // The terminal makes room for its own keyboard (fewer rows). On a phone the
+    // copilot's keyboard goes over it instead: the terminal keeps its size (no
+    // resize sent to the server, nothing reflowed) and only the copilot moves
+    // up; also while that keyboard goes away after closing the copilot, so the
+    // terminal isn't resized twice.
+    val imeVisible = WindowInsets.isImeVisible
+    var copilotIme by remember { mutableStateOf(false) }
+    LaunchedEffect(imeVisible, copilotOpen, wide) {
+        when {
+            imeVisible && copilotOpen && !wide -> copilotIme = true
+            !imeVisible -> copilotIme = false
+            !copilotOpen -> { delay(600); copilotIme = false }
+        }
+    }
+    val imeOverTerminal = !wide && (copilotOpen || copilotIme)
+
+    Box(Modifier.fillMaxSize().background(TermBg).statusBarsPadding().navigationBarsPadding()) {
+        Row(Modifier.fillMaxSize().then(if (imeOverTerminal) Modifier else Modifier.imePadding())) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 // ----- Top bar -----
                 Row(Modifier.fillMaxWidth().background(BarBg).height(52.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -397,7 +417,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             }
             AnimatedVisibility(
                 copilotOpen,
-                Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.85f).fillMaxHeight(),
+                // Above the keyboard, so its box to write in is never under it.
+                Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.85f).fillMaxHeight().imePadding(),
                 enter = slideInHorizontally { it },
                 exit = slideOutHorizontally { it },
             ) {
