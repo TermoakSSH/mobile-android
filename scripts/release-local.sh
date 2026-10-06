@@ -33,6 +33,10 @@
 #   REPO          owner/repository (default: TermoakSSH/mobile-android)
 #   COMMIT        commit to tag (default: HEAD)
 #   VERSION       version for download and publish (default: the manifest's)
+#   TERMOAK_OFFICIAL_SERVER
+#                 official server of the build (default https://termoak.com),
+#                 e.g. https://next.termoak.com for test builds: the engine's
+#                 officialServerUrl() and BuildConfig.DEFAULT_SERVER
 #
 # Compatible with macOS's bash 3.2.
 set -euo pipefail
@@ -173,9 +177,16 @@ build_android() {
   for abi in "${abis[@]}"; do targets+=(-t "$abi"); done
   say "Android $version: engine (${abis[*]}) and APKs"
   # The cargo registry and the Gradle cache are kept in target/android.
+  # The official server is compiled into the engine (servers::OFFICIAL_SERVER)
+  # and into the app (BuildConfig.DEFAULT_SERVER, the fallback).
+  local official=() server_prop=""
+  if [[ -n "${TERMOAK_OFFICIAL_SERVER:-}" ]]; then
+    official=(-e "TERMOAK_OFFICIAL_SERVER=$TERMOAK_OFFICIAL_SERVER")
+    server_prop="-PtermoakServer=$TERMOAK_OFFICIAL_SERVER"
+  fi
   docker run --rm -v "$root:/src" -v "$dir:/ks:ro" -w /src \
     -e CARGO_HOME=/src/target/android/cargo-home -e CARGO_TARGET_DIR=/src/target/android \
-    -e GRADLE_USER_HOME=/src/target/android/gradle \
+    -e GRADLE_USER_HOME=/src/target/android/gradle ${official[@]+"${official[@]}"} \
     --env-file "$dir/keystore.env" -e TERMOAK_ANDROID_KEYSTORE=/ks/keystore.jks \
     termoak-android-builder bash -c "set -e
       export PATH=/usr/local/cargo/bin:\$PATH
@@ -184,7 +195,7 @@ build_android() {
       cargo ndk ${targets[*]} --platform 26 -o bindings/kotlin/src/main/jniLibs \
         build -p termoak-ffi --lib --profile mobile --locked
       cd ..
-      ./gradlew --no-daemon -q clean assembleRelease"
+      ./gradlew --no-daemon -q clean assembleRelease $server_prop"
   # Gradle's ABI splits (app/build.gradle.kts): app-<abi>-release.apk and
   # app-universal-release.apk.
   for apk in "${abis[@]}" universal; do
