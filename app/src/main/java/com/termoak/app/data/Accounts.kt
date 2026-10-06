@@ -327,9 +327,9 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     }
 
     /** Creates an account (official server, or your own with open registration or an invitation). */
-    suspend fun signUp(server: ServerChoice, email: String, name: String, password: String, invite: String?): AccountInfo {
+    suspend fun signUp(server: ServerChoice, email: String, name: String, password: String, invite: String?, acceptTerms: Boolean = false): AccountInfo {
         val before = _list.value.map { it.id }.toSet()
-        val info = core.signUp(server, email.trim(), name.trim(), password, invite?.trim()?.ifEmpty { null })
+        val info = core.signUp(server, email.trim(), name.trim(), password, invite?.trim()?.ifEmpty { null }, acceptTerms)
         prefs.lastEmail = email.trim()
         added(info, before)
         return info

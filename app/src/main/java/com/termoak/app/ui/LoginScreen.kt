@@ -242,7 +242,7 @@ fun LoginScreen(
         error = null
         scope.launch {
             try {
-                val info = app.accounts.signUp(choice(), email, name, password, null)
+                val info = app.accounts.signUp(choice(), email, name, password, null, acceptTerms = terms && acceptTerms)
                 finished(info.status)
             } catch (e: TermoakException) {
                 error = e.userMessage(resources, R.string.signup_failed)
