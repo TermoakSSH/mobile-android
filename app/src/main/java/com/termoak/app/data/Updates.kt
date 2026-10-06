@@ -53,11 +53,11 @@ class Updates(context: Context, private val prefs: Prefs) {
     }
 
     /**
-     * Asks [server] (or [BuildConfig.DEFAULT_SERVER] when signed out) for the
+     * Asks [server] (or the official server when signed out) for the
      * latest release. `false` if it couldn't be reached.
      */
     suspend fun check(server: String?): Boolean {
-        val base = server ?: BuildConfig.DEFAULT_SERVER
+        val base = server ?: officialServer
         val result = runCatching { fetch(base) }.getOrElse { return false }
         sp.edit {
             putLong(LAST_CHECK, System.currentTimeMillis())

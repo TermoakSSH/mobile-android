@@ -50,6 +50,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.data.canWrite
+import com.termoak.app.data.uid
+import com.termoak.app.userMessage
+import com.termoak.ffi.SyncMode
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.runtime.LaunchedEffect
 import com.termoak.app.TermoakApp
 import com.termoak.ffi.ForwardKind
 import com.termoak.ffi.PortForward
@@ -66,19 +72,28 @@ fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    fun load() = runCatching { app.core.listForwards(null) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() }
+    fun load() = runCatching { app.core.listForwards(null, app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() }
     var forwards by remember { mutableStateOf(load()) }
-    val hosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() } }
-    val byId = remember(hosts) { hosts.associateBy { it.id } }
+    fun loadHosts() = runCatching { app.core.listHosts(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() }
+    var hosts by remember { mutableStateOf(loadHosts()) }
+    LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { forwards = load(); hosts = loadHosts() } }
+    // A tunnel lives with its host (same account and vault).
+    val byId = remember(hosts) { hosts.associateBy { it.accountId to it.id } }
+    // Hosts a tunnel can be added to (not those of Use-only vaults).
+    val usable = hosts.filter { it.access.canWrite() }
     var editing by remember { mutableStateOf<PortForward?>(null) }
     var deleting by remember { mutableStateOf<PortForward?>(null) }
 
     fun newForward() {
-        if (hosts.isEmpty()) {
+        if (usable.isEmpty()) {
             scope.launch { snackbar.showSnackbar(resources.getString(R.string.forwards_no_hosts)) }
             return
         }
-        editing = PortForward(id = "", label = "", hostId = hosts.first().id, kind = ForwardKind.LOCAL, destHost = "localhost")
+        val h = usable.first()
+        editing = PortForward(
+            id = "", label = "", hostId = h.id, kind = ForwardKind.LOCAL, destHost = "localhost",
+            accountId = h.accountId, vaultId = h.vaultId,
+        )
     }
 
     VaultScaffold(
@@ -112,22 +127,34 @@ fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
                         )
                     }
                 }
-                items(forwards, key = { it.id }) { f ->
-                    ForwardRow(f, byId[f.hostId], onClick = { editing = f }, onDelete = { deleting = f })
+                items(forwards, key = { it.uid }) { f ->
+                    ForwardRow(
+                        f, byId[f.accountId to f.hostId] ?: byId[null to f.hostId],
+                        onClick = { if (f.access.canWrite()) editing = f }, onDelete = if (f.access.canWrite()) ({ deleting = f }) else null,
+                    )
                 }
             }
         }
     }
 
     editing?.let { f ->
-        ForwardDialog(f, hosts, onDismiss = { editing = null }) { saved ->
+        // An existing tunnel stays in its place; a new one goes with the host chosen.
+        val choices = if (f.id.isEmpty()) usable else usable.filter { it.accountId == f.accountId && it.vaultId == f.vaultId }
+        ForwardDialog(f, choices, onDismiss = { editing = null }) { chosen ->
+            val host = choices.firstOrNull { it.id == chosen.hostId }
+            val saved = if (f.id.isEmpty() && host != null) {
+                chosen.copy(
+                    accountId = host.accountId, vaultId = host.vaultId,
+                    syncMode = if (host.accountId == null && app.accounts.list.value.isNotEmpty()) SyncMode.DEVICE_ONLY else chosen.syncMode,
+                )
+            } else chosen
             try {
                 app.core.saveForward(saved)
                 forwards = load()
-                app.account.sync()
+                app.accounts.sync()
                 editing = null
             } catch (e: TermoakException) {
-                scope.launch { snackbar.showSnackbar(e.message ?: resources.getString(R.string.error_save_failed)) }
+                scope.launch { snackbar.showSnackbar(e.userMessage(resources, R.string.error_save_failed)) }
             }
         }
     }
@@ -136,9 +163,9 @@ fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
             stringResource(R.string.common_delete_named, f.label), stringResource(R.string.hosts_delete_text),
             stringResource(R.string.common_delete), destructive = true, onDismiss = { deleting = null },
         ) {
-            runCatching { app.core.deleteForward(f.id) }
+            runCatching { app.core.deleteForward(f.id, f.accountId) }
             forwards = load()
-            app.account.sync()
+            app.accounts.sync()
         }
     }
 }
@@ -156,7 +183,7 @@ private fun route(f: PortForward, host: String): String {
 }
 
 @Composable
-private fun ForwardRow(f: PortForward, host: SshHost?, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun ForwardRow(f: PortForward, host: SshHost?, onClick: () -> Unit, onDelete: (() -> Unit)?) {
     val hostLabel = host?.label ?: "?"
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
@@ -188,8 +215,12 @@ private fun ForwardRow(f: PortForward, host: SshHost?, onClick: () -> Unit, onDe
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (onDelete != null) {
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.padding(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -91,6 +91,8 @@ data class ShareNotice(
     /** Who asks, or who shared it. */
     val name: String,
     val participantId: String? = null,
+    /** Account of the server session (`null`: the current one). */
+    val accountId: String? = null,
 ) {
     enum class Kind { JOIN_REQUEST, CONTROL_REQUEST, SHARED_WITH_YOU, CONTROL_GRANTED, CONTROL_REVOKED }
 }

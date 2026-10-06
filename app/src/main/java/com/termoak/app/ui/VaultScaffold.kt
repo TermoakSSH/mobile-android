@@ -67,7 +67,11 @@ fun VaultScaffold(
         actions = actions,
         floatingActionButton = floatingActionButton,
         header = {
+            val app = LocalContext.current.applicationContext as TermoakApp
+            // The account shown (switcher) and its vaults (filter), for every section.
+            AccountSwitcher(app, nav)
             VaultTabs(section) { if (it != section) nav.goVault(it.route) }
+            VaultFilterRow(app)
             UpdateBanner()
         },
         content = content,

@@ -31,7 +31,8 @@ class LocalTerminal(
     label: String,
     hostId: String,
     private val address: String,
-) : TermSession(label, hostId), TerminalListener, AuthHandler {
+    accountId: String? = null,
+) : TermSession(label, hostId, accountId), TerminalListener, AuthHandler {
     @Volatile private var handle: TerminalHandle? = null
     override val persistent = false
 
@@ -118,7 +119,7 @@ class LocalTerminal(
         _state.value = TermState.Connecting(uiText(R.string.term_connecting_to, address))
         scope.launch {
             try {
-                handle = core.connectTerminal(hostId!!, screen.cols(), screen.rows(), this@LocalTerminal, this@LocalTerminal)
+                handle = core.connectTerminal(hostId!!, screen.cols(), screen.rows(), this@LocalTerminal, this@LocalTerminal, accountId)
                 _state.value = TermState.Running
             } catch (e: TermoakException) {
                 _state.value = TermState.Closed(e.toUiText(R.string.term_connect_failed))

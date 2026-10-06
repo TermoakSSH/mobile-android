@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.RESEND_INTERVAL_MS
+import com.termoak.app.userMessage
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -71,7 +72,7 @@ private const val CODE_LENGTH = 6
 fun VerifyEmailScreen(app: TermoakApp, onDone: () -> Unit, onDifferentEmail: () -> Unit) {
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
-    val pending by app.account.verification.collectAsState()
+    val pending by app.accounts.verification.collectAsState()
     var code by rememberSaveable { mutableStateOf("") }
     var totp by rememberSaveable { mutableStateOf("") }
     var needsTotp by rememberSaveable { mutableStateOf(false) }
@@ -108,7 +109,7 @@ fun VerifyEmailScreen(app: TermoakApp, onDone: () -> Unit, onDifferentEmail: () 
         notice = null
         scope.launch {
             try {
-                app.account.verifyCode(code, totp.ifBlank { null })
+                app.accounts.verifyCode(code, totp.ifBlank { null })
                 onDone()
             } catch (e: TermoakException.TotpRequired) {
                 needsTotp = true
@@ -117,7 +118,7 @@ fun VerifyEmailScreen(app: TermoakApp, onDone: () -> Unit, onDifferentEmail: () 
             } catch (e: TermoakException.Invalid) {
                 error = resources.getString(R.string.verify_code_invalid)
             } catch (e: TermoakException) {
-                error = e.message
+                error = e.userMessage(resources, R.string.verify_code_invalid)
             } finally {
                 busy = false
             }
@@ -131,7 +132,7 @@ fun VerifyEmailScreen(app: TermoakApp, onDone: () -> Unit, onDifferentEmail: () 
         notice = null
         scope.launch {
             try {
-                app.account.resendCode()
+                app.accounts.resendCode()
                 code = ""
                 notice = resources.getString(R.string.verify_resent, email)
             } catch (e: TermoakException) {
@@ -219,11 +220,19 @@ fun VerifyEmailScreen(app: TermoakApp, onDone: () -> Unit, onDifferentEmail: () 
             }
             TextButton(
                 onClick = {
-                    app.account.useDifferentEmail()
+                    app.accounts.useDifferentEmail()
                     onDifferentEmail()
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.verify_different_email)) }
+            // The account waits in Manage accounts until the code is entered.
+            TextButton(
+                onClick = {
+                    app.accounts.postponeVerification()
+                    onDone()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.verify_later)) }
         }
         Spacer(Modifier.weight(1f))
         Text(

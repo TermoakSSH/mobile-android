@@ -67,7 +67,7 @@ data class JoinLinkRef(val server: String, val token: String) {
  * keyboard changes. The app shows them as snackbars; in the background, join
  * and keyboard requests and new shares also become notifications.
  */
-class ShareNotices(private val context: Context, private val sessions: Sessions, private val account: Account) {
+class ShareNotices(private val context: Context, private val sessions: Sessions, private val accounts: Accounts) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val _notices = MutableSharedFlow<ShareNotice>(extraBufferCapacity = 16)
     val notices: SharedFlow<ShareNotice> = _notices
@@ -86,7 +86,7 @@ class ShareNotices(private val context: Context, private val sessions: Sessions,
         if (started) return
         started = true
         scope.launch { sessions.notices.collect { emit(it) } }
-        scope.launch { account.sessionNotices.collect { n -> fromServer(n)?.let { emit(it) } } }
+        scope.launch { accounts.sessionNotices.collect { n -> fromServer(n)?.let { emit(it) } } }
     }
 
     private fun fromServer(n: JSONObject): ShareNotice? {
@@ -104,7 +104,10 @@ class ShareNotices(private val context: Context, private val sessions: Sessions,
         val participant = n.optJSONObject("participant")
         val name = participant?.optString("name")?.ifEmpty { null } ?: n.optString("by")
         val tab = sessionId?.let { sessions.bySessionId(it) }
-        return ShareNotice(kind, tab?.id, sessionId, title.ifBlank { tab?.label.orEmpty() }, name, participant?.optString("id"))
+        return ShareNotice(
+            kind, tab?.id, sessionId, title.ifBlank { tab?.label.orEmpty() }, name, participant?.optString("id"),
+            accountId = n.optString("account_id").ifEmpty { null },
+        )
     }
 
     private fun emit(n: ShareNotice) {
@@ -148,7 +151,8 @@ class ShareNotices(private val context: Context, private val sessions: Sessions,
                 .putExtra(EXTRA_KIND, n.kind.name)
                 .putExtra(EXTRA_TAB, n.tabId)
                 .putExtra(EXTRA_SESSION, n.sessionId)
-                .putExtra(EXTRA_TITLE, n.title),
+                .putExtra(EXTRA_TITLE, n.title)
+                .putExtra(EXTRA_ACCOUNT, n.accountId),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         manager.notify(
@@ -170,7 +174,7 @@ class ShareNotices(private val context: Context, private val sessions: Sessions,
         val kind = intent?.getStringExtra(EXTRA_KIND)?.let { k -> ShareNotice.Kind.entries.firstOrNull { it.name == k } } ?: return false
         openRequest.value = ShareNotice(
             kind, intent.getStringExtra(EXTRA_TAB), intent.getStringExtra(EXTRA_SESSION),
-            intent.getStringExtra(EXTRA_TITLE).orEmpty(), "",
+            intent.getStringExtra(EXTRA_TITLE).orEmpty(), "", accountId = intent.getStringExtra(EXTRA_ACCOUNT),
         )
         intent.removeExtra(EXTRA_KIND)
         return true
@@ -182,5 +186,6 @@ class ShareNotices(private val context: Context, private val sessions: Sessions,
         private const val EXTRA_TAB = "share_tab"
         private const val EXTRA_SESSION = "share_session"
         private const val EXTRA_TITLE = "share_title"
+        private const val EXTRA_ACCOUNT = "share_account"
     }
 }

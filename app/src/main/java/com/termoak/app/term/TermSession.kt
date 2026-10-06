@@ -60,7 +60,12 @@ val InitialConnecting = TermState.Connecting(uiText(R.string.term_connecting))
  * lives on the server. It keeps the emulator ([TerminalScreen]) and what has
  * to be asked to the user. Callbacks arrive on background threads.
  */
-abstract class TermSession(val label: String, val hostId: String?) {
+abstract class TermSession(
+    val label: String,
+    val hostId: String?,
+    /** Account of the host or the server session (`null`: This device, or the current account). */
+    val accountId: String? = null,
+) {
     val id: String = UUID.randomUUID().toString()
     /** When the tab was opened (for the Connections list). */
     val openedAt: Long = System.currentTimeMillis()

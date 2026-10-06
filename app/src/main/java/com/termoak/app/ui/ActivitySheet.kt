@@ -53,13 +53,13 @@ private sealed interface ActivityLoad {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ActivitySheet(app: TermoakApp, sessionId: String, title: String, onDismiss: () -> Unit) {
+fun ActivitySheet(app: TermoakApp, sessionId: String, title: String, onDismiss: () -> Unit, accountId: String? = null) {
     var load by remember(sessionId) { mutableStateOf<ActivityLoad>(ActivityLoad.Loading) }
     var attempt by remember(sessionId) { mutableIntStateOf(0) }
     LaunchedEffect(sessionId, attempt) {
         load = ActivityLoad.Loading
         load = try {
-            app.core.sessionActivity(sessionId)?.let { ActivityLoad.Done(it) } ?: ActivityLoad.NotRecorded
+            (accountId?.let { app.core.account(it).sessionActivity(sessionId) } ?: app.core.sessionActivity(sessionId))?.let { ActivityLoad.Done(it) } ?: ActivityLoad.NotRecorded
         } catch (e: TermoakException) {
             ActivityLoad.Failed(e.message)
         }

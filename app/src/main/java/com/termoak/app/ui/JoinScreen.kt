@@ -58,6 +58,8 @@ import com.termoak.ffi.LinkInvite
 import com.termoak.ffi.SessionAccess
 import com.termoak.ffi.TermoakException
 import com.termoak.ffi.linkInviteInfo
+import com.termoak.ffi.AccountStatus
+import com.termoak.app.data.AccountView
 
 /**
  * Joining a shared session with an invitation link: what it is (who shares
@@ -66,13 +68,15 @@ import com.termoak.ffi.linkInviteInfo
  */
 @Composable
 fun JoinScreen(app: TermoakApp, nav: NavHostController, server: String, token: String) {
-    val loggedIn by app.account.loggedIn.collectAsState()
-    val account by app.account.serverUrl.collectAsState()
-    val user by app.account.user.collectAsState()
+    val accountList by app.accounts.list.collectAsState()
+    // A signed-in account on the link's server joins with its name (the current one first).
+    val match = accountList.filter { it.status == AccountStatus.ACTIVE && JoinLinkRef.sameServer(it.serverUrl, server) }
+        .sortedByDescending { it.isCurrent }.firstOrNull()
+    val user = match?.email
     var info by remember { mutableStateOf<LinkInvite?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf(app.prefs.guestName.orEmpty()) }
-    val asAccount = loggedIn == true && JoinLinkRef.sameServer(account, server)
+    val asAccount = match != null
     val fallback = stringResource(R.string.join_invalid)
     val untitled = stringResource(R.string.common_session)
 
@@ -88,6 +92,8 @@ fun JoinScreen(app: TermoakApp, nav: NavHostController, server: String, token: S
         val i = info ?: return
         val guestName = name.trim().take(40).ifEmpty { null }
         if (!asAccount) app.prefs.guestName = guestName
+        // Joining with an account goes through the current one: make it current.
+        if (match != null && !match.isCurrent) app.accounts.setView(AccountView.One(match.id))
         app.sessions.joinLink(
             LinkJoin(server, token, asAccount, if (asAccount) null else guestName),
             i.title.ifBlank { untitled },

@@ -57,7 +57,7 @@ class SnippetRuns(private val sessions: Sessions) {
 
     /** Sends [text] to a terminal of each host, opening the ones that aren't open. */
     fun onHosts(name: String, text: String, run: Boolean, hosts: List<SshHost>) {
-        val targets = hosts.distinctBy { it.id }.map { sessions.liveLocal(it.id) ?: sessions.openLocal(it, activate = false) }
+        val targets = hosts.distinctBy { it.accountId to it.id }.map { sessions.liveLocal(it.id, it.accountId) ?: sessions.openLocal(it, activate = false) }
         start(name, text, run, targets)
     }
 

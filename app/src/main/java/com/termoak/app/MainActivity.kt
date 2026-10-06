@@ -23,7 +23,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as TermoakApp
-        app.account.refresh()
+        app.accounts.refresh()
         app.shareNotices.start()
         if (savedInstanceState == null) handleIntent(intent)
         setContent {

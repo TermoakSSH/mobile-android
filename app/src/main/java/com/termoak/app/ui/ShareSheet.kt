@@ -67,6 +67,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.termoak.app.R
+import com.termoak.app.data.AccountView
+import com.termoak.app.data.Accounts
 import com.termoak.app.TermoakApp
 import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.ServerTerminal
@@ -94,8 +96,16 @@ interface ShareBackend {
     suspend fun stop()
 }
 
-private class ServerShareBackend(private val core: TermoakCore, private val sessionId: String) : ShareBackend {
-    override suspend fun prepare() = Unit
+private class ServerShareBackend(
+    private val core: TermoakCore,
+    private val sessionId: String,
+    private val accountId: String?,
+    private val accounts: Accounts,
+) : ShareBackend {
+    /** Sharing goes through the current account: the session's account becomes current. */
+    override suspend fun prepare() {
+        if (accountId != null && accounts.current.value?.id != accountId) accounts.setView(AccountView.One(accountId))
+    }
     override suspend fun invite(target: ShareTarget, options: ShareOptions) = core.shareServerSessionWith(sessionId, target, options)
     override suspend fun list() = core.listServerSessionShares(sessionId)
     override suspend fun update(shareId: String, changes: ShareChanges) = core.updateServerSessionShare(sessionId, shareId, changes)
@@ -188,7 +198,7 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
     val scope = rememberCoroutineScope()
     val backend = remember(session) {
         when (session) {
-            is ServerTerminal -> ServerShareBackend(app.core, session.sessionId ?: "")
+            is ServerTerminal -> ServerShareBackend(app.core, session.sessionId ?: "", session.accountId, app.accounts)
             is LocalTerminal -> RelayShareBackend(session, title)
             else -> null
         }

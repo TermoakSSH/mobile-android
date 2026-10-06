@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.data.uid
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
 import com.termoak.app.term.SnippetRuns
@@ -70,14 +71,14 @@ import com.termoak.ffi.snippetVariables
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SnippetPickerSheet(app: TermoakApp, onDismiss: () -> Unit, onPick: (Snippet) -> Unit) {
-    val snippets = remember { runCatching { app.core.listSnippets() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val snippets = remember { runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Text(stringResource(R.string.multi_choose_snippet), Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge)
         if (snippets.isEmpty()) {
             Text(stringResource(R.string.snippets_none_yet), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         LazyColumn(Modifier.padding(bottom = 24.dp)) {
-            items(snippets, key = { it.id }) { sn ->
+            items(snippets, key = { it.uid }) { sn ->
                 ListItem(
                     modifier = Modifier.clickable { onPick(sn) },
                     headlineContent = { Text(sn.name) },
@@ -107,8 +108,8 @@ fun RunSnippetSheet(
     onDismiss: () -> Unit,
     onStarted: () -> Unit,
 ) {
-    val hosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() } }
-    val groups = remember { runCatching { app.core.listGroups() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val hosts = remember { runCatching { app.core.listHosts(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() } }
+    val groups = remember { runCatching { app.core.listGroups(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
     val open by app.sessions.list.collectAsState()
     var onOpen by remember { mutableStateOf(initialHosts.isEmpty() && hosts.isEmpty() && open.isNotEmpty()) }
     var chosenHosts by remember { mutableStateOf(initialHosts) }
@@ -119,7 +120,7 @@ fun RunSnippetSheet(
         if (onOpen) {
             app.snippetRuns.onSessions(snippet.name, text, run, open.map { it.id }.filter { it in chosenTerminals })
         } else {
-            app.snippetRuns.onHosts(snippet.name, text, run, hosts.filter { it.id in chosenHosts })
+            app.snippetRuns.onHosts(snippet.name, text, run, hosts.filter { it.uid in chosenHosts })
         }
         onStarted()
     }
@@ -156,12 +157,12 @@ fun RunSnippetSheet(
                     Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val all = hosts.map { it.id }.toSet()
+                    val all = hosts.map { it.uid }.toSet()
                     FilterChip(chosenHosts.containsAll(all), {
                         chosenHosts = if (chosenHosts.containsAll(all)) emptySet() else all
                     }, { Text(stringResource(R.string.multi_all)) })
                     groups.forEach { g ->
-                        val ids = groupHosts(g.id, hosts, groups).map { it.id }.toSet()
+                        val ids = groupHosts(g, hosts, groups).map { it.uid }.toSet()
                         if (ids.isNotEmpty()) {
                             FilterChip(chosenHosts.containsAll(ids), {
                                 chosenHosts = if (chosenHosts.containsAll(ids)) chosenHosts - ids else chosenHosts + ids
@@ -170,9 +171,9 @@ fun RunSnippetSheet(
                     }
                 }
                 LazyColumn(Modifier.heightIn(max = 340.dp)) {
-                    items(hosts, key = { it.id }) { h ->
-                        val checked = h.id in chosenHosts
-                        HostChoice(h, checked) { chosenHosts = if (checked) chosenHosts - h.id else chosenHosts + h.id }
+                    items(hosts, key = { it.uid }) { h ->
+                        val checked = h.uid in chosenHosts
+                        HostChoice(h, checked) { chosenHosts = if (checked) chosenHosts - h.uid else chosenHosts + h.uid }
                     }
                 }
             }
@@ -248,8 +249,9 @@ private fun HostChoice(h: SshHost, checked: Boolean, onToggle: () -> Unit) {
 }
 
 /** Hosts of group [groupId] and of its subgroups. */
-private fun groupHosts(groupId: String, hosts: List<SshHost>, groups: List<HostGroup>): List<SshHost> =
-    hosts.filter { it.groupId == groupId } + groups.filter { it.parentId == groupId }.flatMap { groupHosts(it.id, hosts, groups) }
+private fun groupHosts(group: HostGroup, hosts: List<SshHost>, groups: List<HostGroup>): List<SshHost> =
+    hosts.filter { it.groupId == group.id && it.accountId == group.accountId } +
+        groups.filter { it.parentId == group.id && it.accountId == group.accountId }.flatMap { groupHosts(it, hosts, groups) }
 
 /**
  * Summary of a snippet sent to several terminals (for the whole app): how

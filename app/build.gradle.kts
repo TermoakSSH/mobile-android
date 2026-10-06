@@ -37,7 +37,8 @@ android {
         targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersion
-        // Server suggested on the sign-in screen.
+        // Official server: the fallback of the engine's officialServerUrl() (release-local.sh
+        // passes TERMOAK_OFFICIAL_SERVER to both).
         buildConfigField(
             "String",
             "DEFAULT_SERVER",

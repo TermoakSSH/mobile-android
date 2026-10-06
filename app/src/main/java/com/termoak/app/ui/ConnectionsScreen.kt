@@ -59,8 +59,11 @@ import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
+import com.termoak.app.userMessage
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
+import com.termoak.ffi.AccountInfo
+import com.termoak.ffi.ItemFilter
 import com.termoak.ffi.ParticipantKind
 import com.termoak.ffi.ServerSession
 import com.termoak.ffi.ServerSessionList
@@ -81,16 +84,23 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val loggedIn by app.account.loggedIn.collectAsState()
+    val loggedIn by app.accounts.loggedIn.collectAsState()
     val local by app.sessions.list.collectAsState()
-    var server by remember { mutableStateOf<ServerSessionList?>(null) }
+    // The server sessions of each signed-in account.
+    var lists by remember { mutableStateOf<List<Pair<AccountInfo, ServerSessionList>>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf<ServerSession?>(null) }
     var closingAll by remember { mutableStateOf(false) }
     var joining by remember { mutableStateOf(false) }
     // Session whose activity (who typed) is open: id and title.
     var activity by remember { mutableStateOf<Pair<String, String>?>(null) }
-    val hosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).associateBy { it.id } }
+    // Hosts of every account (and This device), by account and id.
+    val hosts = remember { runCatching { app.core.listHosts(ItemFilter()) }.getOrDefault(emptyList()).associateBy { it.accountId to it.id } }
+    val sessionAccount = remember(lists) {
+        lists.flatMap { (a, l) -> (l.active + l.shared).map { it.id to a.id } + l.recent.map { it.id to a.id } }.toMap()
+    }
+    fun hostOf(id: String, hostId: String?): SshHost? = hostId?.let { hosts[sessionAccount[id] to it] }
+    fun hostOf(s: ServerSession): SshHost? = hostOf(s.id, s.hostId)
     val untitled = stringResource(R.string.common_session)
 
     fun reload() {
@@ -98,16 +108,16 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
         scope.launch {
             loading = true
             try {
-                server = app.core.listServerSessions()
+                lists = app.accounts.active().mapNotNull { a -> app.accounts.handle(a.id)?.let { a to it.listServerSessions() } }
             } catch (e: TermoakException) {
-                snackbar.showSnackbar(e.message ?: resources.getString(R.string.sessions_load_failed))
+                snackbar.showSnackbar(e.userMessage(resources, R.string.sessions_load_failed))
             } finally {
                 loading = false
             }
         }
     }
     LaunchedEffect(loggedIn) { reload() }
-    LaunchedEffect(Unit) { app.account.changes.collect { if (it == "session" || it == "lagged") reload() } }
+    LaunchedEffect(Unit) { app.accounts.changes.collect { if (it == "session" || it == "lagged") reload() } }
 
     fun openTab(s: TermSession) {
         app.sessions.select(s.id)
@@ -115,8 +125,8 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     }
     fun attach(s: ServerSession) {
         app.sessions.attach(
-            s.id, s.title.ifBlank { s.hostId?.let { hosts[it]?.label } ?: untitled }, s.hostId,
-            owner = s.access == SessionAccess.OWNER,
+            s.id, s.title.ifBlank { hostOf(s)?.label ?: untitled }, s.hostId,
+            owner = s.access == SessionAccess.OWNER, accountId = sessionAccount[s.id],
         )
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
@@ -132,9 +142,13 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
         },
     ) { padding ->
         PullToRefreshBox(isRefreshing = loading, onRefresh = { reload() }, modifier = Modifier.fillMaxSize().padding(padding)) {
-            val active = server?.active.orEmpty()
-            val shared = server?.shared.orEmpty()
-            val recent = server?.recent.orEmpty().take(15)
+            val active = lists.flatMap { it.second.active }
+            val shared = lists.flatMap { it.second.shared }
+            val recent = lists.flatMap { it.second.recent }.sortedByDescending { it.endedAt ?: it.createdAt }.take(15)
+            // With several accounts, each session says which one it is on.
+            val several = lists.size > 1
+            fun accountLabel(id: String): String? =
+                if (several) lists.firstOrNull { it.first.id == sessionAccount[id] }?.first?.email else null
             if (local.isEmpty() && active.isEmpty() && shared.isEmpty() && recent.isEmpty()) {
                 Column(Modifier.fillMaxSize()) {
                     EmptyState(
@@ -157,7 +171,7 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                     item { SectionLabel(stringResource(R.string.sessions_open_here)) }
                     items(local, key = { it.id }) { s ->
                         SwipeToClose(Icons.Outlined.Close, onSwiped = { app.sessions.close(s.id) }) {
-                            LocalSessionRow(s, s.hostId?.let { hosts[it] }, onClick = { openTab(s) }, onClose = { app.sessions.close(s.id) })
+                            LocalSessionRow(s, s.hostId?.let { hosts[s.accountId to it] }, onClick = { openTab(s) }, onClose = { app.sessions.close(s.id) })
                         }
                     }
                 }
@@ -166,8 +180,9 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                     items(active, key = { "a" + it.id }) { s ->
                         SwipeToClose(Icons.Outlined.PowerSettingsNew, resetAfter = true, onSwiped = { closing = s }) {
                             ServerSessionRow(
-                                s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = { closing = s },
-                                onActivity = { activity = s.id to s.title.ifBlank { s.hostId?.let { hosts[it]?.label } ?: untitled } },
+                                s, hostOf(s), onClick = { attach(s) }, onClose = { closing = s },
+                                onActivity = { activity = s.id to s.title.ifBlank { hostOf(s)?.label ?: untitled } },
+                                account = accountLabel(s.id),
                             )
                         }
                     }
@@ -175,7 +190,7 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                 if (loggedIn == true && shared.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_shared)) }
                     items(shared, key = { "s" + it.id }) { s ->
-                        ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = null)
+                        ServerSessionRow(s, hostOf(s), onClick = { attach(s) }, onClose = null, account = accountLabel(s.id))
                     }
                 }
                 item {
@@ -194,14 +209,14 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                 if (loggedIn == true && recent.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_recent)) }
                     items(recent, key = { "r" + it.id }) { r ->
-                        val title = r.title.ifBlank { hosts[r.hostId ?: ""]?.label ?: untitled }
+                        val title = r.title.ifBlank { hostOf(r.id, r.hostId)?.label ?: untitled }
                         ListItem(
                             // Recorded: who typed and when.
                             modifier = if (r.recording) Modifier.clickable { activity = r.id to title } else Modifier,
                             headlineContent = { Text(title) },
                             supportingContent = {
                                 Text(
-                                    listOfNotNull(recentStatus(r.status), relativeTime(r.endedAt ?: r.createdAt), r.error)
+                                    listOfNotNull(recentStatus(r.status), relativeTime(r.endedAt ?: r.createdAt), accountLabel(r.id), r.error)
                                         .joinToString(" · "),
                                     maxLines = 1,
                                 )
@@ -239,14 +254,14 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
             onDismiss = { closing = null },
         ) {
             scope.launch {
-                runCatching { app.core.closeServerSession(s.id) }
-                    .onFailure { snackbar.showSnackbar(it.message ?: resources.getString(R.string.sessions_close_failed)) }
+                runCatching { sessionAccount[s.id]?.let { app.core.account(it).closeServerSession(s.id) } ?: app.core.closeServerSession(s.id) }
+                    .onFailure { snackbar.showSnackbar(it.userMessage(resources, R.string.sessions_close_failed)) }
                 reload()
             }
         }
     }
     activity?.let { (id, title) ->
-        ActivitySheet(app, id, title, onDismiss = { activity = null })
+        ActivitySheet(app, id, title, onDismiss = { activity = null }, accountId = sessionAccount[id])
     }
     if (joining) {
         JoinLinkDialog(onDismiss = { joining = false }) { link ->
@@ -358,6 +373,8 @@ private fun ServerSessionRow(
     onClick: () -> Unit,
     onClose: (() -> Unit)?,
     onActivity: (() -> Unit)? = null,
+    /** The account it is on, with several accounts. */
+    account: String? = null,
 ) {
     val (text, color) = when (val st = s.state) {
         is ServerSessionState.Running -> stringResource(R.string.session_state_running) to Brand.Green
@@ -389,7 +406,7 @@ private fun ServerSessionRow(
                         Modifier.size(14.dp).padding(end = 2.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        listOfNotNull(text, relativeTime(s.createdAt), viewers).joinToString(" · "),
+                        listOfNotNull(text, relativeTime(s.createdAt), viewers, account).joinToString(" · "),
                         Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }

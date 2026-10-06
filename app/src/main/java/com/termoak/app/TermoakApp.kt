@@ -3,7 +3,7 @@ package com.termoak.app
 import android.app.Application
 import android.os.Build
 import android.util.Log
-import com.termoak.app.data.Account
+import com.termoak.app.data.Accounts
 import com.termoak.app.data.Copilot
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ShareNotices
@@ -24,12 +24,13 @@ class TermoakApp : Application() {
         }
     }
     val prefs: Prefs by lazy { Prefs(this) }
-    val account: Account by lazy { Account(core) }
-    val sessions: Sessions by lazy { Sessions(this, core) }
+    /** The accounts on this device (servers), the Vault's view and their sync. */
+    val accounts: Accounts by lazy { Accounts(this, core, prefs) }
+    val sessions: Sessions by lazy { Sessions(this, core, accounts) }
     /** A snippet sent to several terminals at once, and how it went. */
     val snippetRuns: SnippetRuns by lazy { SnippetRuns(sessions) }
-    val copilot: Copilot by lazy { Copilot(this, core, account, sessions) }
-    val shareNotices: ShareNotices by lazy { ShareNotices(this, sessions, account) }
+    val copilot: Copilot by lazy { Copilot(this, core, accounts, sessions) }
+    val shareNotices: ShareNotices by lazy { ShareNotices(this, sessions, accounts) }
     /** New versions of the app (APK published on the server). */
     val updates: Updates by lazy { Updates(this, prefs) }
     /** An invitation link opened from outside (deep link), waiting for the app to show it. */

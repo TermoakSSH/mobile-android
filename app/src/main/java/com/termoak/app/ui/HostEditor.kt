@@ -86,7 +86,19 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.ffi.AccountInfo
 import com.termoak.ffi.HostProxy
+import com.termoak.ffi.ItemFilter
+import com.termoak.ffi.TransferMode
+import com.termoak.ffi.VaultInfo
+import com.termoak.app.data.Place
+import com.termoak.app.data.canEdit
+import com.termoak.app.data.canWrite
+import com.termoak.app.data.place
+import com.termoak.app.data.uid
+import com.termoak.app.data.useOnly
+import com.termoak.app.userMessage
+import androidx.compose.runtime.collectAsState
 import com.termoak.ffi.HostSettings
 import com.termoak.ffi.ProxyKind
 import com.termoak.ffi.SecretChange
@@ -142,16 +154,28 @@ internal object HostForm {
 }
 
 @Composable
-fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect: (SshHost) -> Unit) {
+fun HostEditor(app: TermoakApp, hostId: String?, accountId: String?, onClose: () -> Unit, onConnect: (SshHost) -> Unit) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val original = remember { hostId?.let { runCatching { app.core.getHost(it) }.getOrNull() } }
+    val original = remember { hostId?.let { runCatching { app.core.getHost(it, accountId) }.getOrNull() } }
     val s0 = original?.settings ?: HostSettings()
-    val keys = remember { runCatching { app.core.listKeys() }.getOrDefault(emptyList()) }
-    val identities = remember { runCatching { app.core.listIdentities() }.getOrDefault(emptyList()) }
-    val groups = remember { runCatching { app.core.listGroups() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
-    val snippets = remember { runCatching { app.core.listSnippets() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val accountList by app.accounts.list.collectAsState()
+    val vaults by app.accounts.vaults.collectAsState()
+    // Where it is (or, for a new one, where it goes): This device or a vault.
+    var place by remember { mutableStateOf(original?.place ?: app.accounts.defaultPlace()) }
+    val useOnly = original?.access.useOnly()
+    var moving by remember { mutableStateOf(false) }
+    // References stay in the host's vault (or This device).
+    val all = remember { ItemFilter() }
+    val allKeys = remember { runCatching { app.core.listKeys(all) }.getOrDefault(emptyList()) }
+    val allIdentities = remember { runCatching { app.core.listIdentities(all) }.getOrDefault(emptyList()) }
+    val allGroups = remember { runCatching { app.core.listGroups(all) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val allSnippets = remember { runCatching { app.core.listSnippets(all) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val keys = allKeys.filter { place.reaches(it.accountId, it.vaultId) }
+    val identities = allIdentities.filter { place.reaches(it.accountId, it.vaultId) }
+    val groups = allGroups.filter { it.accountId == place.account && (place.vault == null || it.vaultId == place.vault) }
+    val snippets = allSnippets.filter { place.reaches(it.accountId, it.vaultId) }
 
     var label by remember { mutableStateOf(original?.label ?: "") }
     var address by remember { mutableStateOf(original?.address ?: "") }
@@ -183,10 +207,11 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
     var proxyPort by remember { mutableStateOf(proxy0?.port?.toString() ?: "") }
     var proxyUser by remember { mutableStateOf(proxy0?.username ?: "") }
     var proxyPassword by remember { mutableStateOf("") }
-    val hadProxyPassword = remember { original?.let { runCatching { app.core.hostHasProxyPassword(it.id) }.getOrDefault(false) } ?: false }
+    val hadProxyPassword = remember { original?.let { runCatching { app.core.hostHasProxyPassword(it.id, it.accountId) }.getOrDefault(false) } ?: false }
     var clearProxyPassword by remember { mutableStateOf(false) }
     var jumps by remember { mutableStateOf(s0.jumpHostIds ?: emptyList()) }
-    val otherHosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).filter { it.id != original?.id } }
+    val allHosts = remember { runCatching { app.core.listHosts(all) }.getOrDefault(emptyList()).filter { it.uid != original?.uid } }
+    val otherHosts = allHosts.filter { place.reaches(it.accountId, it.vaultId) }
     var agentForwarding by remember { mutableStateOf(s0.agentForwarding == true) }
     var keepalive by remember { mutableStateOf(s0.keepaliveSecs?.toString() ?: "") }
     var startupSnippet by remember { mutableStateOf(s0.startupSnippetId) }
@@ -249,7 +274,15 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
             notes = notes.trim(),
             color = color,
             favorite = favorite,
-            syncMode = if (deviceOnly) SyncMode.DEVICE_ONLY else SyncMode.SYNCED,
+            // With accounts, This device items stay "only on this phone"; a vault syncs.
+            syncMode = when {
+                accountList.isEmpty() -> if (deviceOnly) SyncMode.DEVICE_ONLY else SyncMode.SYNCED
+                original != null -> original.syncMode
+                place.device -> SyncMode.DEVICE_ONLY
+                else -> SyncMode.SYNCED
+            },
+            accountId = original?.accountId ?: place.account,
+            vaultId = original?.vaultId ?: place.vault,
             settings = s0.copy(
                 port = portValue,
                 username = user.trim().ifEmpty { null },
@@ -278,19 +311,21 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
             clearPassword -> SecretChange.Clear
             else -> SecretChange.Keep
         }
+        if (useOnly) return
         try {
             val saved = app.core.saveHost(host, secret)
+            if (original == null) app.accounts.rememberPlace(place)
             val proxySecret = when {
                 proxyKind == null -> if (hadProxyPassword) SecretChange.Clear else SecretChange.Keep
                 proxyPassword.isNotEmpty() -> SecretChange.Set(proxyPassword)
                 clearProxyPassword -> SecretChange.Clear
                 else -> SecretChange.Keep
             }
-            app.core.setHostProxyPassword(saved.id, proxySecret)
-            app.account.sync()
+            app.core.setHostProxyPassword(saved.id, proxySecret, saved.accountId)
+            app.accounts.sync()
             if (connect) onConnect(saved) else onClose()
         } catch (e: TermoakException) {
-            scope.launch { snackbar.showSnackbar(e.message ?: resources.getString(R.string.error_save_failed)) }
+            scope.launch { snackbar.showSnackbar(e.userMessage(resources, R.string.error_save_failed)) }
         }
     }
 
@@ -305,8 +340,13 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back)) }
         },
         actions = {
-            TextButton(onClick = { save(connect = true) }) { Text(stringResource(R.string.hosts_connect)) }
-            TextButton(onClick = { save(connect = false) }) { Text(stringResource(R.string.common_save)) }
+            if (useOnly && original != null) {
+                // Use only: it can't be changed, only used.
+                TextButton(onClick = { onConnect(original) }) { Text(stringResource(R.string.hosts_connect)) }
+            } else {
+                TextButton(onClick = { save(connect = true) }) { Text(stringResource(R.string.hosts_connect)) }
+                TextButton(onClick = { save(connect = false) }) { Text(stringResource(R.string.common_save)) }
+            }
         },
     ) { padding ->
         Column(
@@ -355,6 +395,28 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
                 )
             }
 
+            if (useOnly) UseOnlyNote()
+
+            // ----- Where it is saved: This device or a vault (with accounts) -----
+            if (accountList.isNotEmpty()) {
+                FormSection(stringResource(R.string.editor_section_place)) {
+                    val label = placeLabel(place, accountList, vaults)
+                    if (original == null) {
+                        val options = placeOptions(accountList, vaults)
+                        FormPicker(stringResource(R.string.editor_place), label, options.map { it.first to it.second }) { place = it }
+                    } else {
+                        ListItem(
+                            overlineContent = { Text(stringResource(R.string.editor_place)) },
+                            headlineContent = { Text(label) },
+                            trailingContent = if (original.access.canWrite()) {
+                                { TextButton(onClick = { moving = true }) { Text(stringResource(R.string.transfer_move_to)) } }
+                            } else null,
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        )
+                    }
+                }
+            }
+
             // ----- SSH: user, port and the credential -----
             FormSection("SSH") {
                 Row {
@@ -388,7 +450,9 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
                 }
                 FormDivider()
                 when (auth) {
-                    Auth.PASSWORD -> {
+                    Auth.PASSWORD -> if (useOnly) {
+                        FormNote(stringResource(if (original?.hasPassword == true || original?.secretHidden == true) R.string.editor_password_hidden else R.string.editor_no_password))
+                    } else {
                         FormField(
                             stringResource(R.string.common_password), password, { password = it; clearPassword = false },
                             placeholder = stringResource(
@@ -616,9 +680,12 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
                 FormSwitch(stringResource(R.string.host_favorite), stringResource(R.string.host_favorite_hint), favorite) {
                     favorite = it
                 }
-                FormDivider()
-                FormSwitch(stringResource(R.string.common_device_only), stringResource(R.string.host_device_only_hint), deviceOnly) {
-                    deviceOnly = it
+                // Without accounts: whether to offer it for upload when an account is added.
+                if (accountList.isEmpty()) {
+                    FormDivider()
+                    FormSwitch(stringResource(R.string.common_device_only), stringResource(R.string.host_device_only_hint), deviceOnly) {
+                        deviceOnly = it
+                    }
                 }
                 FormDivider()
                 FormField(
@@ -627,7 +694,7 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
                 )
             }
 
-            if (original != null) {
+            if (original != null && !useOnly) {
                 OutlinedButton(
                     onClick = { deleting = true },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp).fillMaxWidth(),
@@ -645,12 +712,51 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect:
             text = stringResource(R.string.hosts_delete_text),
             confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { deleting = false },
         ) {
-            runCatching { app.core.deleteHost(original.id) }
-            app.account.sync()
-            scope.launch { snackbar.showSnackbar(resources.getString(R.string.hosts_deleted, original.label)) }
+            val r = runCatching { app.core.deleteHost(original.id, original.accountId) }
+            app.accounts.sync()
+            scope.launch {
+                snackbar.showSnackbar(
+                    r.exceptionOrNull()?.userMessage(resources, R.string.error_save_failed) ?: resources.getString(R.string.hosts_deleted, original.label),
+                )
+            }
             onClose()
         }
     }
+    if (moving && original != null) {
+        TransferFlow(
+            app, TransferRequest(TransferMode.MOVE, listOf(TransferItem(original.accountId, original.id, original.vaultId))),
+            onDismiss = { moving = false },
+        ) {
+            moving = false
+            onClose()
+        }
+    }
+}
+
+/** "Personal · ana@example.com", "Ops", "This device": a place for new items. */
+@Composable
+private fun placeLabel(p: Place, accounts: List<AccountInfo>, vaults: List<VaultInfo>): String {
+    if (p.device) return stringResource(R.string.vault_this_device)
+    val account = accounts.firstOrNull { it.id == p.account }
+    val v = vaults.firstOrNull { it.id == p.vault && it.accountId == p.account }
+    val name = v?.let { vaultName(it) } ?: stringResource(R.string.vault_personal)
+    return if (accounts.size > 1 && account != null) "$name · ${account.email}" else name
+}
+
+/** Places a new item can go: This device and every vault where you are Editor. */
+@Composable
+private fun placeOptions(accounts: List<AccountInfo>, vaults: List<VaultInfo>): List<Pair<Place, String>> {
+    val out = mutableListOf(Place.DEVICE to stringResource(R.string.vault_this_device))
+    accounts.filter { it.status != com.termoak.ffi.AccountStatus.UNVERIFIED }.forEach { a ->
+        val mine = vaults.filter { it.accountId == a.id && it.role.canEdit() }
+        if (mine.isEmpty()) {
+            val p = Place(a.id, null)
+            out += p to placeLabel(p, accounts, vaults)
+        } else {
+            mine.forEach { v -> val p = Place(a.id, v.id); out += p to placeLabel(p, accounts, vaults) }
+        }
+    }
+    return out
 }
 
 /** The host's color: the desktop's palette, or none (the system's or the name's). */

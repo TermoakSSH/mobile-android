@@ -64,7 +64,12 @@ import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ThemeMode
+import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.TwoFactorStatus
+import com.termoak.app.data.officialServer
+import com.termoak.app.data.serverHost
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.ManageAccounts
 import com.termoak.ffi.libraryVersion
 import kotlinx.coroutines.launch
 
@@ -74,13 +79,11 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val loggedIn by app.account.loggedIn.collectAsState()
-    val verification by app.account.verification.collectAsState()
-    val server by app.account.serverUrl.collectAsState()
-    val user by app.account.user.collectAsState()
-    val online by app.account.online.collectAsState()
-    val syncing by app.account.syncing.collectAsState()
-    val lastSync by app.account.lastSync.collectAsState()
+    val loggedIn by app.accounts.loggedIn.collectAsState()
+    val current by app.accounts.current.collectAsState()
+    val accountList by app.accounts.list.collectAsState()
+    // The current account's server, when it is signed in.
+    val server = current?.takeIf { it.status == AccountStatus.ACTIVE }?.serverUrl
     val fontSize by app.prefs.fontSize.collectAsState()
     val keepOn by app.prefs.keepScreenOn.collectAsState()
     val vibrate by app.prefs.vibrateOnBell.collectAsState()
@@ -97,75 +100,22 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val language = remember { AppLanguage.chosen() }
     var choosingLanguage by remember { mutableStateOf(false) }
 
-    LaunchedEffect(loggedIn) {
-        twoFactor = if (loggedIn == true) runCatching { app.core.twoFactorStatus() }.getOrNull() else null
+    LaunchedEffect(server) {
+        twoFactor = if (server != null) runCatching { app.core.twoFactorStatus() }.getOrNull() else null
     }
 
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    // Updates come from the server signed in to, or from termoak.com.
-    val updateServer = server.takeIf { loggedIn == true || verification != null }
+    // Updates come from the current account's server, or from the official one.
+    val updateServer = current?.serverUrl
 
     ScreenScaffold(title = stringResource(R.string.section_settings), large = true) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             // ----- Account -----
             SectionLabel(stringResource(R.string.settings_account))
-            CardBox {
-                if (loggedIn == true) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            HostTile(user ?: "?", null, size = 44.dp)
-                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(user ?: stringResource(R.string.drawer_signed_in), style = MaterialTheme.typography.titleMedium)
-                                Text(server?.removePrefix("https://") ?: "", style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            StatusDot(if (online) Brand.Green else Brand.Amber)
-                        }
-                        val status = when {
-                            syncing -> stringResource(R.string.common_syncing)
-                            lastSync != null -> stringResource(R.string.settings_synced_ago, relativeTime(lastSync))
-                            else -> stringResource(R.string.settings_never_synced)
-                        }
-                        Text(
-                            if (online) stringResource(R.string.settings_sync_live, status) else status,
-                            Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { app.account.sync() }, enabled = !syncing) {
-                                Text(stringResource(R.string.common_sync))
-                            }
-                            OutlinedButton(onClick = { server?.let { open("$it/app/account") } }) {
-                                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.padding(end = 6.dp))
-                                Text(stringResource(R.string.settings_my_account))
-                            }
-                        }
-                    }
-                } else if (verification != null) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.verify_pending), style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            stringResource(R.string.verify_prompt, verification?.email ?: ""),
-                            Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Button(onClick = { nav.navigate(Routes.VERIFY_EMAIL) }, modifier = Modifier.padding(top = 12.dp)) {
-                            Text(stringResource(R.string.verify_enter_code))
-                        }
-                    }
-                } else {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.settings_no_server), style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            stringResource(R.string.settings_no_server_text),
-                            Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Button(onClick = { nav.navigate(Routes.LOGIN) }, modifier = Modifier.padding(top = 12.dp)) {
-                            Icon(Icons.AutoMirrored.Outlined.Login, null, Modifier.padding(end = 8.dp))
-                            Text(stringResource(R.string.common_sign_in))
-                        }
-                    }
+            AccountsSettingsSection(app, nav)
+            if (accountList.any { it.vaultsSupported }) {
+                Row0(Icons.Outlined.Lock, stringResource(R.string.vaults_title), stringResource(R.string.vaults_hint)) {
+                    nav.navigate(Routes.VAULTS)
                 }
             }
             if (loggedIn == true) {
@@ -182,6 +132,11 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                             )
                         },
                     ) { server?.let { open("$it/app/account") } }
+                }
+                server?.let { url ->
+                    Row0(Icons.AutoMirrored.Outlined.OpenInNew, stringResource(R.string.settings_my_account), serverHost(url)) {
+                        open("$url/app/account")
+                    }
                 }
                 Row0(Icons.Outlined.AutoAwesome, stringResource(R.string.section_ai), stringResource(R.string.settings_ai_hint)) {
                     nav.navigate(Routes.AI_KEYS)
@@ -264,32 +219,21 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                     checked = ok
                     if (!ok) {
                         snackbar.showSnackbar(
-                            resources.getString(R.string.settings_update_failed, (updateServer ?: BuildConfig.DEFAULT_SERVER).removePrefix("https://")),
+                            resources.getString(R.string.settings_update_failed, serverHost(updateServer ?: officialServer)),
                         )
                     }
                 }
             }
             SwitchRow(
                 stringResource(R.string.settings_update_check),
-                stringResource(R.string.settings_update_auto_hint, (updateServer ?: BuildConfig.DEFAULT_SERVER).removePrefix("https://")),
+                stringResource(R.string.settings_update_auto_hint, serverHost(updateServer ?: officialServer)),
                 checkUpdates,
             ) { app.prefs.setCheckUpdates(it) }
             Row0(
                 Icons.Outlined.Info, stringResource(R.string.settings_website),
-                (server ?: BuildConfig.DEFAULT_SERVER).removePrefix("https://"),
+                serverHost(server ?: officialServer),
             ) {
-                open(server ?: BuildConfig.DEFAULT_SERVER)
-            }
-            if (loggedIn == true) {
-                HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                Row0(
-                    Icons.AutoMirrored.Filled.Logout, stringResource(R.string.settings_sign_out),
-                    stringResource(R.string.settings_sign_out_hint), danger = true,
-                ) {
-                    app.sessions.closeAll()
-                    app.account.logout()
-                    scope.launch { snackbar.showSnackbar(resources.getString(R.string.settings_signed_out)) }
-                }
+                open(server ?: officialServer)
             }
         }
     }

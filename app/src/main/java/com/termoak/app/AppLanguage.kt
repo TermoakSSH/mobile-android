@@ -59,7 +59,7 @@ object AppLanguage {
         AppCompatDelegate.setApplicationLocales(
             if (tag == null) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(tag),
         )
-        app.account.saveLocale(tag ?: systemLanguage(app))
+        app.accounts.saveLocale(tag ?: systemLanguage(app))
     }
 
     /** The translation that matches the system languages best (English if none does). */

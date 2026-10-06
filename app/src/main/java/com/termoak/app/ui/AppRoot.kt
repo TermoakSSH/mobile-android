@@ -105,19 +105,20 @@ import com.termoak.app.data.JoinLinkRef
 import com.termoak.app.term.ShareNotice
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
+import com.termoak.ffi.AccountStatus
 import kotlinx.coroutines.launch
 
 object Routes {
     const val WELCOME = "welcome"
     const val HOSTS = "hosts"
-    const val GROUP = "group/{id}"
+    const val GROUP = "group/{id}?account={account}"
     const val CONNECTIONS = "connections"
     const val AI = "ai"
     const val SETTINGS = "settings"
     const val AI_KEYS = "settings/ai"
     const val TERMINAL = "terminal"
-    const val HOST_EDIT = "host/{id}"
-    const val AI_TASK = "ai/{id}"
+    const val HOST_EDIT = "host/{id}?account={account}"
+    const val AI_TASK = "ai/{id}?account={account}"
     const val AI_NEW = "ai-new"
     /** The keychain; `action` opens the generate (`generate`) or import (`import`) dialog. */
     const val KEYS = "keys?action={action}"
@@ -125,14 +126,22 @@ object Routes {
     const val KNOWN_HOSTS = "known-hosts"
     const val FORWARDS = "forwards"
     const val IMPORT = "import"
-    const val LOGIN = "login"
+    /** Add account (or sign in again): `mode` [LoginMode], prefilled `server` and `email`. */
+    const val LOGIN = "login?mode={mode}&server={server}&email={email}"
     const val VERIFY_EMAIL = "verify-email"
+    const val ACCOUNTS = "accounts"
+    const val VAULTS = "vaults"
+    const val VAULT = "vault/{account}/{id}"
     /** Joining a shared session with an invitation link. */
     const val JOIN = "join?server={server}&token={token}"
 
-    fun hostEdit(id: String?) = "host/${id ?: "new"}"
-    fun group(id: String) = "group/$id"
-    fun aiTask(id: String) = "ai/$id"
+    fun hostEdit(id: String?, account: String? = null) = "host/${id ?: "new"}" + (account?.let { "?account=$it" } ?: "")
+    fun group(id: String, account: String? = null) = "group/$id" + (account?.let { "?account=$it" } ?: "")
+    fun aiTask(id: String, account: String? = null) = "ai/$id" + (account?.let { "?account=$it" } ?: "")
+    fun vault(account: String, id: String) = "vault/$account/$id"
+    fun login(mode: String? = null, server: String? = null, email: String? = null): String =
+        listOfNotNull(mode?.let { "mode=$it" }, server?.let { "server=${Uri.encode(it)}" }, email?.let { "email=${Uri.encode(it)}" })
+            .joinToString("&").let { if (it.isEmpty()) "login" else "login?$it" }
     fun join(link: JoinLinkRef) = "join?server=${Uri.encode(link.server)}&token=${Uri.encode(link.token)}"
     fun keys(action: String? = null) = if (action == null) "keys" else "keys?action=$action"
 }
@@ -155,13 +164,16 @@ private val TopLevel = VaultRoutes + setOf(Routes.CONNECTIONS, Routes.AI, Routes
 private val Immersive = setOf(Routes.TERMINAL, Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
-private val Details = setOf(Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.LOGIN, Routes.JOIN)
+private val Details = setOf(
+    Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.LOGIN, Routes.JOIN,
+    Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT,
+)
 
 private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.IMPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW -> Tab.AI
-    Routes.SETTINGS, Routes.AI_KEYS -> Tab.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT -> Tab.SETTINGS
     else -> null
 }
 
@@ -182,9 +194,12 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.slideOut(): ExitTr
 fun AppRoot(app: TermoakApp) {
     val nav = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
-    val loggedIn by app.account.loggedIn.collectAsState()
-    val verification by app.account.verification.collectAsState()
-    val approvals by app.account.pendingApprovals.collectAsState()
+    val loggedIn by app.accounts.loggedIn.collectAsState()
+    val accountList by app.accounts.list.collectAsState()
+    val verification by app.accounts.verification.collectAsState()
+    val uploadOffer by app.accounts.uploadOffer.collectAsState()
+    val layoutNotice by app.accounts.layoutNotice.collectAsState()
+    val approvals by app.accounts.pendingApprovals.collectAsState()
     val open by app.sessions.list.collectAsState()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -193,7 +208,7 @@ fun AppRoot(app: TermoakApp) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         return
     }
-    val start = remember { if (loggedIn == true || app.prefs.skippedLogin) Routes.HOSTS else Routes.WELCOME }
+    val start = remember { if (loggedIn == true || accountList.isNotEmpty() || app.prefs.skippedLogin) Routes.HOSTS else Routes.WELCOME }
     val current = tabOf(route)
     fun select(tab: Tab) {
         if (tab == current) {
@@ -286,18 +301,40 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.WELCOME) {
                             LoginScreen(app, welcome = true, onDone = { nav.goTab(Routes.HOSTS, clear = true) }, onBack = null)
                         }
-                        composable(Routes.LOGIN) {
-                            LoginScreen(app, welcome = false, onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() })
+                        composable(
+                            Routes.LOGIN,
+                            arguments = listOf(
+                                navArgument("mode") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("server") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("email") { type = NavType.StringType; nullable = true; defaultValue = null },
+                            ),
+                        ) { e ->
+                            LoginScreen(
+                                app, welcome = false, onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() },
+                                mode = e.arguments?.getString("mode"), prefillServer = e.arguments?.getString("server"),
+                                prefillEmail = e.arguments?.getString("email"),
+                            )
                         }
                         composable(Routes.VERIFY_EMAIL) {
                             VerifyEmailScreen(
                                 app,
                                 onDone = { nav.goTab(Routes.HOSTS, clear = true) },
-                                onDifferentEmail = { nav.goTab(Routes.WELCOME, clear = true) },
+                                onDifferentEmail = {
+                                    if (app.accounts.list.value.isEmpty()) nav.goTab(Routes.WELCOME, clear = true)
+                                    else nav.goTab(Routes.HOSTS, clear = true)
+                                },
                             )
                         }
+                        composable(Routes.ACCOUNTS) { ManageAccountsScreen(app, nav) }
+                        composable(Routes.VAULTS) { VaultsScreen(app, nav) }
+                        composable(Routes.VAULT) { e ->
+                            VaultScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
+                        }
                         composable(Routes.HOSTS) { HostsScreen(app, nav, groupId = null) }
-                        composable(Routes.GROUP) { e -> HostsScreen(app, nav, groupId = e.arguments?.getString("id")) }
+                        composable(
+                            Routes.GROUP,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e -> HostsScreen(app, nav, groupId = e.arguments?.getString("id"), groupAccount = e.arguments?.getString("account")) }
                         composable(Routes.CONNECTIONS) { ConnectionsScreen(app, nav) }
                         composable(Routes.AI) { AiScreen(app, nav) }
                         composable(Routes.SETTINGS) { SettingsScreen(app, nav) }
@@ -310,21 +347,27 @@ fun AppRoot(app: TermoakApp) {
                             popEnterTransition = { fadeIn(tween(250)) },
                             popExitTransition = { fadeOut(tween(250)) },
                         ) { TerminalScreen(app, nav) }
-                        composable(Routes.HOST_EDIT) { e ->
+                        composable(
+                            Routes.HOST_EDIT,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e ->
                             val activity = LocalActivity.current
                             HostEditor(
-                                app, e.arguments?.getString("id")?.takeIf { it != "new" },
+                                app, e.arguments?.getString("id")?.takeIf { it != "new" }, e.arguments?.getString("account"),
                                 onClose = { nav.popBackStack() },
                                 onConnect = { host ->
                                     (activity as? MainActivity)?.askNotificationPermission()
                                     nav.popBackStack()
-                                    app.sessions.openLocal(host)
+                                    connectHost(app, host)
                                     nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
                                 },
                             )
                         }
                         composable(Routes.AI_NEW) { NewAiTaskScreen(app, nav) }
-                        composable(Routes.AI_TASK) { e -> AiTaskScreen(app, nav, e.arguments?.getString("id") ?: "") }
+                        composable(
+                            Routes.AI_TASK,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e -> AiTaskScreen(app, nav, e.arguments?.getString("id") ?: "", e.arguments?.getString("account")) }
                         composable(
                             Routes.KEYS,
                             arguments = listOf(navArgument("action") { type = NavType.StringType; nullable = true; defaultValue = null }),
@@ -348,6 +391,9 @@ fun AppRoot(app: TermoakApp) {
         }
         // A snippet sent to several terminals: how it goes (from any screen).
         SnippetRunSummary(app, nav)
+        // After the first account: upload This-device items; after the update: the new layout.
+        uploadOffer?.let { UploadDeviceItemsDialog(app, it) }
+        if (layoutNotice && uploadOffer == null) LayoutNoticeDialog(app)
     }
     LaunchedEffect(loggedIn) {
         if (loggedIn == false && route == Routes.AI) nav.goTab(Routes.HOSTS)
@@ -368,12 +414,19 @@ fun AppRoot(app: TermoakApp) {
     // from the server signed in to, or from termoak.com.
     LaunchedEffect(loggedIn != null) {
         if (loggedIn == null) return@LaunchedEffect
-        val signedIn = loggedIn == true || app.account.verification.value != null
-        app.updates.checkIfDue(app.account.serverUrl.value.takeIf { signedIn })
+        app.updates.checkIfDue(app.accounts.current.value?.serverUrl)
     }
-    // Server sessions already open: on startup or sign-in, as sleeping tabs.
-    LaunchedEffect(loggedIn) {
-        if (loggedIn == true) app.sessions.loadServerSessions() else app.sessions.forgetServerSessions()
+    // Server sessions already open: on startup or sign-in (of each account), as sleeping tabs.
+    val activeIds = accountList.filter { it.status == AccountStatus.ACTIVE }.map { it.id }.toSet()
+    LaunchedEffect(activeIds) {
+        app.sessions.forgetServerSessions()
+        if (activeIds.isNotEmpty()) app.sessions.loadServerSessions()
+    }
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
+    // Notices of the syncs: vaults shared with you or lost, changes discarded.
+    LaunchedEffect(Unit) {
+        app.accounts.notices.collect { scope.launch { snackbar.showSnackbar(it.resolve(resources), withDismissAction = true, duration = SnackbarDuration.Long) } }
     }
     // An invitation link opened from outside the app.
     val link by app.pendingLink.collectAsState()
@@ -383,8 +436,6 @@ fun AppRoot(app: TermoakApp) {
         nav.navigate(Routes.join(l)) { launchSingleTop = true }
     }
     // Sharing notices: snackbars (unless that terminal is on screen) and taps on notifications.
-    val resources = LocalResources.current
-    val scope = rememberCoroutineScope()
     fun openNotice(n: ShareNotice) {
         val tab = n.tabId?.let { app.sessions.get(it) } ?: n.sessionId?.let { app.sessions.bySessionId(it) }
         when {
@@ -392,6 +443,7 @@ fun AppRoot(app: TermoakApp) {
             n.sessionId != null -> app.sessions.attach(
                 n.sessionId, n.title.ifBlank { resources.getString(R.string.common_session) }, null,
                 owner = n.kind == ShareNotice.Kind.JOIN_REQUEST || n.kind == ShareNotice.Kind.CONTROL_REQUEST,
+                accountId = n.accountId,
             )
             else -> return
         }
@@ -425,8 +477,8 @@ fun AppRoot(app: TermoakApp) {
         openNotice(n)
     }
     LaunchedEffect(Unit) {
-        app.account.changes.collect {
-            if ((it == "session" || it == "lagged") && app.account.loggedIn.value == true) app.sessions.loadServerSessions()
+        app.accounts.changes.collect {
+            if ((it == "session" || it == "lagged") && app.accounts.loggedIn.value == true) app.sessions.loadServerSessions()
         }
     }
 }

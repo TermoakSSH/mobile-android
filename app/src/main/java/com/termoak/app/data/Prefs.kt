@@ -58,9 +58,25 @@ class Prefs(context: Context) {
         sp.edit { putBoolean("confirm_multiline_paste", on) }
     }
 
-    var lastServer: String?
-        get() = sp.getString("last_server", null)
-        set(v) = sp.edit().putString("last_server", v).apply()
+    /** The Vault shows only This-device items (the account switcher's "This device only"). */
+    var deviceOnlyView: Boolean
+        get() = sp.getBoolean("view_device_only", false)
+        set(v) = sp.edit { putBoolean("view_device_only", v) }
+
+    /** Vault chosen in the Vault's filter (`null`: all of them; [DEVICE_VAULT]: This device). */
+    var vaultFilter: String?
+        get() = sp.getString("vault_filter", null)
+        set(v) = sp.edit { putString("vault_filter", v) }
+
+    /** Where the last new item went: `<account id>/<vault id>`, or [DEVICE_VAULT]. */
+    var lastTarget: String?
+        get() = sp.getString("last_target", null)
+        set(v) = sp.edit { putString("last_target", v) }
+
+    /** The notice about the move of the data to one store per account was shown. */
+    var layoutNoticeShown: Boolean
+        get() = sp.getBoolean("layout_notice_shown", false)
+        set(v) = sp.edit { putBoolean("layout_notice_shown", v) }
 
     var lastEmail: String?
         get() = sp.getString("last_email", null)
@@ -75,6 +91,11 @@ class Prefs(context: Context) {
     var skippedLogin: Boolean
         get() = sp.getBoolean("skipped_login", false)
         set(v) = sp.edit().putBoolean("skipped_login", v).apply()
+
+    init {
+        // Replaced by the accounts (core 0.4): every account remembers its server.
+        if (sp.contains("last_server")) sp.edit { remove("last_server") }
+    }
 
     companion object {
         const val MIN_FONT = 8f

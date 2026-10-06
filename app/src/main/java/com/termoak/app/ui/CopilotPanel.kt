@@ -105,9 +105,9 @@ fun CopilotPanel(
     modifier: Modifier = Modifier,
     swipeToClose: Boolean = false,
 ) {
-    val loggedIn by app.account.loggedIn.collectAsState()
-    val online by app.account.online.collectAsState()
-    val chat = remember(session.id) { app.copilot.chat(session.id) }
+    val loggedIn by app.accounts.loggedIn.collectAsState()
+    val online by app.accounts.online.collectAsState()
+    val chat = remember(session.id) { app.copilot.chat(session) }
     val hostLabel = host?.label ?: session.label.takeIf { session.hostId != null }
 
     // Swipe right to close.

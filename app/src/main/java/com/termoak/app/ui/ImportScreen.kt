@@ -38,6 +38,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.termoak.app.R
+import com.termoak.app.userMessage
 import com.termoak.app.TermoakApp
 import com.termoak.ffi.SshConfigImportOptions
 import com.termoak.ffi.SshConfigImportReport
@@ -72,14 +73,14 @@ fun ImportScreen(app: TermoakApp, onDone: () -> Unit) {
                 if (dryRun) {
                     preview = report
                 } else {
-                    app.account.sync()
+                    app.accounts.sync()
                     snackbar.showSnackbar(
                         resources.getQuantityString(R.plurals.import_done, report.hostsCreated.size, report.hostsCreated.size),
                     )
                     onDone()
                 }
             } catch (e: TermoakException) {
-                snackbar.showSnackbar(e.message ?: resources.getString(R.string.import_failed))
+                snackbar.showSnackbar(e.userMessage(resources, R.string.import_failed))
             } finally {
                 busy = false
             }

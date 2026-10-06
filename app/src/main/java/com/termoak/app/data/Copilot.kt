@@ -13,6 +13,7 @@ import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.Sessions
 import com.termoak.app.term.TermSession
 import com.termoak.app.toUiText
+import com.termoak.ffi.AccountHandle
 import com.termoak.ffi.AiPermissionMode
 import com.termoak.ffi.AiTask
 import com.termoak.ffi.AiTaskRequest
@@ -30,12 +31,19 @@ import org.json.JSONObject
  * lives while the tab is open; when it closes it is forgotten (the task stays
  * in the AI section).
  */
-class Copilot(private val context: Context, private val core: TermoakCore, account: Account, sessions: Sessions) {
+class Copilot(private val context: Context, private val core: TermoakCore, private val accounts: Accounts, sessions: Sessions) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val chats = mutableMapOf<String, CopilotChat>()
 
-    /** The conversation of tab [tabId]. */
-    fun chat(tabId: String): CopilotChat = chats.getOrPut(tabId) { CopilotChat(core, scope) }
+    /**
+     * The conversation of terminal [session]. It runs on one server: a
+     * server session's own account; for an SSH terminal from the phone, the
+     * current account (its terminal is shared there for the AI).
+     */
+    fun chat(session: TermSession): CopilotChat = chats.getOrPut(session.id) {
+        val account = if (session is ServerTerminal) session.accountId ?: accounts.current.value?.id else accounts.current.value?.id
+        CopilotChat(accounts, account, scope)
+    }
 
     /**
      * Sends [text] to the conversation of terminal [session] ([where]: its
@@ -46,8 +54,10 @@ class Copilot(private val context: Context, private val core: TermoakCore, accou
      * the new one.
      */
     fun send(session: TermSession, where: String?, text: String) {
-        val chat = chat(session.id)
-        chat.send(text, listOfNotNull(session.hostId)) { first ->
+        val chat = chat(session)
+        // The host is known to the AI when it is on that server.
+        val hosts = listOfNotNull(session.hostId).takeIf { session.accountId != null && session.accountId == chat.accountId }.orEmpty()
+        chat.send(text, hosts) { first ->
             var sid = when (session) {
                 is ServerTerminal -> session.sessionId
                 is LocalTerminal -> session.sharedId.value
@@ -81,14 +91,14 @@ class Copilot(private val context: Context, private val core: TermoakCore, accou
 
     init {
         scope.launch {
-            account.aiEvents.collect { ev ->
+            accounts.aiEvents.collect { ev ->
                 val taskId = ev.optString("task_id")
                 val event = ev.optJSONObject("event") ?: return@collect
                 chats.values.filter { it.taskId == taskId }.forEach { it.onEvent(event) }
             }
         }
         // Events were lost: reload whatever is open.
-        scope.launch { account.changes.collect { if (it == "lagged") chats.values.forEach { c -> c.reload() } } }
+        scope.launch { accounts.changes.collect { if (it == "lagged") chats.values.forEach { c -> c.reload() } } }
         scope.launch {
             sessions.list.collect { list ->
                 val open = list.map { it.id }.toSet()
@@ -105,7 +115,15 @@ data class LiveTool(val callId: String, val tool: String, val summary: String, v
 data class CopilotApproval(val id: String, val tool: String, val summary: String, val command: String)
 
 /** A copilot conversation. Its state is Compose state: it is redrawn as it changes. */
-class CopilotChat internal constructor(private val core: TermoakCore, private val scope: CoroutineScope) {
+class CopilotChat internal constructor(
+    private val accounts: Accounts,
+    /** Account whose AI it talks to (`null`: none signed in). */
+    val accountId: String?,
+    private val scope: CoroutineScope,
+) {
+    private fun api(): AccountHandle = accountId?.let { accounts.handle(it) }
+        ?: throw TermoakException.NotLoggedIn("you are not signed in to any server")
+
     var taskId by mutableStateOf<String?>(null)
         private set
     /** Permissions: the task's or, without one, the ones it will be created with. */
@@ -188,12 +206,12 @@ class CopilotChat internal constructor(private val core: TermoakCore, private va
                 val (prompt, session) = prepare(id == null)
                 if (gen != generation) return@launch
                 val task = if (id == null) {
-                    core.createAiTask(
+                    api().createAiTask(
                         AiTaskRequest(prompt = prompt, title = null, mode = mode, provider = null,
                             hostIds = hostIds, sessionId = session, effort = null),
                     )
                 } else {
-                    core.sendAiMessage(id, prompt)
+                    api().sendAiMessage(id, prompt)
                 }
                 if (gen != generation) return@launch
                 if (session != null) sessionId = session
@@ -216,7 +234,7 @@ class CopilotChat internal constructor(private val core: TermoakCore, private va
         mode = m
         val id = taskId ?: return
         scope.launch {
-            runCatching { core.setAiTaskMode(id, m) }.onFailure { error = it.toUiText(R.string.copilot_change_mode_failed) }
+            runCatching { api().setAiTaskMode(id, m) }.onFailure { error = it.toUiText(R.string.copilot_change_mode_failed) }
             load()
         }
     }
@@ -224,7 +242,7 @@ class CopilotChat internal constructor(private val core: TermoakCore, private va
     fun cancel() {
         val id = taskId ?: return
         scope.launch {
-            runCatching { core.cancelAiTask(id) }.onFailure { error = it.message?.let { m -> UiText.Raw(m) } }
+            runCatching { api().cancelAiTask(id) }.onFailure { error = it.message?.let { m -> UiText.Raw(m) } }
             load()
         }
     }
@@ -233,7 +251,7 @@ class CopilotChat internal constructor(private val core: TermoakCore, private va
         val id = taskId ?: return
         approvals = approvals.filterNot { it.id == approvalId }
         scope.launch {
-            runCatching { core.decideApproval(id, approvalId, approve, always) }
+            runCatching { api().decideApproval(id, approvalId, approve, always) }
                 .onFailure { error = it.toUiText(R.string.error_decide_failed) }
             load()
         }
@@ -246,7 +264,7 @@ class CopilotChat internal constructor(private val core: TermoakCore, private va
     private suspend fun load() {
         val id = taskId ?: return
         try {
-            apply(core.getAiTask(id))
+            apply(api().getAiTask(id))
         } catch (e: TermoakException) {
             error = e.toUiText(R.string.copilot_load_failed)
         }

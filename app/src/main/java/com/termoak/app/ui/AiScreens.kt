@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -76,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.userMessage
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.Turn
 import com.termoak.app.data.parseConversation
@@ -109,43 +111,61 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val loggedIn by app.account.loggedIn.collectAsState()
+    val loggedIn by app.accounts.loggedIn.collectAsState()
+    val accountList by app.accounts.list.collectAsState()
+    // The AI works on one account at a time (its tasks and approvals).
+    var accountId by remember { mutableStateOf(app.accounts.aiAccount()?.id) }
     var tasks by remember { mutableStateOf<List<AiTask>>(emptyList()) }
     var approvals by remember { mutableStateOf<List<AiApproval>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
 
     fun reload() {
         if (loggedIn != true) return
+        val handle = app.accounts.handleOrCurrent(accountId) ?: return
         scope.launch {
             loading = true
             try {
-                tasks = app.core.listAiTasks(50u)
-                approvals = app.core.listPendingApprovals()
-                app.account.refreshApprovals()
+                tasks = handle.listAiTasks(50u)
+                approvals = handle.listPendingApprovals()
+                app.accounts.refreshApprovals()
             } catch (e: TermoakException) {
-                snackbar.showSnackbar(e.message ?: resources.getString(R.string.ai_load_tasks_failed))
+                snackbar.showSnackbar(e.userMessage(resources, R.string.ai_load_tasks_failed))
             } finally {
                 loading = false
             }
         }
     }
-    LaunchedEffect(loggedIn) { reload() }
-    LaunchedEffect(Unit) { app.account.changes.collect { if (it == "ai" || it == "lagged") reload() } }
+    LaunchedEffect(loggedIn, accountId) {
+        if (app.accounts.account(accountId)?.status != com.termoak.ffi.AccountStatus.ACTIVE) accountId = app.accounts.aiAccount()?.id
+        reload()
+    }
+    LaunchedEffect(Unit) { app.accounts.changes.collect { if (it == "ai" || it == "lagged") reload() } }
 
     if (loggedIn != true) {
         ScreenScaffold(title = stringResource(R.string.section_ai), large = true) { padding ->
             EmptyState(
                 Icons.Outlined.CloudOff, stringResource(R.string.ai_signed_out_title),
                 stringResource(R.string.ai_signed_out_text),
-                Modifier.padding(padding), action = stringResource(R.string.common_sign_in), onAction = { nav.navigate(Routes.LOGIN) },
+                Modifier.padding(padding), action = stringResource(R.string.common_sign_in), onAction = { nav.navigate(Routes.login()) },
             )
         }
         return
     }
 
+    val active = accountList.filter { it.status == com.termoak.ffi.AccountStatus.ACTIVE }
     ScreenScaffold(
         title = stringResource(R.string.section_ai),
         large = true,
+        header = if (active.size > 1) {
+            {
+                AiAccountPicker(active, accountId) {
+                    accountId = it
+                    app.accounts.aiAccountId = it
+                    tasks = emptyList()
+                    approvals = emptyList()
+                }
+            }
+        } else null,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { nav.navigate(Routes.AI_NEW) },
@@ -169,8 +189,8 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
                     items(approvals, key = { "ap" + it.id }) { a ->
                         ApprovalCard(a, taskTitle = tasks.firstOrNull { it.id == a.taskId }?.title) { approve, always ->
                             scope.launch {
-                                runCatching { app.core.decideApproval(a.taskId, a.id, approve, always) }
-                                    .onFailure { snackbar.showSnackbar(it.message ?: resources.getString(R.string.error_decide_failed)) }
+                                runCatching { app.accounts.handleOrCurrent(accountId)?.decideApproval(a.taskId, a.id, approve, always) }
+                                    .onFailure { snackbar.showSnackbar(it.userMessage(resources, R.string.error_decide_failed)) }
                                 reload()
                             }
                         }
@@ -179,7 +199,7 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
                 item { SectionLabel(stringResource(R.string.ai_tasks)) }
                 items(tasks, key = { it.id }) { t ->
                     val (label, color) = statusStyle(t.status)
-                    CardBox(Modifier.clickable { nav.navigate(Routes.aiTask(t.id)) }) {
+                    CardBox(Modifier.clickable { nav.navigate(Routes.aiTask(t.id, accountId)) }) {
                         Column(Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
@@ -318,7 +338,13 @@ fun NewAiTaskScreen(app: TermoakApp, nav: NavHostController) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val hosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() } }
+    // The task runs on the AI section's account: only its hosts.
+    val account = remember { app.accounts.aiAccount() }
+    val hosts = remember {
+        account?.let { a ->
+            runCatching { app.core.listHosts(app.accounts.scopeFilter(a.id)) }.getOrDefault(emptyList()).filter { it.accountId == a.id }
+        }.orEmpty().sortedBy { it.label.lowercase() }
+    }
     var prompt by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf(setOf<String>()) }
     var mode by remember { mutableStateOf(AiPermissionMode.ASK) }
@@ -366,12 +392,13 @@ fun NewAiTaskScreen(app: TermoakApp, nav: NavHostController) {
                     busy = true
                     scope.launch {
                         try {
-                            val task = app.core.createAiTask(
+                            val handle = account?.let { app.accounts.handle(it.id) } ?: throw TermoakException.NotLoggedIn("")
+                            val task = handle.createAiTask(
                                 AiTaskRequest(prompt = prompt.trim(), title = null, mode = mode, provider = null,
                                     hostIds = selected.toList(), sessionId = null, effort = null),
                             )
                             nav.popBackStack()
-                            nav.navigate(Routes.aiTask(task.id))
+                            nav.navigate(Routes.aiTask(task.id, account.id))
                         } catch (e: TermoakException) {
                             busy = false
                             snackbar.showAiError(e, R.string.ai_create_failed, resources) { nav.navigate(Routes.AI_KEYS) }
@@ -388,7 +415,9 @@ fun NewAiTaskScreen(app: TermoakApp, nav: NavHostController) {
 }
 
 @Composable
-fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String) {
+fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String, accountId: String? = null) {
+    // The task's account (from the route), or the AI section's.
+    val api = remember(accountId) { accountId?.let { app.accounts.handle(it) } ?: app.accounts.aiAccount()?.let { app.accounts.handle(it.id) } }
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
@@ -398,9 +427,9 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String) {
 
     suspend fun load() {
         try {
-            task = app.core.getAiTask(taskId)
+            task = (api ?: throw TermoakException.NotLoggedIn("")).getAiTask(taskId)
         } catch (e: TermoakException) {
-            snackbar.showSnackbar(e.message ?: resources.getString(R.string.ai_load_task_failed))
+            snackbar.showSnackbar(e.userMessage(resources, R.string.ai_load_task_failed))
         }
     }
     LaunchedEffect(taskId) {
@@ -410,7 +439,7 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String) {
             delay(if (task?.active == true) 3_000 else 15_000)
         }
     }
-    LaunchedEffect(Unit) { app.account.changes.collect { if (it == "ai") load() } }
+    LaunchedEffect(Unit) { app.accounts.changes.collect { if (it == "ai") load() } }
 
     val t = task
     val conversation = remember(t?.rawJson) { t?.let { parseConversation(it.rawJson) }.orEmpty() }
@@ -425,7 +454,7 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String) {
         },
         actions = {
             if (t?.active == true) {
-                IconButton(onClick = { scope.launch { runCatching { app.core.cancelAiTask(taskId) }; load() } }) {
+                IconButton(onClick = { scope.launch { runCatching { api?.cancelAiTask(taskId) }; load() } }) {
                     Icon(Icons.Outlined.Cancel, stringResource(R.string.common_cancel))
                 }
             }
@@ -442,9 +471,9 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String) {
                 items(t.pendingApprovals, key = { it.id }) { a ->
                     ApprovalCard(a, null) { approve, always ->
                         scope.launch {
-                            runCatching { app.core.decideApproval(a.taskId, a.id, approve, always) }
-                                .onFailure { snackbar.showSnackbar(it.message ?: resources.getString(R.string.error_decide_failed)) }
-                            app.account.refreshApprovals()
+                            runCatching { api?.decideApproval(a.taskId, a.id, approve, always) }
+                                .onFailure { snackbar.showSnackbar(it.userMessage(resources, R.string.error_decide_failed)) }
+                            app.accounts.refreshApprovals()
                             load()
                         }
                     }
@@ -476,7 +505,7 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String) {
                         message = ""
                         scope.launch {
                             try {
-                                task = app.core.sendAiMessage(taskId, text)
+                                task = (api ?: throw TermoakException.NotLoggedIn("")).sendAiMessage(taskId, text)
                             } catch (e: TermoakException) {
                                 // Don't lose what was typed.
                                 if (message.isEmpty()) message = text
@@ -587,5 +616,22 @@ fun FollowKeyboard(list: LazyListState) {
         val opening = ime > previous
         previous = ime
         if (opening) list.scrollToEnd()
+    }
+}
+
+/** Which account the AI section shows (with several signed in). */
+@Composable
+private fun AiAccountPicker(accounts: List<com.termoak.ffi.AccountInfo>, selected: String?, onSelect: (String) -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        accounts.forEach { a ->
+            FilterChip(
+                selected = a.id == selected, onClick = { onSelect(a.id) },
+                label = { Text(a.email, maxLines = 1) },
+                leadingIcon = { AccountAvatar(a, 18.dp) },
+            )
+        }
     }
 }

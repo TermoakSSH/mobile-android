@@ -61,6 +61,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.data.canWrite
+import com.termoak.app.data.uid
+import com.termoak.app.data.useOnly
+import com.termoak.app.userMessage
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.runtime.LaunchedEffect
 import com.termoak.app.TermoakApp
 import com.termoak.ffi.KeyType
 import com.termoak.ffi.KnownHost
@@ -71,6 +77,27 @@ import com.termoak.ffi.SshKey
 import com.termoak.ffi.SyncMode
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.launch
+
+/** Whether there is any account (This-device items then show a phone). */
+private fun hasAccounts(app: TermoakApp) = app.accounts.list.value.isNotEmpty()
+
+/** Where a synced key goes: the vault shown, or the current account's personal vault (`null`: no account). */
+private fun syncedPlace(app: TermoakApp): com.termoak.app.data.Place? {
+    val p = app.accounts.defaultPlace()
+    if (!p.device) return p
+    val current = app.accounts.current.value ?: return null
+    return com.termoak.app.data.Place(current.id, app.accounts.personalVault(current.id)?.id)
+}
+
+/** A new identity, in the place new items go. */
+private fun newIdentity(app: TermoakApp): SshIdentity {
+    val p = app.accounts.defaultPlace()
+    return SshIdentity(
+        id = "", label = "", username = "", keyId = null,
+        syncMode = if (p.device && hasAccounts(app)) SyncMode.DEVICE_ONLY else null, hasPassword = false, updatedAt = 0L,
+        accountId = p.account, vaultId = p.vault,
+    )
+}
 
 /** What the keychain opens with, from the Vault's "+" ([Routes.keys]). */
 object KeysAction {
@@ -84,14 +111,22 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    var keys by remember { mutableStateOf(runCatching { app.core.listKeys() }.getOrDefault(emptyList())) }
+    var keys by remember { mutableStateOf(runCatching { app.core.listKeys(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() }) }
     var creating by rememberSaveable { mutableStateOf(action == KeysAction.GENERATE) }
     var importing by rememberSaveable { mutableStateOf(action == KeysAction.IMPORT) }
     var deleting by remember { mutableStateOf<SshKey?>(null) }
     var fab by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(0) }
-    var identities by remember { mutableStateOf(runCatching { app.core.listIdentities() }.getOrDefault(emptyList())) }
-    val reload = { keys = runCatching { app.core.listKeys() }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() } }
+    var identities by remember { mutableStateOf(runCatching { app.core.listIdentities(app.accounts.filter()) }.getOrDefault(emptyList())) }
+    val reload = { keys = runCatching { app.core.listKeys(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() } }
+    LaunchedEffect(Unit) {
+        app.accounts.itemsChanged.collect {
+            reload()
+            identities = runCatching { app.core.listIdentities(app.accounts.filter()) }.getOrDefault(emptyList())
+        }
+    }
+
+    val hasAccounts = hasAccounts(app)
 
     fun copyPublic(k: SshKey) {
         context.getSystemService(ClipboardManager::class.java)
@@ -122,7 +157,7 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
             Tab(tab == 1, { tab = 1 }, text = { Text(stringResource(R.string.keys_tab_identities, identities.size)) })
         }
         if (tab == 1) {
-            IdentitiesList(app, identities, keys, onChanged = { identities = runCatching { app.core.listIdentities() }.getOrDefault(emptyList()) })
+            IdentitiesList(app, identities, keys, onChanged = { identities = runCatching { app.core.listIdentities(app.accounts.filter()) }.getOrDefault(emptyList()) })
         } else if (keys.isEmpty()) {
             EmptyState(
                 Icons.Outlined.Key, stringResource(R.string.keys_empty_title),
@@ -131,7 +166,7 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
             )
         } else {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp)) {
-                items(keys, key = { it.id }) { k ->
+                items(keys, key = { it.uid }) { k ->
                     CardBox {
                         Column(Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -143,7 +178,9 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-                                if (k.syncMode == SyncMode.DEVICE_ONLY) {
+                                if (k.access.useOnly()) {
+                                    Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else if (k.syncMode == SyncMode.DEVICE_ONLY || (k.accountId == null && hasAccounts)) {
                                     Icon(
                                         Icons.Outlined.PhoneAndroid, stringResource(R.string.common_device_only),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -157,8 +194,10 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                                     Icon(Icons.Outlined.ContentCopy, null, Modifier.padding(end = 6.dp))
                                     Text(stringResource(R.string.keys_copy_public))
                                 }
-                                TextButton(onClick = { deleting = k }) {
-                                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
+                                if (k.access.canWrite()) {
+                                    TextButton(onClick = { deleting = k }) {
+                                        Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
+                                    }
                                 }
                             }
                         }
@@ -202,13 +241,16 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                     scope.launch {
                         try {
                             val name = label.trim().ifEmpty { android.os.Build.MODEL }
+                            // Synced: to the vault shown (or the current account's personal one).
+                            val place = if (deviceOnly) null else syncedPlace(app)
                             app.core.generateKey(name, type, "$name (Termoak)", passphrase.ifEmpty { null },
-                                passphrase.isNotEmpty(), if (deviceOnly) SyncMode.DEVICE_ONLY else SyncMode.SYNCED)
+                                passphrase.isNotEmpty(), if (place == null) SyncMode.DEVICE_ONLY else SyncMode.SYNCED,
+                                place?.account, place?.vault)
                             reload()
-                            app.account.sync()
+                            app.accounts.sync()
                             creating = false
                         } catch (e: TermoakException) {
-                            snackbar.showSnackbar(e.message ?: resources.getString(R.string.keys_generate_failed))
+                            snackbar.showSnackbar(e.userMessage(resources, R.string.keys_generate_failed))
                         } finally {
                             busy = false
                         }
@@ -243,13 +285,14 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                 TextButton(enabled = pem.isNotBlank(), onClick = {
                     scope.launch {
                         try {
+                            val place = app.accounts.defaultPlace()
                             app.core.importKey(label.trim().ifEmpty { importedLabel }, pem.trim(), passphrase.ifEmpty { null },
-                                passphrase.isNotEmpty(), null)
+                                passphrase.isNotEmpty(), if (place.device) SyncMode.DEVICE_ONLY else SyncMode.SYNCED, place.account, place.vault)
                             reload()
-                            app.account.sync()
+                            app.accounts.sync()
                             importing = false
                         } catch (e: TermoakException) {
-                            snackbar.showSnackbar(e.message ?: resources.getString(R.string.keys_import_failed))
+                            snackbar.showSnackbar(e.userMessage(resources, R.string.keys_import_failed))
                         }
                     }
                 }) { Text(stringResource(R.string.keys_import)) }
@@ -264,21 +307,23 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
             stringResource(R.string.common_delete), true,
             onDismiss = { deleting = null },
         ) {
-            runCatching { app.core.deleteKey(k.id) }
+            runCatching { app.core.deleteKey(k.id, k.accountId) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
             reload()
-            app.account.sync()
+            app.accounts.sync()
         }
     }
 }
 
 @Composable
 fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
-    var snippets by remember { mutableStateOf(runCatching { app.core.listSnippets() }.getOrDefault(emptyList())) }
+    var snippets by remember { mutableStateOf(runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() }) }
     var editing by remember { mutableStateOf<Snippet?>(null) }
     var deleting by remember { mutableStateOf<Snippet?>(null) }
     // "Run on several servers": hosts or groups, or the open terminals.
     var running by remember { mutableStateOf<Snippet?>(null) }
-    val reload = { snippets = runCatching { app.core.listSnippets() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val reload = { snippets = runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { reload() } }
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
@@ -287,7 +332,14 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
         VaultSection.SNIPPETS, nav,
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { editing = Snippet(id = "", name = "", script = "", description = "", tags = emptyList(), syncMode = null, updatedAt = 0L) },
+                onClick = {
+                    val place = app.accounts.defaultPlace()
+                    editing = Snippet(
+                        id = "", name = "", script = "", description = "", tags = emptyList(),
+                        syncMode = if (place.device && hasAccounts(app)) SyncMode.DEVICE_ONLY else null, updatedAt = 0L,
+                        accountId = place.account, vaultId = place.vault,
+                    )
+                },
                 icon = { Icon(Icons.Outlined.Add, null) }, text = { Text(stringResource(R.string.snippets_new)) },
             )
         },
@@ -300,7 +352,7 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
             )
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp)) {
-                items(snippets, key = { it.id }) { sn ->
+                items(snippets, key = { it.uid }) { sn ->
                     CardBox {
                         Column(Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -308,8 +360,12 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
                                 IconButton(onClick = { running = sn }) {
                                     Icon(Icons.Outlined.PlayArrow, stringResource(R.string.multi_run_on), tint = MaterialTheme.colorScheme.primary)
                                 }
-                                IconButton(onClick = { editing = sn }) { Icon(Icons.Outlined.Edit, stringResource(R.string.common_edit)) }
-                                IconButton(onClick = { deleting = sn }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
+                                if (sn.access.canWrite()) {
+                                    IconButton(onClick = { editing = sn }) { Icon(Icons.Outlined.Edit, stringResource(R.string.common_edit)) }
+                                    IconButton(onClick = { deleting = sn }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
+                                } else {
+                                    Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.padding(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                             if (sn.description.isNotBlank()) {
                                 Text(sn.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -344,10 +400,10 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
                     try {
                         app.core.saveSnippet(sn.copy(name = name.trim(), script = script, description = description.trim()))
                         reload()
-                        app.account.sync()
+                        app.accounts.sync()
                         editing = null
                     } catch (e: TermoakException) {
-                        scope.launch { snackbar.showSnackbar(e.message ?: resources.getString(R.string.error_save_failed)) }
+                        scope.launch { snackbar.showSnackbar(e.userMessage(resources, R.string.error_save_failed)) }
                     }
                 }) { Text(stringResource(R.string.common_save)) }
             },
@@ -363,9 +419,10 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
             stringResource(R.string.common_delete), true,
             onDismiss = { deleting = null },
         ) {
-            runCatching { app.core.deleteSnippet(sn.id) }
+            runCatching { app.core.deleteSnippet(sn.id, sn.accountId) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
             reload()
-            app.account.sync()
+            app.accounts.sync()
         }
     }
 }
@@ -384,11 +441,11 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
                 Icons.Outlined.Person, stringResource(R.string.identities_empty_title),
                 stringResource(R.string.identities_empty_text),
                 action = stringResource(R.string.identities_new),
-                onAction = { editing = SshIdentity(id = "", label = "", username = "", keyId = null, syncMode = null, hasPassword = false, updatedAt = 0L) },
+                onAction = { editing = newIdentity(app) },
             )
         } else {
             LazyColumn(contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp)) {
-                items(identities, key = { it.id }) { idn ->
+                items(identities, key = { it.uid }) { idn ->
                     ListItem(
                         modifier = Modifier.clickable { editing = idn },
                         headlineContent = { Text(idn.label) },
@@ -403,13 +460,17 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
                         },
                         leadingContent = { HostTile(idn.label, null, size = 36.dp) },
                         trailingContent = {
-                            IconButton(onClick = { deleting = idn }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
+                            if (idn.access.canWrite()) {
+                                IconButton(onClick = { deleting = idn }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
+                            } else {
+                                Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         },
                     )
                 }
             }
             ExtendedFloatingActionButton(
-                onClick = { editing = SshIdentity(id = "", label = "", username = "", keyId = null, syncMode = null, hasPassword = false, updatedAt = 0L) },
+                onClick = { editing = newIdentity(app) },
                 icon = { Icon(Icons.Outlined.Add, null) }, text = { Text(stringResource(R.string.identities_new)) },
                 modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             )
@@ -439,23 +500,25 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
                         },
                         singleLine = true, visualTransformation = PasswordVisualTransformation(),
                     )
-                    if (keys.isNotEmpty()) {
-                        Picker(stringResource(R.string.common_key), keys.firstOrNull { it.id == keyId }?.label ?: noKey, null,
-                            listOf<Pair<String?, String>>(null to noKey) + keys.map { it.id to it.label }) { keyId = it }
+                    // Keys of the identity's own place (or This device).
+                    val usable = keys.filter { com.termoak.app.data.Place(idn.accountId, idn.vaultId).reaches(it.accountId, it.vaultId) }
+                    if (usable.isNotEmpty()) {
+                        Picker(stringResource(R.string.common_key), usable.firstOrNull { it.id == keyId }?.label ?: noKey, null,
+                            listOf<Pair<String?, String>>(null to noKey) + usable.map { it.id to it.label }) { keyId = it }
                     }
                 }
             },
             confirmButton = {
-                TextButton(enabled = user.isNotBlank(), onClick = {
+                TextButton(enabled = user.isNotBlank() && idn.access.canWrite(), onClick = {
                     runCatching {
                         app.core.saveIdentity(
                             idn.copy(label = label.trim().ifEmpty { user }, username = user, keyId = keyId),
                             if (password.isEmpty()) SecretChange.Keep else SecretChange.Set(password),
                         )
-                    }.onFailure { scope.launch { snackbar.showSnackbar(it.message ?: resources.getString(R.string.error_save_failed)) } }
+                    }.onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
                     editing = null
                     onChanged()
-                    app.account.sync()
+                    app.accounts.sync()
                 }) { Text(stringResource(R.string.common_save)) }
             },
             dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.common_cancel)) } },
@@ -466,9 +529,9 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
             stringResource(R.string.common_delete_named, idn.label), stringResource(R.string.identities_delete_text),
             stringResource(R.string.common_delete), true, onDismiss = { deleting = null },
         ) {
-            runCatching { app.core.deleteIdentity(idn.id) }
+            runCatching { app.core.deleteIdentity(idn.id, idn.accountId) }
             onChanged()
-            app.account.sync()
+            app.accounts.sync()
         }
     }
 }
@@ -476,7 +539,8 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
 /** Known hosts: the fingerprints of the servers you trust. */
 @Composable
 fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
-    var list by remember { mutableStateOf(runCatching { app.core.listKnownHosts() }.getOrDefault(emptyList())) }
+    var list by remember { mutableStateOf(runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList())) }
+    LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { list = runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList()) } }
     var deleting by remember { mutableStateOf<KnownHost?>(null) }
     VaultScaffold(VaultSection.KNOWN_HOSTS, nav) { padding ->
         if (list.isEmpty()) {
@@ -487,7 +551,7 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
             )
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)) {
-                items(list.sortedBy { it.host }, key = { it.id }) { k ->
+                items(list.sortedBy { it.host }, key = { it.uid }) { k ->
                     ListItem(
                         headlineContent = { Text(if (k.port == 22u) k.host else "${k.host}:${k.port}") },
                         supportingContent = {
@@ -499,8 +563,10 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
                         },
                         leadingContent = { Icon(Icons.Outlined.VerifiedUser, null, tint = Brand.Green) },
                         trailingContent = {
-                            IconButton(onClick = { deleting = k }) {
-                                Icon(Icons.Outlined.Delete, stringResource(R.string.known_hosts_forget))
+                            if (k.access.canWrite()) {
+                                IconButton(onClick = { deleting = k }) {
+                                    Icon(Icons.Outlined.Delete, stringResource(R.string.known_hosts_forget))
+                                }
                             }
                         },
                     )
@@ -513,9 +579,9 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
             stringResource(R.string.known_hosts_forget_title, k.host), stringResource(R.string.known_hosts_forget_text),
             stringResource(R.string.known_hosts_forget), true, onDismiss = { deleting = null },
         ) {
-            runCatching { app.core.deleteKnownHost(k.id) }
-            list = runCatching { app.core.listKnownHosts() }.getOrDefault(emptyList())
-            app.account.sync()
+            runCatching { app.core.deleteKnownHost(k.id, k.accountId) }
+            list = runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList())
+            app.accounts.sync()
         }
     }
 }

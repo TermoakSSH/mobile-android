@@ -109,6 +109,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.data.uid
 import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
 import com.termoak.app.asString
@@ -164,7 +165,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val pending by session.pending.collectAsState()
     val title by session.title.collectAsState()
     val live by session.live.collectAsState()
-    val loggedIn by app.account.loggedIn.collectAsState()
+    val loggedIn by app.accounts.loggedIn.collectAsState()
     val snackbar = LocalSnackbar.current
     val resources = LocalResources.current
     var showShare by remember { mutableStateOf(false) }
@@ -172,7 +173,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val sharable = canShare(session, loggedIn == true, live.isOwner)
     // Notices of this terminal ("You have the keyboard", an action that wasn't allowed...).
     LaunchedEffect(session.id) { session.toasts.collect { snackbar.showSnackbar(it.resolve(resources)) } }
-    val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it) }.getOrNull() } }
+    val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it, session.accountId) }.getOrNull() } }
 
     // ----- Split view: the panes that fit this window (none on a phone) -----
     val panes = if (split.maximized != null) emptyList() else
@@ -397,7 +398,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             if (wide && copilotOpen) {
                 VerticalDivider(color = KeyBg)
                 CopilotPanel(
-                    app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.LOGIN) },
+                    app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.login()) },
                     onAiSettings = { nav.navigate(Routes.AI_KEYS) },
                     modifier = Modifier.width(380.dp),
                 )
@@ -418,7 +419,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                 exit = slideOutHorizontally { it },
             ) {
                 CopilotPanel(
-                    app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.LOGIN) },
+                    app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.login()) },
                     onAiSettings = { nav.navigate(Routes.AI_KEYS) },
                     modifier = Modifier.fillMaxSize(), swipeToClose = true,
                 )
@@ -539,7 +540,7 @@ private fun TerminalPane(
     val pending by session.pending.collectAsState()
     val live by session.live.collectAsState()
     var longPressMenu by remember { mutableStateOf(false) }
-    val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it) }.getOrNull() } }
+    val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it, session.accountId) }.getOrNull() } }
     // Connection steps (like Termius' connection screen).
     val steps = remember(session.id) { androidx.compose.runtime.mutableStateListOf<UiText>() }
     var everRan by remember(session.id) { mutableStateOf(false) }
@@ -814,7 +815,7 @@ private fun SnippetsSheet(
     onDismiss: () -> Unit,
     onUse: (Snippet, String, Boolean, SnippetTarget) -> Unit,
 ) {
-    val snippets = remember { runCatching { app.core.listSnippets() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val snippets = remember { runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
     var filling by remember { mutableStateOf<Pair<Snippet, Boolean>?>(null) }
     var target by remember { mutableStateOf(SnippetTarget.THIS) }
     fun use(sn: Snippet, run: Boolean) {
@@ -845,7 +846,7 @@ private fun SnippetsSheet(
             )
         }
         LazyColumn(Modifier.padding(bottom = 24.dp)) {
-            items(snippets, key = { it.id }) { sn ->
+            items(snippets, key = { it.uid }) { sn ->
                 ListItem(
                     headlineContent = { Text(sn.name) },
                     supportingContent = {

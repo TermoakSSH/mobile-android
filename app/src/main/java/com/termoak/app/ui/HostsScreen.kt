@@ -18,6 +18,19 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.termoak.ffi.Snippet
+import com.termoak.ffi.TransferMode
+import com.termoak.ffi.VaultInfo
+import com.termoak.ffi.AccountInfo
+import com.termoak.app.data.uid
+import com.termoak.app.data.useOnly
+import com.termoak.app.data.canWrite
+import com.termoak.app.data.AccountView
+import com.termoak.app.term.TermSession
+import com.termoak.app.userMessage
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Visibility
 import android.content.ClipboardManager
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -115,6 +128,7 @@ import com.termoak.ffi.HostGroup
 import com.termoak.ffi.HostSettings
 import com.termoak.ffi.SecretChange
 import com.termoak.ffi.SshHost
+import com.termoak.ffi.SyncMode
 import kotlinx.coroutines.launch
 
 /**
@@ -124,16 +138,19 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
+fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, groupAccount: String? = null) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val loggedIn by app.account.loggedIn.collectAsState()
-    val syncing by app.account.syncing.collectAsState()
-    val syncError by app.account.syncError.collectAsState()
+    val loggedIn by app.accounts.loggedIn.collectAsState()
+    val syncing by app.accounts.syncing.collectAsState()
+    val syncError by app.accounts.syncError.collectAsState()
     val onServer by app.sessions.onServer.collectAsState()
     val open by app.sessions.list.collectAsState()
+    val accountList by app.accounts.list.collectAsState()
+    val vaults by app.accounts.vaults.collectAsState()
+    val view by app.accounts.view.collectAsState()
 
     var hosts by remember { mutableStateOf<List<SshHost>>(emptyList()) }
     var groups by remember { mutableStateOf<List<HostGroup>>(emptyList()) }
@@ -150,28 +167,39 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
     var bulkMove by remember { mutableStateOf(false) }
     var bulkDelete by remember { mutableStateOf(false) }
     var bulkSnippet by remember { mutableStateOf(false) }
+    // Move to… / Copy to… (another vault, This device or another account).
+    var transfer by remember { mutableStateOf<TransferRequest?>(null) }
     var runSnippet by remember { mutableStateOf<Snippet?>(null) }
     val grid = rememberLazyGridState()
     val maxPanes = rememberMaxPanes()
     BackHandler(selecting) { selected = emptyList() }
     fun toggle(host: SshHost) {
-        selected = if (host.id in selected) selected - host.id else selected + host.id
+        selected = if (host.uid in selected) selected - host.uid else selected + host.uid
     }
 
     fun reload() {
-        hosts = runCatching { app.core.listHosts() }.getOrDefault(emptyList())
-        groups = runCatching { app.core.listGroups() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() }
+        // The account and vault shown (inside a group: that group's account).
+        val filter = if (groupId != null) app.accounts.scopeFilter(groupAccount) else app.accounts.filter()
+        hosts = runCatching { app.core.listHosts(filter) }.getOrDefault(emptyList())
+            .filter { groupId == null || it.accountId == groupAccount }
+        groups = runCatching { app.core.listGroups(filter) }.getOrDefault(emptyList())
+            .filter { groupId == null || it.accountId == groupAccount }.sortedBy { it.name.lowercase() }
     }
     LaunchedEffect(Unit) {
         reload()
-        if (loggedIn == true && groupId == null) app.account.sync()
+        if (loggedIn == true && groupId == null) app.accounts.sync()
     }
-    LaunchedEffect(Unit) { app.account.vaultChanged.collect { reload() } }
+    LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { reload() } }
+    // Vault chips only when there is more than one vault; account avatars only with several accounts.
+    val showVaults = groupId == null && app.accounts.vaultsInView().size > 1 ||
+        (accountList.isNotEmpty() && hosts.any { it.accountId == null } && hosts.any { it.accountId != null })
+    val showAccounts = accountList.size > 1 && view == AccountView.All
+    fun vaultOf(h: SshHost): VaultInfo? = vaults.firstOrNull { it.id == h.vaultId && it.accountId == h.accountId }
     LaunchedEffect(syncError) { syncError?.let { snackbar.showSnackbar(it.resolve(resources)) } }
 
     fun connect(host: SshHost, onServer: Boolean) {
         (context as? MainActivity)?.askNotificationPermission()
-        if (onServer) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
+        if (onServer) app.sessions.openOnServer(host) else connectHost(app, host)
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
     /** From the server sessions notice: the first tab (the others, on top); if there's none, Connections. */
@@ -187,10 +215,10 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
     }
     /** Connect N: a terminal for each selected host (side by side on a wide screen). */
     fun connectSelected() {
-        val chosen = hosts.filter { it.id in selected }
+        val chosen = hosts.filter { it.uid in selected }
         if (chosen.isEmpty()) return
         (context as? MainActivity)?.askNotificationPermission()
-        val opened = chosen.map { app.sessions.openLocal(it) }
+        val opened = chosen.map { connectHost(app, it) }
         if (maxPanes >= 2 && opened.size >= 2) app.sessions.setSplit(opened.take(maxPanes).map { it.id })
         app.sessions.select(opened.first().id)
         selected = emptyList()
@@ -198,9 +226,12 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
     }
     fun save(host: SshHost) {
         runCatching { app.core.saveHost(host, SecretChange.Keep) }
-            .onFailure { scope.launch { snackbar.showSnackbar(it.message ?: resources.getString(R.string.error_save_failed)) } }
+            .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
         reload()
-        app.account.sync()
+        app.accounts.sync()
+    }
+    fun transferOf(mode: TransferMode, list: List<SshHost>) {
+        transfer = TransferRequest(mode, list.map { TransferItem(it.accountId, it.id, it.vaultId) })
     }
     fun copyAddress(host: SshHost) {
         context.getSystemService(ClipboardManager::class.java)
@@ -208,29 +239,39 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
         scope.launch { snackbar.showSnackbar(resources.getString(R.string.hosts_address_copied)) }
     }
     fun newGroup() {
+        // In a group: its account; at the root, where new items go.
+        val place = if (groupId != null) com.termoak.app.data.Place(groupAccount, groups.firstOrNull { it.id == groupId }?.vaultId)
+        else app.accounts.defaultPlace()
         editingGroup = HostGroup(
             id = "", name = "", parentId = groupId, color = null,
-            settings = HostSettings(), syncMode = null, updatedAt = 0L,
+            settings = HostSettings(), syncMode = if (place.device && accountList.isNotEmpty()) SyncMode.DEVICE_ONLY else null,
+            updatedAt = 0L, accountId = place.account, vaultId = place.vault,
         )
     }
 
-    val group = groups.firstOrNull { it.id == groupId }
+    val group = groups.firstOrNull { it.id == groupId && it.accountId == groupAccount }
     val q = query.trim().lowercase()
     val searching = q.isNotEmpty()
     // Searching: in all hosts; otherwise the group's (or the loose ones at the root).
     val visibleHosts = hosts.filter { h ->
         if (searching) listOf(h.label, h.address, h.settings.username ?: "", h.tags.joinToString(" ")).any { it.lowercase().contains(q) }
-        else h.groupId == groupId || (groupId == null && groups.none { it.id == h.groupId })
+        else h.groupId == groupId || (groupId == null && groups.none { it.id == h.groupId && it.accountId == h.accountId })
     }.sortedWith(compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() })
     val visibleGroups = if (searching) emptyList() else groups.filter { g ->
-        g.parentId == groupId || (groupId == null && g.parentId != null && groups.none { it.id == g.parentId })
+        g.parentId == groupId || (groupId == null && g.parentId != null && groups.none { it.id == g.parentId && it.accountId == g.accountId })
     }
-    fun countIn(g: HostGroup): Int = hosts.count { it.groupId == g.id } + groups.filter { it.parentId == g.id }.sumOf { countIn(it) }
-    val connectedHosts = open.mapNotNull { it.hostId }.toSet()
+    fun countIn(g: HostGroup): Int = hosts.count { it.groupId == g.id && it.accountId == g.accountId } +
+        groups.filter { it.parentId == g.id && it.accountId == g.accountId }.sumOf { countIn(it) }
+    val connectedHosts = open.mapNotNull { s -> s.hostId?.let { com.termoak.app.data.uidOf(s.accountId, it) } }.toSet()
+    // "All accounts" with several places: hosts grouped by account (This device first).
+    val scopes: List<AccountInfo?> = if (showAccounts && groupId == null && !searching) {
+        listOf<AccountInfo?>(null) + accountList
+    } else listOf(null)
+    fun inScope(scope: AccountInfo?, accountId: String?) = scopes.size == 1 || accountId == scope?.id
 
     val actions: @Composable RowScope.() -> Unit = {
         if (loggedIn == true) {
-            IconButton(onClick = { app.account.sync() }, enabled = !syncing) {
+            IconButton(onClick = { app.accounts.sync() }, enabled = !syncing) {
                 if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Icon(Icons.Outlined.Sync, stringResource(R.string.common_sync))
             }
@@ -244,7 +285,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
     val body: @Composable (PaddingValues) -> Unit = { padding ->
         PullToRefreshBox(
             isRefreshing = syncing,
-            onRefresh = { if (loggedIn == true) app.account.sync() else reload() },
+            onRefresh = { if (loggedIn == true) app.accounts.sync() else reload() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             LazyVerticalGrid(
@@ -277,32 +318,46 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
                         )
                     }
                 }
-                if (visibleGroups.isNotEmpty()) {
-                    full { SectionLabel(stringResource(R.string.hosts_groups)) }
-                    items(visibleGroups, key = { "g" + it.id }) { g ->
-                        // While selecting, a group selects (or unselects) its hosts instead of opening.
-                        GroupRow(g, countIn(g), {
-                            if (selecting) {
-                                val ids = hostsIn(g.id, hosts, groups).map { it.id }
-                                selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
-                            } else {
-                                nav.navigate(Routes.group(g.id))
-                            }
-                        }, { groupActions = g })
+                scopes.forEach { sc ->
+                    val scGroups = visibleGroups.filter { inScope(sc, it.accountId) }
+                    val scHosts = visibleHosts.filter { inScope(sc, it.accountId) }
+                    if (scopes.size > 1 && (scGroups.isNotEmpty() || scHosts.isNotEmpty())) {
+                        full { ScopeLabel(sc) }
+                    }
+                    if (scGroups.isNotEmpty()) {
+                        if (scopes.size == 1) full { SectionLabel(stringResource(R.string.hosts_groups)) }
+                        items(scGroups, key = { "g" + it.uid }) { g ->
+                            // While selecting, a group selects (or unselects) its hosts instead of opening.
+                            GroupRow(g, countIn(g), {
+                                if (selecting) {
+                                    val ids = hostsIn(g, hosts, groups).map { it.uid }
+                                    selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
+                                } else {
+                                    nav.navigate(Routes.group(g.id, g.accountId))
+                                }
+                            }, { groupActions = g })
+                        }
+                    }
+                    if (scHosts.isNotEmpty()) {
+                        if (scopes.size == 1) {
+                            full { SectionLabel(stringResource(if (searching) R.string.hosts_results else R.string.section_hosts)) }
+                        }
+                        items(scHosts, key = { it.uid }) { host ->
+                            val v = vaultOf(host)
+                            HostRow(
+                                host, connected = host.uid in connectedHosts,
+                                selected = if (selecting) host.uid in selected else null,
+                                onClick = { if (selecting) toggle(host) else connect(host, false) },
+                                onLongClick = { toggle(host) },
+                                onMore = { actionsFor = host }, onTag = { query = it },
+                                vault = if (!showVaults) null else if (host.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) },
+                                vaultColor = if (host.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
+                                account = if (showAccounts) accountList.firstOrNull { it.id == host.accountId } else null,
+                            )
+                        }
                     }
                 }
-                if (visibleHosts.isNotEmpty()) {
-                    full { SectionLabel(stringResource(if (searching) R.string.hosts_results else R.string.section_hosts)) }
-                    items(visibleHosts, key = { it.id }) { host ->
-                        HostRow(
-                            host, connected = host.id in connectedHosts,
-                            selected = if (selecting) host.id in selected else null,
-                            onClick = { if (selecting) toggle(host) else connect(host, false) },
-                            onLongClick = { toggle(host) },
-                            onMore = { actionsFor = host }, onTag = { query = it },
-                        )
-                    }
-                } else if (searching) {
+                if (visibleHosts.isEmpty() && searching) {
                     full {
                         EmptyState(
                             Icons.Outlined.SearchOff, stringResource(R.string.hosts_no_match, query),
@@ -323,7 +378,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             },
             actions = {
                 IconButton(onClick = {
-                    val ids = visibleHosts.map { it.id }
+                    val ids = visibleHosts.map { it.uid }
                     selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
                 }) { Icon(Icons.Outlined.SelectAll, stringResource(R.string.bulk_select_all)) }
                 IconButton(onClick = { bulkDelete = true }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
@@ -339,6 +394,21 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
                             { Text(stringResource(R.string.multi_run_snippet)) }, { menu = false; bulkSnippet = true },
                             leadingIcon = { Icon(Icons.Outlined.Code, null) },
                         )
+                        if (accountList.isNotEmpty()) {
+                            val chosen = hosts.filter { it.uid in selected }
+                            if (chosen.all { it.access.canWrite() }) {
+                                DropdownMenuItem(
+                                    { Text(stringResource(R.string.transfer_move_to)) }, { menu = false; transferOf(TransferMode.MOVE, chosen) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null) },
+                                )
+                            }
+                            if (chosen.none { it.access.useOnly() }) {
+                                DropdownMenuItem(
+                                    { Text(stringResource(R.string.transfer_copy_to)) }, { menu = false; transferOf(TransferMode.COPY, chosen) },
+                                    leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) },
+                                )
+                            }
+                        }
                     }
                 }
                 Button(onClick = { connectSelected() }, Modifier.padding(end = 8.dp)) {
@@ -400,29 +470,68 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
                     )
                 }
             }
+            val v = vaultOf(host)
+            if (host.access.useOnly() || (accountList.isNotEmpty() && (host.accountId == null || v != null))) {
+                Row(Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    VaultChip(
+                        if (host.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) } ?: "",
+                        if (host.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
+                        useOnly = host.access.useOnly(),
+                    )
+                    accountList.firstOrNull { it.id == host.accountId }?.takeIf { accountList.size > 1 }?.let {
+                        Text(it.email, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            if (host.access.useOnly()) {
+                Text(
+                    stringResource(if (v?.strict == true) R.string.hosts_use_only_strict else R.string.hosts_use_only),
+                    Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SheetAction(Icons.Outlined.Terminal, stringResource(R.string.hosts_connect)) { actionsFor = null; connect(host, false) }
-            if (loggedIn == true) {
+            // Server sessions: on the host's account, which has to be signed in.
+            val hostAccount = accountList.firstOrNull { it.id == host.accountId }
+            if (hostAccount?.status == com.termoak.ffi.AccountStatus.ACTIVE) {
                 SheetAction(Icons.Outlined.CloudQueue, stringResource(R.string.hosts_connect_on_server)) {
                     actionsFor = null; connect(host, true)
                 }
             }
-            SheetAction(Icons.Outlined.Edit, stringResource(R.string.common_edit)) {
-                actionsFor = null; nav.navigate(Routes.hostEdit(host.id))
+            val writable = host.access.canWrite()
+            SheetAction(if (writable) Icons.Outlined.Edit else Icons.Outlined.Visibility, stringResource(if (writable) R.string.common_edit else R.string.hosts_view)) {
+                actionsFor = null; nav.navigate(Routes.hostEdit(host.id, host.accountId))
             }
-            SheetAction(
-                if (host.favorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                stringResource(if (host.favorite) R.string.hosts_favorite_remove else R.string.hosts_favorite_add),
-            ) { actionsFor = null; save(host.copy(favorite = !host.favorite)) }
-            val copyLabel = stringResource(R.string.hosts_copy_label, host.label)
-            SheetAction(Icons.Outlined.ContentCopy, stringResource(R.string.hosts_duplicate)) {
-                actionsFor = null; save(host.copy(id = "", label = copyLabel, favorite = false))
+            if (writable) {
+                SheetAction(
+                    if (host.favorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                    stringResource(if (host.favorite) R.string.hosts_favorite_remove else R.string.hosts_favorite_add),
+                ) { actionsFor = null; save(host.copy(favorite = !host.favorite)) }
+                val copyLabel = stringResource(R.string.hosts_copy_label, host.label)
+                SheetAction(Icons.Outlined.ContentCopy, stringResource(R.string.hosts_duplicate)) {
+                    actionsFor = null; save(host.copy(id = "", label = copyLabel, favorite = false))
+                }
             }
             SheetAction(Icons.Outlined.Link, stringResource(R.string.hosts_copy_address)) {
                 actionsFor = null; copyAddress(host)
             }
-            SheetAction(Icons.Outlined.Delete, stringResource(R.string.common_delete), danger = true) {
-                actionsFor = null; deleting = host
+            if (accountList.isNotEmpty()) {
+                if (writable) {
+                    SheetAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to)) {
+                        actionsFor = null; transferOf(TransferMode.MOVE, listOf(host))
+                    }
+                }
+                if (!host.access.useOnly()) {
+                    SheetAction(Icons.Outlined.ContentPaste, stringResource(R.string.transfer_copy_to)) {
+                        actionsFor = null; transferOf(TransferMode.COPY, listOf(host))
+                    }
+                }
+            }
+            if (writable) {
+                SheetAction(Icons.Outlined.Delete, stringResource(R.string.common_delete), danger = true) {
+                    actionsFor = null; deleting = host
+                }
             }
             Spacer(Modifier.navigationBarsPadding().height(24.dp))
         }
@@ -430,11 +539,33 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
     groupActions?.let { g ->
         ModalBottomSheet(onDismissRequest = { groupActions = null }) {
             Text(g.name, Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)
-            SheetAction(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.hosts_rename)) {
-                groupActions = null; editingGroup = g
+            if (g.access.canWrite()) {
+                SheetAction(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.hosts_rename)) {
+                    groupActions = null; editingGroup = g
+                }
+                if (accountList.isNotEmpty()) {
+                    SheetAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to)) {
+                        groupActions = null
+                        transfer = TransferRequest(TransferMode.MOVE, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
+                    }
+                }
             }
-            SheetAction(Icons.Outlined.Delete, stringResource(R.string.hosts_delete_group), danger = true) {
-                groupActions = null; deletingGroup = g
+            if (accountList.isNotEmpty() && !g.access.useOnly()) {
+                SheetAction(Icons.Outlined.ContentPaste, stringResource(R.string.transfer_copy_to)) {
+                    groupActions = null
+                    transfer = TransferRequest(TransferMode.COPY, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
+                }
+            }
+            if (g.access.canWrite()) {
+                SheetAction(Icons.Outlined.Delete, stringResource(R.string.hosts_delete_group), danger = true) {
+                    groupActions = null; deletingGroup = g
+                }
+            }
+            if (!g.access.canWrite()) {
+                Text(
+                    stringResource(R.string.vault_use_only_note), Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Spacer(Modifier.navigationBarsPadding().height(24.dp))
         }
@@ -450,10 +581,10 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             confirmButton = {
                 TextButton(enabled = name.isNotBlank(), onClick = {
                     runCatching { app.core.saveGroup(g.copy(name = name.trim())) }
-                        .onFailure { scope.launch { snackbar.showSnackbar(it.message ?: resources.getString(R.string.error_save_failed)) } }
+                        .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
                     editingGroup = null
                     reload()
-                    app.account.sync()
+                    app.accounts.sync()
                 }) { Text(stringResource(R.string.common_save)) }
             },
             dismissButton = { TextButton(onClick = { editingGroup = null }) { Text(stringResource(R.string.common_cancel)) } },
@@ -465,15 +596,28 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             text = stringResource(R.string.hosts_delete_text),
             confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { deleting = null },
         ) {
-            runCatching { app.core.deleteHost(host.id) }
+            val r = runCatching { app.core.deleteHost(host.id, host.accountId) }
             reload()
-            app.account.sync()
-            scope.launch { snackbar.showSnackbar(resources.getString(R.string.hosts_deleted, host.label)) }
+            app.accounts.sync()
+            scope.launch {
+                snackbar.showSnackbar(
+                    r.exceptionOrNull()?.userMessage(resources, R.string.error_save_failed) ?: resources.getString(R.string.hosts_deleted, host.label),
+                )
+            }
         }
     }
     if (bulkMove) {
-        val chosen = hosts.filter { it.id in selected }
-        MoveToGroupDialog(groups, chosen.size, onDismiss = { bulkMove = false }) { target ->
+        val chosen = hosts.filter { it.uid in selected }
+        // Groups live in a place: only those of the hosts' own place (all in one).
+        val place = chosen.map { it.accountId to it.vaultId }.distinct().singleOrNull()
+        if (place == null) {
+            LaunchedEffect(Unit) {
+                bulkMove = false
+                snackbar.showSnackbar(resources.getString(R.string.bulk_move_one_place))
+            }
+            return
+        }
+        MoveToGroupDialog(groups.filter { it.accountId == place.first && it.vaultId == place.second }, chosen.size, onDismiss = { bulkMove = false }) { target ->
             bulkMove = false
             var failed = 0
             chosen.forEach { h ->
@@ -481,7 +625,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             }
             selected = emptyList()
             reload()
-            app.account.sync()
+            app.accounts.sync()
             val name = groups.firstOrNull { it.id == target }?.name ?: resources.getString(R.string.host_no_group)
             val moved = chosen.size - failed
             scope.launch { snackbar.showSnackbar(resources.getQuantityString(R.plurals.bulk_moved, moved, moved, name)) }
@@ -494,11 +638,11 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             text = pluralStringResource(R.plurals.bulk_delete_text, count, count),
             confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { bulkDelete = false },
         ) {
-            val ids = selected
-            val deleted = ids.count { id -> runCatching { app.core.deleteHost(id) }.isSuccess }
+            val chosen = hosts.filter { it.uid in selected }
+            val deleted = chosen.count { h -> runCatching { app.core.deleteHost(h.id, h.accountId) }.isSuccess }
             selected = emptyList()
             reload()
-            app.account.sync()
+            app.accounts.sync()
             scope.launch { snackbar.showSnackbar(resources.getQuantityString(R.plurals.bulk_deleted, deleted, deleted)) }
         }
     }
@@ -517,10 +661,44 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             text = stringResource(R.string.hosts_delete_group_text),
             confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { deletingGroup = null },
         ) {
-            runCatching { app.core.deleteGroup(g.id) }
+            runCatching { app.core.deleteGroup(g.id, g.accountId) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
             reload()
-            app.account.sync()
+            app.accounts.sync()
         }
+    }
+    transfer?.let { t ->
+        TransferFlow(app, t, onDismiss = { transfer = null }) {
+            transfer = null
+            selected = emptyList()
+            reload()
+        }
+    }
+}
+
+/**
+ * Connects to [host] from the phone, or through its server when it is in a
+ * Strict vault where you are Use only (its secrets never leave the server).
+ */
+fun connectHost(app: TermoakApp, host: SshHost): TermSession {
+    val strict = host.access.useOnly() && host.accountId != null &&
+        app.accounts.vaults.value.any { it.id == host.vaultId && it.accountId == host.accountId && it.strict }
+    return if (strict) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
+}
+
+/** Title of the hosts of one place in "All accounts": This device, or an account. */
+@Composable
+private fun ScopeLabel(account: AccountInfo?) {
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (account == null) {
+            Icon(Icons.Outlined.PhoneAndroid, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            AccountAvatar(account, 22.dp)
+        }
+        Text(
+            account?.email ?: stringResource(R.string.vault_this_device), Modifier.padding(start = 10.dp),
+            style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -560,9 +738,10 @@ private fun subtitle(host: SshHost): String {
     return listOfNotNull("ssh", user, port).joinToString(", ")
 }
 
-/** Hosts of group [groupId] and of its subgroups. */
-private fun hostsIn(groupId: String, hosts: List<SshHost>, groups: List<HostGroup>): List<SshHost> =
-    hosts.filter { it.groupId == groupId } + groups.filter { it.parentId == groupId }.flatMap { hostsIn(it.id, hosts, groups) }
+/** Hosts of group [group] and of its subgroups. */
+private fun hostsIn(group: HostGroup, hosts: List<SshHost>, groups: List<HostGroup>): List<SshHost> =
+    hosts.filter { it.groupId == group.id && it.accountId == group.accountId } +
+        groups.filter { it.parentId == group.id && it.accountId == group.accountId }.flatMap { hostsIn(it, hosts, groups) }
 
 /**
  * A host. [selected] is `null` outside multi-select; inside, the tile turns
@@ -578,6 +757,11 @@ private fun HostRow(
     onLongClick: () -> Unit,
     onMore: () -> Unit,
     onTag: (String) -> Unit,
+    /** Its vault (or "This device"), when there is more than one. */
+    vault: String? = null,
+    vaultColor: Color = MaterialTheme.colorScheme.primary,
+    /** Its account, in "All accounts" with several. */
+    account: AccountInfo? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     Row(
@@ -599,6 +783,10 @@ private fun HostRow(
             } else {
                 HostTile(host.label, host.os, host.color, size = 44.dp)
             }
+            // The account it belongs to (with several accounts).
+            if (account != null && selected != true) {
+                Box(Modifier.align(Alignment.TopStart).offset((-4).dp, (-4).dp)) { AccountAvatar(account, 16.dp) }
+            }
             // An open terminal on this host: a dot on the corner of its tile.
             if (connected) {
                 Box(
@@ -617,13 +805,18 @@ private fun HostRow(
                     Spacer(Modifier.width(6.dp))
                     Icon(Icons.Filled.Star, stringResource(R.string.hosts_favorite), Modifier.size(14.dp), tint = Brand.Amber)
                 }
+                if (host.access.useOnly()) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Text(
                 subtitle(host), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (host.tags.isNotEmpty()) {
-                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (host.tags.isNotEmpty() || vault != null) {
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    vault?.let { VaultChip(it, vaultColor, useOnly = host.access.useOnly()) }
                     host.tags.take(3).forEach { TagChip(it) { onTag(it) } }
                     if (host.tags.size > 3) TagChip("+${host.tags.size - 3}", onClick = null)
                 }

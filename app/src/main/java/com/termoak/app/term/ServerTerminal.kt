@@ -41,7 +41,8 @@ class ServerTerminal(
     sessionId: String?,
     owner: Boolean = true,
     private val link: LinkJoin? = null,
-) : TermSession(label, hostId), ServerTerminalListener {
+    accountId: String? = null,
+) : TermSession(label, hostId, accountId), ServerTerminalListener {
     @Volatile var sessionId: String? = sessionId
         private set
     @Volatile private var handle: ServerTerminalHandle? = null
@@ -68,6 +69,13 @@ class ServerTerminal(
         scope.launch {
             try {
                 val h = when {
+                    // On the account of the host (or of the session).
+                    link == null && accountId != null -> {
+                        val acc = core.account(accountId)
+                        val id = sessionId
+                            ?: acc.openServerSession(hostId!!, screen.cols(), screen.rows(), label, null).id
+                        acc.attachServerSession(id, this@ServerTerminal)
+                    }
                     link == null -> {
                         val id = sessionId
                             ?: core.openServerSession(hostId!!, screen.cols(), screen.rows(), label, null).id
@@ -151,7 +159,11 @@ class ServerTerminal(
     /** Ends the session on the server (for everyone). */
     fun terminate() {
         handle?.let { runCatching { it.closeSession() } }
-            ?: sessionId?.let { id -> scope.launch { runCatching { core.closeServerSession(id) } } }
+            ?: sessionId?.let { id ->
+                scope.launch {
+                    runCatching { accountId?.let { core.account(it).closeServerSession(id) } ?: core.closeServerSession(id) }
+                }
+            }
     }
 
     // ----- Guests -----

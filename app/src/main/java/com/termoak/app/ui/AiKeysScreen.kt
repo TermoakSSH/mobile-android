@@ -104,7 +104,7 @@ fun AiKeysScreen(app: TermoakApp, nav: NavHostController) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val loggedIn by app.account.loggedIn.collectAsState()
+    val loggedIn by app.accounts.loggedIn.collectAsState()
     var access by remember { mutableStateOf<AiAccessInfo?>(null) }
     var keys by remember { mutableStateOf<List<AiKeyInfo>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
