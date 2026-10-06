@@ -55,6 +55,20 @@ class TerminalView(context: Context) : View(context) {
 
     /** Scale to fit a terminal wider than the view (guests follow the owner's size). */
     private var fit = 1f
+    /**
+     * Pinch zoom over the fit while the terminal is wider than the view
+     * (1: the whole width; up to the real font size), with [panX] (px) to
+     * scroll sideways.
+     */
+    private var zoom = 1f
+    private var panX = 0f
+
+    /** Width of the terminal at the real font size, and the room for it. */
+    private fun widths(): Pair<Float, Float> =
+        (session?.screen?.cols()?.toInt() ?: 0) * cellWidth to (width - paddingLeft - paddingRight).toFloat()
+
+    /** The terminal doesn't fit the view's width (a guest following a wider owner). */
+    private fun tooWide(): Boolean = widths().let { (need, avail) -> need > avail && avail > 0f }
 
     var session: TermSession? = null
         set(value) {
@@ -105,9 +119,16 @@ class TerminalView(context: Context) : View(context) {
         canvas.drawColor(snap.background.toInt())
         val left = paddingLeft.toFloat()
         val top = paddingTop.toFloat()
-        val need = s.screen.cols().toInt() * cellWidth
-        val avail = (width - paddingLeft - paddingRight).toFloat()
-        fit = if (need > avail && need > 0f) avail / need else 1f
+        val (need, avail) = widths()
+        if (need > avail && avail > 0f) {
+            fit = minOf(1f, avail / need * zoom)
+        } else {
+            fit = 1f
+            zoom = 1f
+        }
+        panX = panX.coerceIn(0f, max(0f, need * fit - avail))
+        canvas.save()
+        if (panX > 0f) canvas.translate(-panX, 0f)
         if (fit < 1f) canvas.scale(fit, fit, left, top)
         snap.lines.forEachIndexed { row, line ->
             val y = top + row * cellHeight
@@ -161,6 +182,7 @@ class TerminalView(context: Context) : View(context) {
                 }
             }
         }
+        canvas.restore()
         // Viewing the scrollback: mark on the right edge.
         if (snap.displayOffset > 0u) {
             fill.color = snap.cursorColor.toInt()
@@ -181,12 +203,26 @@ class TerminalView(context: Context) : View(context) {
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
+            if (tooWide()) {
+                // Zoom in on the owner's wider terminal (the font stays as it is).
+                val (need, avail) = widths()
+                val before = fit
+                zoom = (zoom * detector.scaleFactor).coerceIn(1f, need / avail)
+                val after = minOf(1f, avail / need * zoom)
+                // Keep the point under the fingers in place.
+                val x = detector.focusX - paddingLeft
+                panX = ((x + panX) / before * after - x).coerceIn(0f, max(0f, need * after - avail))
+                fit = after
+                invalidate()
+                return true
+            }
             val next = (fontSp * detector.scaleFactor).coerceIn(8f, 24f)
             if (abs(next - fontSp) >= 0.25f) setFontSize(next)
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
+            if (tooWide()) return
             onFontSizeChanged(fontSp)
         }
     })
@@ -195,7 +231,7 @@ class TerminalView(context: Context) : View(context) {
             // A tap on a link opens it; otherwise it shows the keyboard.
             val s = session
             if (s != null && cellWidth > 0f) {
-                val col = ((e.x - paddingLeft) / fit / cellWidth).toInt().coerceAtLeast(0)
+                val col = ((e.x - paddingLeft + panX) / fit / cellWidth).toInt().coerceAtLeast(0)
                 val row = ((e.y - paddingTop) / fit / cellHeight).toInt().coerceAtLeast(0)
                 s.screen.linkAt(row.toUInt(), col.toUInt())?.let { url ->
                     runCatching {
@@ -221,6 +257,12 @@ class TerminalView(context: Context) : View(context) {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
             val s = session ?: return false
             if (scaling) return true
+            // Zoomed in on a wider terminal: sideways.
+            if (tooWide() && abs(dx) > abs(dy)) {
+                panX += dx
+                invalidate()
+                return true
+            }
             scrollRemainder += dy
             val lines = (scrollRemainder / cellHeight).toInt()
             if (lines != 0) {

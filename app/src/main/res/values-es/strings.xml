@@ -701,4 +701,17 @@
         <item quantity="many">Limitar el control automático a %d minutos</item>
         <item quantity="other">Limitar el control automático a %d minutos</item>
     </plurals>
+    <string name="activity_title">Actividad</string>
+    <string name="activity_open">Quién escribió</string>
+    <string name="activity_loading">Cargando…</string>
+    <string name="activity_not_recorded">Esta sesión no se grabó, así que no hay registro de quién escribió.</string>
+    <string name="activity_failed">No se pudo cargar la actividad: %1$s</string>
+    <string name="activity_retry">Reintentar</string>
+    <string name="activity_started">Grabación iniciada el %1$s</string>
+    <string name="activity_hint">Quién tuvo el teclado y cuándo (no qué escribió).</string>
+    <string name="activity_none">Todavía no ha escrito nadie.</string>
+    <string name="activity_from">desde %1$s</string>
+    <string name="activity_unknown">Desconocido</string>
+    <string name="activity_kind_user">Usuario</string>
+    <string name="activity_kind_ai">IA</string>
 </resources>

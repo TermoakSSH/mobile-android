@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +61,7 @@ import com.termoak.app.TermoakApp
 import com.termoak.app.asString
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
+import com.termoak.ffi.ParticipantKind
 import com.termoak.ffi.ServerSession
 import com.termoak.ffi.ServerSessionList
 import com.termoak.ffi.ServerSessionState
@@ -86,8 +88,8 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     var closing by remember { mutableStateOf<ServerSession?>(null) }
     var closingAll by remember { mutableStateOf(false) }
     var joining by remember { mutableStateOf(false) }
-    // Who shares each session shared with you (by session id).
-    var owners by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // Session whose activity (who typed) is open: id and title.
+    var activity by remember { mutableStateOf<Pair<String, String>?>(null) }
     val hosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).associateBy { it.id } }
     val untitled = stringResource(R.string.common_session)
 
@@ -97,7 +99,6 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
             loading = true
             try {
                 server = app.core.listServerSessions()
-                owners = sharedOwners(app)
             } catch (e: TermoakException) {
                 snackbar.showSnackbar(e.message ?: resources.getString(R.string.sessions_load_failed))
             } finally {
@@ -164,14 +165,17 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                     item { SectionLabel(stringResource(R.string.sessions_on_server)) }
                     items(active, key = { "a" + it.id }) { s ->
                         SwipeToClose(Icons.Outlined.PowerSettingsNew, resetAfter = true, onSwiped = { closing = s }) {
-                            ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = { closing = s })
+                            ServerSessionRow(
+                                s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = { closing = s },
+                                onActivity = { activity = s.id to s.title.ifBlank { s.hostId?.let { hosts[it]?.label } ?: untitled } },
+                            )
                         }
                     }
                 }
                 if (loggedIn == true && shared.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_shared)) }
                     items(shared, key = { "s" + it.id }) { s ->
-                        ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = null, owner = owners[s.id])
+                        ServerSessionRow(s, hosts[s.hostId ?: ""], onClick = { attach(s) }, onClose = null)
                     }
                 }
                 item {
@@ -190,8 +194,11 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                 if (loggedIn == true && recent.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.sessions_recent)) }
                     items(recent, key = { "r" + it.id }) { r ->
+                        val title = r.title.ifBlank { hosts[r.hostId ?: ""]?.label ?: untitled }
                         ListItem(
-                            headlineContent = { Text(r.title.ifBlank { hosts[r.hostId ?: ""]?.label ?: untitled }) },
+                            // Recorded: who typed and when.
+                            modifier = if (r.recording) Modifier.clickable { activity = r.id to title } else Modifier,
+                            headlineContent = { Text(title) },
                             supportingContent = {
                                 Text(
                                     listOfNotNull(recentStatus(r.status), relativeTime(r.endedAt ?: r.createdAt), r.error)
@@ -204,6 +211,16 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                                     Icon(Icons.Outlined.History, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             },
+                            trailingContent = if (r.recording) {
+                                {
+                                    IconButton(onClick = { activity = r.id to title }) {
+                                        Icon(
+                                            Icons.Outlined.Timeline, stringResource(R.string.activity_open), Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            } else null,
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         )
                     }
@@ -228,6 +245,9 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
             }
         }
     }
+    activity?.let { (id, title) ->
+        ActivitySheet(app, id, title, onDismiss = { activity = null })
+    }
     if (joining) {
         JoinLinkDialog(onDismiss = { joining = false }) { link ->
             joining = false
@@ -243,18 +263,6 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
         ) { app.sessions.closeAll() }
     }
 }
-
-/** `owner_name` of the sessions shared with you (the typed list doesn't carry it). */
-private suspend fun sharedOwners(app: TermoakApp): Map<String, String> = runCatching {
-    val shared = org.json.JSONObject(app.core.apiGet("/api/v1/sessions")).optJSONArray("shared")
-    buildMap {
-        for (i in 0 until (shared?.length() ?: 0)) {
-            val o = shared!!.optJSONObject(i) ?: continue
-            val name = o.optString("owner_name")
-            if (name.isNotBlank()) put(o.optString("id"), name)
-        }
-    }
-}.getOrDefault(emptyMap())
 
 /** A row that closes (or asks to) when swiped to either side. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -344,7 +352,13 @@ private fun recentStatus(status: String): String = when (status) {
 }
 
 @Composable
-private fun ServerSessionRow(s: ServerSession, host: SshHost?, onClick: () -> Unit, onClose: (() -> Unit)?, owner: String? = null) {
+private fun ServerSessionRow(
+    s: ServerSession,
+    host: SshHost?,
+    onClick: () -> Unit,
+    onClose: (() -> Unit)?,
+    onActivity: (() -> Unit)? = null,
+) {
     val (text, color) = when (val st = s.state) {
         is ServerSessionState.Running -> stringResource(R.string.session_state_running) to Brand.Green
         is ServerSessionState.Connecting -> st.message to Brand.Amber
@@ -359,6 +373,8 @@ private fun ServerSessionRow(s: ServerSession, host: SshHost?, onClick: () -> Un
             val people = s.participants.size.takeIf { it > 0 } ?: s.viewers.size
             val viewers = people.takeIf { it > 1 }?.let { pluralStringResource(R.plurals.sessions_viewers, it, it) }
             // Shared with you: who shares it and what you can do.
+            // Servers before 0.3 don't send `owner_name`: the owner among the participants.
+            val owner = s.ownerName ?: s.participants.firstOrNull { it.kind == ParticipantKind.OWNER }?.name?.takeIf { it.isNotBlank() }
             val sharedBy = if (s.access == SessionAccess.OWNER) null else listOfNotNull(
                 owner?.let { stringResource(R.string.sessions_shared_by, it) },
                 stringResource(if (s.access == SessionAccess.CONTROL) R.string.share_perm_control else R.string.share_perm_view),
@@ -381,8 +397,16 @@ private fun ServerSessionRow(s: ServerSession, host: SshHost?, onClick: () -> Un
         },
         leadingContent = { StatusTile(host, title, color) },
         trailingContent = {
-            if (onClose != null) {
-                IconButton(onClick = onClose) {
+            Row {
+                if (onActivity != null) {
+                    IconButton(onClick = onActivity) {
+                        Icon(
+                            Icons.Outlined.Timeline, stringResource(R.string.activity_open), Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (onClose != null) IconButton(onClick = onClose) {
                     Icon(
                         Icons.Outlined.PowerSettingsNew, stringResource(R.string.sessions_terminate), Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,

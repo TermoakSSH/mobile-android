@@ -683,4 +683,17 @@
         <item quantity="one">Limit automatic control to %d minute</item>
         <item quantity="other">Limit automatic control to %d minutes</item>
     </plurals>
+    <string name="activity_title">Activity</string>
+    <string name="activity_open">Who typed</string>
+    <string name="activity_loading">Loading…</string>
+    <string name="activity_not_recorded">This session was not recorded, so there is no record of who typed.</string>
+    <string name="activity_failed">Couldn\'t load the activity: %1$s</string>
+    <string name="activity_retry">Try again</string>
+    <string name="activity_started">Recording started %1$s</string>
+    <string name="activity_hint">Who had the keyboard and when (not what they typed).</string>
+    <string name="activity_none">Nobody has typed yet.</string>
+    <string name="activity_from">from %1$s</string>
+    <string name="activity_unknown">Unknown</string>
+    <string name="activity_kind_user">User</string>
+    <string name="activity_kind_ai">AI</string>
 </resources>
