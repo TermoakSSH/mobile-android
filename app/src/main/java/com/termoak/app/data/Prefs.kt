@@ -50,6 +50,14 @@ class Prefs(context: Context) {
         sp.edit { putBoolean("check_updates", on) }
     }
 
+    private val _confirmPaste = MutableStateFlow(sp.getBoolean("confirm_multiline_paste", true))
+    /** Ask before pasting several lines into a terminal (unless it uses bracketed paste). */
+    val confirmMultilinePaste: StateFlow<Boolean> = _confirmPaste
+    fun setConfirmMultilinePaste(on: Boolean) {
+        _confirmPaste.value = on
+        sp.edit { putBoolean("confirm_multiline_paste", on) }
+    }
+
     var lastServer: String?
         get() = sp.getString("last_server", null)
         set(v) = sp.edit().putString("last_server", v).apply()

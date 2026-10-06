@@ -163,15 +163,12 @@
     <!-- Host editor -->
     <string name="host_edit_title">Edit host</string>
     <string name="host_auth_key">SSH key</string>
-    <string name="host_proxy_incomplete">The proxy needs an address and a port</string>
-    <string name="host_section_general">General</string>
     <string name="host_address">Address</string>
     <string name="host_address_placeholder">server.example.com or 10.0.0.5</string>
     <string name="host_label">Label</string>
     <string name="host_group">Group</string>
     <string name="host_no_group">No group</string>
     <string name="host_tags">Tags</string>
-    <string name="host_section_credentials">Credentials</string>
     <string name="host_password_placeholder">Asked when connecting</string>
     <string name="host_clear_password">Delete the saved password</string>
     <string name="host_no_keys">No keys yet. Create them in the Keychain.</string>
@@ -696,4 +693,144 @@
     <string name="activity_unknown">Unknown</string>
     <string name="activity_kind_user">User</string>
     <string name="activity_kind_ai">AI</string>
+
+    <!-- Host editor (address first, collapsible "Advanced", like the desktop's) -->
+    <string name="editor_label_placeholder">Optional: the address if empty</string>
+    <string name="editor_section_group">Group, tags and color</string>
+    <string name="editor_color">Color</string>
+    <string name="editor_color_none">No color (the system\'s or the name\'s)</string>
+    <string name="editor_section_advanced">Advanced</string>
+    <string name="editor_advanced_summary">Jumps, proxy, keep-alive, environment, terminal…</string>
+    <string name="editor_advanced_errors">There are errors in Advanced</string>
+    <string name="editor_section_connection">Connection</string>
+    <string name="editor_section_terminal">Terminal</string>
+    <string name="editor_agent_forwarding">Forward the SSH agent</string>
+    <string name="editor_agent_forwarding_hint">Lets the server use your agent\'s keys (only for servers you trust)</string>
+    <string name="editor_keepalive">Keep-alive (seconds)</string>
+    <string name="editor_keepalive_hint">0 turns it off; empty inherits (30 s by default).</string>
+    <string name="editor_startup_snippet">Snippet when the terminal opens</string>
+    <string name="editor_none">None</string>
+    <string name="editor_deleted_snippet">Deleted snippet</string>
+    <string name="editor_env">Environment variables</string>
+    <string name="editor_env_placeholder">KEY=value (one per line)</string>
+    <string name="editor_term">Terminal type (TERM)</string>
+    <string name="editor_term_hint">Empty uses xterm-256color.</string>
+    <string name="editor_theme">Terminal theme</string>
+    <string name="editor_theme_follow">Same as the app</string>
+    <string name="editor_theme_note">The terminal theme is used by Termoak for desktop; on Android the terminal is always dark for now.</string>
+    <string name="editor_record">Record the sessions</string>
+    <string name="editor_record_hint">Saves each session in asciinema format</string>
+    <string name="editor_delete">Delete host</string>
+    <string name="editor_error_address">The host needs an address</string>
+    <string name="editor_error_address_spaces">The address can\'t contain spaces</string>
+    <string name="editor_error_port">The port isn\'t valid (1–65535)</string>
+    <string name="editor_error_keepalive">The keep-alive must be a number of seconds</string>
+    <string name="editor_error_env">Invalid environment variable: “%1$s” (use KEY=value)</string>
+    <string name="editor_error_proxy_address">The proxy needs an address</string>
+    <string name="editor_error_proxy_port">The proxy port isn\'t valid</string>
+
+    <!-- Multi-select in the host list -->
+    <plurals name="bulk_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <string name="bulk_selected_cd">Selected</string>
+    <string name="bulk_clear">Clear the selection</string>
+    <string name="bulk_select_all">Select all</string>
+    <plurals name="bulk_connect">
+        <item quantity="one">Connect %d</item>
+        <item quantity="other">Connect %d</item>
+    </plurals>
+    <string name="bulk_move">Move to group</string>
+    <string name="bulk_move_action">Move</string>
+    <plurals name="bulk_move_title">
+        <item quantity="one">Move %d host to…</item>
+        <item quantity="other">Move %d hosts to…</item>
+    </plurals>
+    <plurals name="bulk_moved">
+        <item quantity="one">%1$d host moved to %2$s</item>
+        <item quantity="other">%1$d hosts moved to %2$s</item>
+    </plurals>
+    <plurals name="bulk_delete_title">
+        <item quantity="one">Delete %d host?</item>
+        <item quantity="other">Delete %d hosts?</item>
+    </plurals>
+    <plurals name="bulk_delete_text">
+        <item quantity="one">%d host will be deleted, with its saved password, here and (when syncing) on your other devices. This can\'t be undone.</item>
+        <item quantity="other">%d hosts will be deleted, with their saved passwords, here and (when syncing) on your other devices. This can\'t be undone.</item>
+    </plurals>
+    <plurals name="bulk_deleted">
+        <item quantity="one">%d host deleted</item>
+        <item quantity="other">%d hosts deleted</item>
+    </plurals>
+
+    <!-- Paste confirmation -->
+    <plurals name="paste_confirm_title">
+        <item quantity="one">Paste %d line?</item>
+        <item quantity="other">Paste %d lines?</item>
+    </plurals>
+    <string name="paste_confirm_text">Each line will run as a command when it reaches the shell.</string>
+    <string name="paste_confirm_dont_ask">Don\'t ask again</string>
+    <string name="settings_confirm_paste">Ask before pasting several lines</string>
+    <string name="settings_confirm_paste_hint">Each pasted line runs as a command. Not asked when the program uses bracketed paste (modern shells): then nothing runs until you press Enter.</string>
+
+    <!-- A snippet on several servers -->
+    <string name="multi_run_on">Run on…</string>
+    <string name="multi_run_snippet">Run a snippet…</string>
+    <string name="multi_choose_snippet">Choose a snippet</string>
+    <string name="multi_run_title">Run “%1$s” on…</string>
+    <string name="multi_tab_hosts">Hosts</string>
+    <string name="multi_tab_open">Open terminals (%1$d)</string>
+    <string name="multi_all">All</string>
+    <string name="multi_no_hosts">There are no hosts to run it on.</string>
+    <string name="multi_choose_some">Choose at least one</string>
+    <string name="multi_explain_hosts">A terminal opens for each host that has none (an open one is reused), and the snippet is sent as soon as it connects.</string>
+    <string name="multi_explain_open">It is sent to each chosen terminal; a sleeping one connects first.</string>
+    <plurals name="multi_run_n">
+        <item quantity="one">Run on %d</item>
+        <item quantity="other">Run on %d</item>
+    </plurals>
+    <string name="multi_target_this">This terminal</string>
+    <string name="multi_target_panes">All panes (%1$d)</string>
+    <string name="multi_target_all_open">All open terminals (%1$d)</string>
+    <string name="multi_summary_title">“%1$s”</string>
+    <plurals name="multi_summary_running">
+        <item quantity="one">Sending… %1$d of %2$d terminal</item>
+        <item quantity="other">Sending… %1$d of %2$d terminals</item>
+    </plurals>
+    <plurals name="multi_summary_done">
+        <item quantity="one">Sent to %1$d of %2$d terminal</item>
+        <item quantity="other">Sent to %1$d of %2$d terminals</item>
+    </plurals>
+    <string name="multi_status_waiting">Connecting…</string>
+    <string name="multi_status_needs_answer">It asks something first: tap to answer</string>
+    <string name="multi_status_ran">Run</string>
+    <string name="multi_status_pasted">Pasted (without Enter)</string>
+    <string name="multi_status_read_only">Not sent: someone else has the keyboard</string>
+    <string name="multi_status_failed">Couldn\'t connect</string>
+    <plurals name="multi_open_terminals">
+        <item quantity="one">Open the terminal</item>
+        <item quantity="other">Open the %d terminals</item>
+    </plurals>
+
+    <!-- Split view (tablets and unfolded foldables) -->
+    <string name="split_title">Split view</string>
+    <string name="split_pick_hint">Choose the open terminals to see side by side (up to %1$d). Tap a pane to type in it.</string>
+    <plurals name="split_show">
+        <item quantity="one">Show %d side by side</item>
+        <item quantity="other">Show %d side by side</item>
+    </plurals>
+    <string name="split_single">Single terminal</string>
+    <string name="split_restore">Back to the split view</string>
+    <string name="split_maximize">Maximize</string>
+    <string name="split_remove">Take out of the split view</string>
+    <string name="split_needs_answer">It asks something: tap to answer</string>
+    <string name="split_broadcast">Broadcast input to all panes</string>
+    <string name="split_broadcast_stop">Stop broadcasting</string>
+    <string name="split_broadcast_stop_short">Stop</string>
+    <string name="split_broadcast_hint">What you type or paste goes to every pane.</string>
+    <plurals name="split_broadcasting">
+        <item quantity="one">Broadcasting to %d terminal</item>
+        <item quantity="other">Broadcasting to %d terminals</item>
+    </plurals>
 </resources>

@@ -84,6 +84,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val fontSize by app.prefs.fontSize.collectAsState()
     val keepOn by app.prefs.keepScreenOn.collectAsState()
     val vibrate by app.prefs.vibrateOnBell.collectAsState()
+    val confirmPaste by app.prefs.confirmMultilinePaste.collectAsState()
     val theme by app.prefs.theme.collectAsState()
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
     val checkUpdates by app.prefs.checkUpdates.collectAsState()
@@ -212,6 +213,9 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             }
             SwitchRow(stringResource(R.string.settings_vibrate_bell), stringResource(R.string.settings_vibrate_bell_hint), vibrate) {
                 app.prefs.setVibrateOnBell(it)
+            }
+            SwitchRow(stringResource(R.string.settings_confirm_paste), stringResource(R.string.settings_confirm_paste_hint), confirmPaste) {
+                app.prefs.setConfirmMultilinePaste(it)
             }
 
             // ----- Appearance -----

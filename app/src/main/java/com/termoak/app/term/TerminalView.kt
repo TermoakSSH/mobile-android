@@ -16,6 +16,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import com.termoak.ffi.KeyModifiers
 import com.termoak.ffi.ScreenCursorShape
 import com.termoak.ffi.TerminalKey
 import kotlin.math.abs
@@ -27,6 +28,8 @@ import kotlin.math.max
  * (not Compose) because it needs its own connection to the system keyboard to
  * receive the keys as they are.
  */
+private val NoModifiers = KeyModifiers(shift = false, alt = false, ctrl = false)
+
 @SuppressLint("ViewConstructor")
 class TerminalView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.MONOSPACE }
@@ -41,6 +44,13 @@ class TerminalView(context: Context) : View(context) {
     var onFontSizeChanged: (Float) -> Unit = {}
     /** Long press: copy/paste menu. */
     var onLongPress: () -> Unit = {}
+    /** A finger went down on it (the split view focuses this pane). */
+    var onTouched: () -> Unit = {}
+    /**
+     * Text of several lines pasted from the keyboard's clipboard: it goes
+     * through the same confirmation as the Paste menu. Without it, it is typed.
+     */
+    var onPasteText: ((String) -> Unit)? = null
 
     /**
      * Watching a shared terminal without the keyboard: the system keyboard
@@ -70,12 +80,15 @@ class TerminalView(context: Context) : View(context) {
     /** The terminal doesn't fit the view's width (a guest following a wider owner). */
     private fun tooWide(): Boolean = widths().let { (need, avail) -> need > avail && avail > 0f }
 
+    /** Redraw request this view leaves on its session (only it removes it: another pane may show the same one later). */
+    private val redraw: () -> Unit = { postInvalidateOnAnimation() }
+
     var session: TermSession? = null
         set(value) {
             if (field === value) return
-            field?.onScreenChanged = {}
+            field?.let { if (it.onScreenChanged === redraw) it.onScreenChanged = {} }
             field = value
-            value?.onScreenChanged = { postInvalidateOnAnimation() }
+            value?.onScreenChanged = redraw
             resizeToView()
             invalidate()
         }
@@ -99,8 +112,13 @@ class TerminalView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) = resizeToView()
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        session?.onScreenChanged = redraw
+    }
+
     override fun onDetachedFromWindow() {
-        session?.onScreenChanged = {}
+        session?.let { if (it.onScreenChanged === redraw) it.onScreenChanged = {} }
         super.onDetachedFromWindow()
     }
 
@@ -269,8 +287,9 @@ class TerminalView(context: Context) : View(context) {
                 scrollRemainder -= lines * cellHeight
                 if (s.screen.alternateScreen()) {
                     // In vim, less, htop...: arrow keys.
-                    val key = if (lines > 0) TerminalKey.Down else TerminalKey.Up
-                    repeat(abs(lines)) { s.key(key) }
+                    // Only here: scrolling isn't typing, it isn't broadcast to other panes.
+                    val key = TermInput.Key(if (lines > 0) TerminalKey.Down else TerminalKey.Up, NoModifiers)
+                    repeat(abs(lines)) { s.apply(key) }
                 } else {
                     s.screen.scroll(-lines)
                     invalidate()
@@ -283,7 +302,10 @@ class TerminalView(context: Context) : View(context) {
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scale.onTouchEvent(event)
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) scaling = false
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            scaling = false
+            onTouched()
+        }
         return gestures.onTouchEvent(event) || super.onTouchEvent(event)
     }
 
@@ -314,8 +336,24 @@ class TerminalView(context: Context) : View(context) {
 
             override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
                 composing = null
-                sendText(text.toString())
+                val t = text.toString()
+                // Several lines at once: a paste from the keyboard's clipboard, not typing.
+                val paste = onPasteText
+                if (paste != null && Paste.lineCount(t) > 1) paste(t) else sendText(t)
                 return true
+            }
+
+            override fun performContextMenuAction(id: Int): Boolean {
+                if (id == android.R.id.paste || id == android.R.id.pasteAsPlainText) {
+                    val clip = context.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip
+                    val t = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+                    val paste = onPasteText
+                    if (!t.isNullOrEmpty()) {
+                        if (paste != null) paste(t) else session?.paste(t)
+                    }
+                    return true
+                }
+                return super.performContextMenuAction(id)
             }
 
             override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {

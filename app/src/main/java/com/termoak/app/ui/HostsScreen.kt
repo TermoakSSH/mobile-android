@@ -1,6 +1,23 @@
 package com.termoak.app.ui
 
 import android.content.ClipData
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.FolderOff
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.termoak.ffi.Snippet
 import android.content.ClipboardManager
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -127,6 +144,19 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
     var deletingGroup by remember { mutableStateOf<HostGroup?>(null) }
     var creating by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<HostGroup?>(null) }
+    // Multi-select: a long press starts it, a tap adds or removes a host.
+    var selected by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val selecting = selected.isNotEmpty()
+    var bulkMove by remember { mutableStateOf(false) }
+    var bulkDelete by remember { mutableStateOf(false) }
+    var bulkSnippet by remember { mutableStateOf(false) }
+    var runSnippet by remember { mutableStateOf<Snippet?>(null) }
+    val grid = rememberLazyGridState()
+    val maxPanes = rememberMaxPanes()
+    BackHandler(selecting) { selected = emptyList() }
+    fun toggle(host: SshHost) {
+        selected = if (host.id in selected) selected - host.id else selected + host.id
+    }
 
     fun reload() {
         hosts = runCatching { app.core.listHosts() }.getOrDefault(emptyList())
@@ -154,6 +184,17 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
         } else {
             nav.goTab(Routes.CONNECTIONS)
         }
+    }
+    /** Connect N: a terminal for each selected host (side by side on a wide screen). */
+    fun connectSelected() {
+        val chosen = hosts.filter { it.id in selected }
+        if (chosen.isEmpty()) return
+        (context as? MainActivity)?.askNotificationPermission()
+        val opened = chosen.map { app.sessions.openLocal(it) }
+        if (maxPanes >= 2 && opened.size >= 2) app.sessions.setSplit(opened.take(maxPanes).map { it.id })
+        app.sessions.select(opened.first().id)
+        selected = emptyList()
+        nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
     fun save(host: SshHost) {
         runCatching { app.core.saveHost(host, SecretChange.Keep) }
@@ -209,6 +250,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             LazyVerticalGrid(
                 GridCells.Adaptive(minSize = 340.dp),
                 Modifier.fillMaxSize(),
+                state = grid,
                 contentPadding = PaddingValues(bottom = 96.dp),
             ) {
                 if (groupId == null && loggedIn == true && onServer.isNotEmpty()) {
@@ -238,7 +280,15 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
                 if (visibleGroups.isNotEmpty()) {
                     full { SectionLabel(stringResource(R.string.hosts_groups)) }
                     items(visibleGroups, key = { "g" + it.id }) { g ->
-                        GroupRow(g, countIn(g), { nav.navigate(Routes.group(g.id)) }, { groupActions = g })
+                        // While selecting, a group selects (or unselects) its hosts instead of opening.
+                        GroupRow(g, countIn(g), {
+                            if (selecting) {
+                                val ids = hostsIn(g.id, hosts, groups).map { it.id }
+                                selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
+                            } else {
+                                nav.navigate(Routes.group(g.id))
+                            }
+                        }, { groupActions = g })
                     }
                 }
                 if (visibleHosts.isNotEmpty()) {
@@ -246,7 +296,10 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
                     items(visibleHosts, key = { it.id }) { host ->
                         HostRow(
                             host, connected = host.id in connectedHosts,
-                            onClick = { connect(host, false) }, onMore = { actionsFor = host }, onTag = { query = it },
+                            selected = if (selecting) host.id in selected else null,
+                            onClick = { if (selecting) toggle(host) else connect(host, false) },
+                            onLongClick = { toggle(host) },
+                            onMore = { actionsFor = host }, onTag = { query = it },
                         )
                     }
                 } else if (searching) {
@@ -261,7 +314,40 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
         }
     }
 
-    if (groupId == null) {
+    if (selecting) {
+        val count = selected.size
+        ScreenScaffold(
+            title = pluralStringResource(R.plurals.bulk_selected, count, count),
+            navigationIcon = {
+                IconButton(onClick = { selected = emptyList() }) { Icon(Icons.Outlined.Close, stringResource(R.string.bulk_clear)) }
+            },
+            actions = {
+                IconButton(onClick = {
+                    val ids = visibleHosts.map { it.id }
+                    selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
+                }) { Icon(Icons.Outlined.SelectAll, stringResource(R.string.bulk_select_all)) }
+                IconButton(onClick = { bulkDelete = true }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
+                Box {
+                    var menu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more)) }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(
+                            { Text(stringResource(R.string.bulk_move)) }, { menu = false; bulkMove = true },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null) },
+                        )
+                        DropdownMenuItem(
+                            { Text(stringResource(R.string.multi_run_snippet)) }, { menu = false; bulkSnippet = true },
+                            leadingIcon = { Icon(Icons.Outlined.Code, null) },
+                        )
+                    }
+                }
+                Button(onClick = { connectSelected() }, Modifier.padding(end = 8.dp)) {
+                    Text(pluralStringResource(R.plurals.bulk_connect, count, count))
+                }
+            },
+            content = body,
+        )
+    } else if (groupId == null) {
         VaultScaffold(VaultSection.HOSTS, nav, actions = actions, floatingActionButton = fab, content = body)
     } else {
         ScreenScaffold(
@@ -385,6 +471,46 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?) {
             scope.launch { snackbar.showSnackbar(resources.getString(R.string.hosts_deleted, host.label)) }
         }
     }
+    if (bulkMove) {
+        val chosen = hosts.filter { it.id in selected }
+        MoveToGroupDialog(groups, chosen.size, onDismiss = { bulkMove = false }) { target ->
+            bulkMove = false
+            var failed = 0
+            chosen.forEach { h ->
+                runCatching { app.core.saveHost(h.copy(groupId = target), SecretChange.Keep) }.onFailure { failed++ }
+            }
+            selected = emptyList()
+            reload()
+            app.account.sync()
+            val name = groups.firstOrNull { it.id == target }?.name ?: resources.getString(R.string.host_no_group)
+            val moved = chosen.size - failed
+            scope.launch { snackbar.showSnackbar(resources.getQuantityString(R.plurals.bulk_moved, moved, moved, name)) }
+        }
+    }
+    if (bulkDelete) {
+        val count = selected.size
+        ConfirmDialog(
+            title = pluralStringResource(R.plurals.bulk_delete_title, count, count),
+            text = pluralStringResource(R.plurals.bulk_delete_text, count, count),
+            confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { bulkDelete = false },
+        ) {
+            val ids = selected
+            val deleted = ids.count { id -> runCatching { app.core.deleteHost(id) }.isSuccess }
+            selected = emptyList()
+            reload()
+            app.account.sync()
+            scope.launch { snackbar.showSnackbar(resources.getQuantityString(R.plurals.bulk_deleted, deleted, deleted)) }
+        }
+    }
+    if (bulkSnippet) {
+        SnippetPickerSheet(app, onDismiss = { bulkSnippet = false }) { sn -> bulkSnippet = false; runSnippet = sn }
+    }
+    runSnippet?.let { sn ->
+        RunSnippetSheet(app, sn, initialHosts = selected.toSet(), onDismiss = { runSnippet = null }) {
+            runSnippet = null
+            selected = emptyList()
+        }
+    }
     deletingGroup?.let { g ->
         ConfirmDialog(
             title = stringResource(R.string.hosts_delete_group_title, g.name),
@@ -434,16 +560,45 @@ private fun subtitle(host: SshHost): String {
     return listOfNotNull("ssh", user, port).joinToString(", ")
 }
 
+/** Hosts of group [groupId] and of its subgroups. */
+private fun hostsIn(groupId: String, hosts: List<SshHost>, groups: List<HostGroup>): List<SshHost> =
+    hosts.filter { it.groupId == groupId } + groups.filter { it.parentId == groupId }.flatMap { hostsIn(it.id, hosts, groups) }
+
+/**
+ * A host. [selected] is `null` outside multi-select; inside, the tile turns
+ * into a check mark when the host is selected.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HostRow(host: SshHost, connected: Boolean, onClick: () -> Unit, onMore: () -> Unit, onTag: (String) -> Unit) {
+private fun HostRow(
+    host: SshHost,
+    connected: Boolean,
+    selected: Boolean?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onMore: () -> Unit,
+    onTag: (String) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
     Row(
-        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onMore)
+        Modifier.fillMaxWidth()
+            .background(if (selected == true) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onLongClick()
+            })
             .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
-            HostTile(host.label, host.os, host.color, size = 44.dp)
+            if (selected == true) {
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Outlined.Check, stringResource(R.string.bulk_selected_cd), tint = MaterialTheme.colorScheme.onPrimary) }
+            } else {
+                HostTile(host.label, host.os, host.color, size = 44.dp)
+            }
             // An open terminal on this host: a dot on the corner of its tile.
             if (connected) {
                 Box(
@@ -553,4 +708,34 @@ private fun ServerSessionsNotice(count: Int, onOpen: () -> Unit) {
             TextButton(onClick = onOpen) { Text(stringResource(R.string.common_open)) }
         }
     }
+}
+
+/** "Move to group": the groups (and "No group") to choose from. */
+@Composable
+private fun MoveToGroupDialog(groups: List<HostGroup>, count: Int, onDismiss: () -> Unit, onMove: (String?) -> Unit) {
+    var target by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(pluralStringResource(R.plurals.bulk_move_title, count, count)) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                val options = listOf<Pair<String?, String>>(null to "") + groups.map { it.id to it.name }
+                items(options, key = { it.first ?: "" }) { (id, name) ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { target = id }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(target == id, { target = id })
+                        Icon(
+                            if (id == null) Icons.Outlined.FolderOff else Icons.Outlined.Folder, null,
+                            Modifier.padding(end = 10.dp).size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(name.ifEmpty { stringResource(R.string.host_no_group) }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onMove(target) }) { Text(stringResource(R.string.bulk_move_action)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }

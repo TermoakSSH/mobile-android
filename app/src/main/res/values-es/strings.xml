@@ -162,15 +162,12 @@
     <!-- Host editor -->
     <string name="host_edit_title">Editar host</string>
     <string name="host_auth_key">Clave SSH</string>
-    <string name="host_proxy_incomplete">El proxy necesita dirección y puerto</string>
-    <string name="host_section_general">General</string>
     <string name="host_address">Dirección</string>
     <string name="host_address_placeholder">servidor.ejemplo.com o 10.0.0.5</string>
     <string name="host_label">Etiqueta</string>
     <string name="host_group">Grupo</string>
     <string name="host_no_group">Sin grupo</string>
     <string name="host_tags">Etiquetas</string>
-    <string name="host_section_credentials">Credenciales</string>
     <string name="host_password_placeholder">Se pedirá al conectar</string>
     <string name="host_clear_password">Borrar la contraseña guardada</string>
     <string name="host_no_keys">No hay claves. Créalas en el Llavero.</string>
@@ -714,4 +711,158 @@
     <string name="activity_unknown">Desconocido</string>
     <string name="activity_kind_user">Usuario</string>
     <string name="activity_kind_ai">IA</string>
+
+    <!-- Editor de hosts -->
+    <string name="editor_label_placeholder">Opcional: si está vacío, la dirección</string>
+    <string name="editor_section_group">Grupo, etiquetas y color</string>
+    <string name="editor_color">Color</string>
+    <string name="editor_color_none">Sin color (el del sistema o el del nombre)</string>
+    <string name="editor_section_advanced">Avanzado</string>
+    <string name="editor_advanced_summary">Saltos, proxy, keep-alive, entorno, terminal…</string>
+    <string name="editor_advanced_errors">Hay errores en Avanzado</string>
+    <string name="editor_section_connection">Conexión</string>
+    <string name="editor_section_terminal">Terminal</string>
+    <string name="editor_agent_forwarding">Reenviar el agente SSH</string>
+    <string name="editor_agent_forwarding_hint">Permite al servidor usar las claves de tu agente (solo en servidores de confianza)</string>
+    <string name="editor_keepalive">Keep-alive (segundos)</string>
+    <string name="editor_keepalive_hint">0 lo desactiva; vacío hereda (30 s por defecto).</string>
+    <string name="editor_startup_snippet">Snippet al abrir el terminal</string>
+    <string name="editor_none">Ninguno</string>
+    <string name="editor_deleted_snippet">Snippet eliminado</string>
+    <string name="editor_env">Variables de entorno</string>
+    <string name="editor_env_placeholder">CLAVE=valor (una por línea)</string>
+    <string name="editor_term">Tipo de terminal (TERM)</string>
+    <string name="editor_term_hint">Vacío usa xterm-256color.</string>
+    <string name="editor_theme">Tema del terminal</string>
+    <string name="editor_theme_follow">El de la aplicación</string>
+    <string name="editor_theme_note">El tema del terminal lo usa Termoak para escritorio; en Android el terminal es siempre oscuro por ahora.</string>
+    <string name="editor_record">Grabar las sesiones</string>
+    <string name="editor_record_hint">Guarda cada sesión en formato asciinema</string>
+    <string name="editor_delete">Eliminar host</string>
+    <string name="editor_error_address">El host necesita una dirección</string>
+    <string name="editor_error_address_spaces">La dirección no puede tener espacios</string>
+    <string name="editor_error_port">El puerto no es válido (1–65535)</string>
+    <string name="editor_error_keepalive">El keep-alive debe ser un número de segundos</string>
+    <string name="editor_error_env">Variable de entorno no válida: «%1$s» (usa CLAVE=valor)</string>
+    <string name="editor_error_proxy_address">El proxy necesita una dirección</string>
+    <string name="editor_error_proxy_port">El puerto del proxy no es válido</string>
+
+    <!-- Selección múltiple en la lista de hosts -->
+    <plurals name="bulk_selected">
+        <item quantity="one">%d seleccionado</item>
+        <item quantity="many">%d seleccionados</item>
+        <item quantity="other">%d seleccionados</item>
+    </plurals>
+    <string name="bulk_selected_cd">Seleccionado</string>
+    <string name="bulk_clear">Quitar la selección</string>
+    <string name="bulk_select_all">Seleccionar todo</string>
+    <plurals name="bulk_connect">
+        <item quantity="one">Conectar %d</item>
+        <item quantity="many">Conectar %d</item>
+        <item quantity="other">Conectar %d</item>
+    </plurals>
+    <string name="bulk_move">Mover al grupo</string>
+    <string name="bulk_move_action">Mover</string>
+    <plurals name="bulk_move_title">
+        <item quantity="one">Mover %d host a…</item>
+        <item quantity="many">Mover %d hosts a…</item>
+        <item quantity="other">Mover %d hosts a…</item>
+    </plurals>
+    <plurals name="bulk_moved">
+        <item quantity="one">%1$d host movido a %2$s</item>
+        <item quantity="many">%1$d hosts movidos a %2$s</item>
+        <item quantity="other">%1$d hosts movidos a %2$s</item>
+    </plurals>
+    <plurals name="bulk_delete_title">
+        <item quantity="one">¿Eliminar %d host?</item>
+        <item quantity="many">¿Eliminar %d hosts?</item>
+        <item quantity="other">¿Eliminar %d hosts?</item>
+    </plurals>
+    <plurals name="bulk_delete_text">
+        <item quantity="one">Se eliminará %d host, con su contraseña guardada, aquí y (al sincronizar) en tus otros dispositivos. No se puede deshacer.</item>
+        <item quantity="many">Se eliminarán %d hosts, con sus contraseñas guardadas, aquí y (al sincronizar) en tus otros dispositivos. No se puede deshacer.</item>
+        <item quantity="other">Se eliminarán %d hosts, con sus contraseñas guardadas, aquí y (al sincronizar) en tus otros dispositivos. No se puede deshacer.</item>
+    </plurals>
+    <plurals name="bulk_deleted">
+        <item quantity="one">%d host eliminado</item>
+        <item quantity="many">%d hosts eliminados</item>
+        <item quantity="other">%d hosts eliminados</item>
+    </plurals>
+
+    <!-- Confirmación al pegar -->
+    <plurals name="paste_confirm_title">
+        <item quantity="one">¿Pegar %d línea?</item>
+        <item quantity="many">¿Pegar %d líneas?</item>
+        <item quantity="other">¿Pegar %d líneas?</item>
+    </plurals>
+    <string name="paste_confirm_text">Cada línea se ejecutará como un comando al llegar a la shell.</string>
+    <string name="paste_confirm_dont_ask">No volver a preguntar</string>
+    <string name="settings_confirm_paste">Preguntar antes de pegar varias líneas</string>
+    <string name="settings_confirm_paste_hint">Cada línea pegada se ejecuta como un comando. No se pregunta cuando el programa usa el pegado entre corchetes (shells modernas): entonces nada se ejecuta hasta que pulses Intro.</string>
+
+    <!-- Un snippet en varios servidores -->
+    <string name="multi_run_on">Ejecutar en…</string>
+    <string name="multi_run_snippet">Ejecutar un snippet…</string>
+    <string name="multi_choose_snippet">Elige un snippet</string>
+    <string name="multi_run_title">Ejecutar «%1$s» en…</string>
+    <string name="multi_tab_hosts">Hosts</string>
+    <string name="multi_tab_open">Terminales abiertos (%1$d)</string>
+    <string name="multi_all">Todos</string>
+    <string name="multi_no_hosts">No hay hosts en los que ejecutarlo.</string>
+    <string name="multi_choose_some">Elige al menos uno</string>
+    <string name="multi_explain_hosts">Se abre un terminal para cada host que no tenga uno (si ya hay uno abierto, se usa ese) y el snippet se envía en cuanto conecta.</string>
+    <string name="multi_explain_open">Se envía a cada terminal elegido; uno dormido conecta antes.</string>
+    <plurals name="multi_run_n">
+        <item quantity="one">Ejecutar en %d</item>
+        <item quantity="many">Ejecutar en %d</item>
+        <item quantity="other">Ejecutar en %d</item>
+    </plurals>
+    <string name="multi_target_this">Este terminal</string>
+    <string name="multi_target_panes">Todos los paneles (%1$d)</string>
+    <string name="multi_target_all_open">Todos los terminales abiertos (%1$d)</string>
+    <string name="multi_summary_title">«%1$s»</string>
+    <plurals name="multi_summary_running">
+        <item quantity="one">Enviando… %1$d de %2$d terminal</item>
+        <item quantity="many">Enviando… %1$d de %2$d terminales</item>
+        <item quantity="other">Enviando… %1$d de %2$d terminales</item>
+    </plurals>
+    <plurals name="multi_summary_done">
+        <item quantity="one">Enviado a %1$d de %2$d terminal</item>
+        <item quantity="many">Enviado a %1$d de %2$d terminales</item>
+        <item quantity="other">Enviado a %1$d de %2$d terminales</item>
+    </plurals>
+    <string name="multi_status_waiting">Conectando…</string>
+    <string name="multi_status_needs_answer">Pregunta algo antes: toca para responder</string>
+    <string name="multi_status_ran">Ejecutado</string>
+    <string name="multi_status_pasted">Pegado (sin Intro)</string>
+    <string name="multi_status_read_only">No enviado: otra persona tiene el teclado</string>
+    <string name="multi_status_failed">No se pudo conectar</string>
+    <plurals name="multi_open_terminals">
+        <item quantity="one">Abrir el terminal</item>
+        <item quantity="many">Abrir los %d terminales</item>
+        <item quantity="other">Abrir los %d terminales</item>
+    </plurals>
+
+    <!-- Vista dividida (tabletas y plegables abiertos) -->
+    <string name="split_title">Vista dividida</string>
+    <string name="split_pick_hint">Elige los terminales abiertos que quieres ver a la vez (hasta %1$d). Toca un panel para escribir en él.</string>
+    <plurals name="split_show">
+        <item quantity="one">Ver %d a la vez</item>
+        <item quantity="many">Ver %d a la vez</item>
+        <item quantity="other">Ver %d a la vez</item>
+    </plurals>
+    <string name="split_single">Un solo terminal</string>
+    <string name="split_restore">Volver a la vista dividida</string>
+    <string name="split_maximize">Maximizar</string>
+    <string name="split_remove">Quitar de la vista dividida</string>
+    <string name="split_needs_answer">Pregunta algo: toca para responder</string>
+    <string name="split_broadcast">Difundir la escritura a todos los paneles</string>
+    <string name="split_broadcast_stop">Dejar de difundir</string>
+    <string name="split_broadcast_stop_short">Detener</string>
+    <string name="split_broadcast_hint">Lo que escribas o pegues va a todos los paneles.</string>
+    <plurals name="split_broadcasting">
+        <item quantity="one">Difundiendo a %d terminal</item>
+        <item quantity="many">Difundiendo a %d terminales</item>
+        <item quantity="other">Difundiendo a %d terminales</item>
+    </plurals>
 </resources>

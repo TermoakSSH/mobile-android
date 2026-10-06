@@ -33,6 +33,10 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
     /** The sleeping tabs were already added since startup or sign-in. */
     private var restored = false
 
+    private val _split = MutableStateFlow(SplitState())
+    /** Terminals side by side on wide windows (tablets, unfolded foldables). */
+    val split: StateFlow<SplitState> = _split
+
     private val _notices = MutableSharedFlow<ShareNotice>(extraBufferCapacity = 16)
     /** Join and keyboard requests from the open terminals (owner), for the whole app. */
     val notices: SharedFlow<ShareNotice> = _notices
@@ -44,9 +48,14 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
         (it is ServerTerminal && it.sessionId == sessionId) || (it is LocalTerminal && it.sharedId.value == sessionId)
     }
 
-    /** SSH from the phone. */
-    fun openLocal(host: SshHost): TermSession =
-        add(LocalTerminal(core, host.label, host.id, host.address))
+    /** SSH from the phone ([activate]: it becomes the terminal on screen). */
+    fun openLocal(host: SshHost, activate: Boolean = true): TermSession =
+        add(LocalTerminal(core, host.label, host.id, host.address), activate)
+
+    /** An open terminal of [hostId] from the phone that is connected or connecting (to reuse it). */
+    fun liveLocal(hostId: String): TermSession? = _list.value.firstOrNull {
+        it is LocalTerminal && it.hostId == hostId && it.state.value !is TermState.Closed
+    }
 
     /** New (persistent) session on the server. */
     fun openOnServer(host: SshHost): TermSession =
@@ -121,18 +130,65 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
         updateService()
     }
 
-    private fun add(session: TermSession): TermSession {
+    private fun add(session: TermSession, activate: Boolean = true): TermSession {
         session.onShareNotice = { _notices.tryEmit(it) }
         _list.value = _list.value + session
-        _active.value = session.id
+        if (activate || _active.value == null) setActive(session.id)
         session.start()
         updateService()
         return session
     }
 
     fun select(id: String) {
-        _active.value = id
+        setActive(id)
         wake(id)
+    }
+
+    /**
+     * The active terminal is the focused pane of the split view: picking one
+     * that isn't in the split puts it in the place of the focused pane.
+     */
+    private fun setActive(id: String?) {
+        val before = _active.value
+        _active.value = id
+        val sp = _split.value
+        if (id == null || !sp.on || id in sp.panes) return
+        val at = sp.panes.indexOf(before).takeIf { it >= 0 } ?: sp.panes.lastIndex
+        _split.value = sp.copy(
+            panes = sp.panes.toMutableList().also { it[at] = id },
+            maximized = sp.maximized?.let { if (it == before) id else it },
+        )
+    }
+
+    // ----- Split view -----
+
+    /** Shows [ids] side by side (fewer than two: back to a single terminal). */
+    fun setSplit(ids: List<String>) {
+        val panes = ids.distinct().filter { get(it) != null }.take(SplitState.MAX_PANES)
+        _split.value = if (panes.size >= 2) _split.value.copy(panes = panes, maximized = null) else SplitState()
+        val active = _active.value
+        if (panes.size >= 2 && (active == null || active !in panes)) _active.value = panes.first()
+        panes.forEach { wake(it) }
+    }
+
+    /** Takes a pane out of the split (the terminal stays open). */
+    fun removePane(id: String) {
+        val sp = _split.value
+        val panes = sp.panes - id
+        _split.value = if (panes.size >= 2) sp.copy(panes = panes, maximized = sp.maximized.takeIf { it != id }) else SplitState()
+        if (_active.value == id) _active.value = panes.firstOrNull() ?: id
+    }
+
+    /** Shows [id] alone for a while (`null`: back to the grid). */
+    fun maximize(id: String?) {
+        val sp = _split.value
+        if (!sp.on) return
+        _split.value = sp.copy(maximized = id?.takeIf { it in sp.panes })
+        if (id != null) _active.value = id
+    }
+
+    fun setBroadcast(on: Boolean) {
+        _split.value = _split.value.copy(broadcast = on && _split.value.on)
     }
 
     /** Closes the tab (a server session stays alive there). */
@@ -141,6 +197,7 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
         session.close()
         val rest = _list.value.filterNot { it.id == id }
         _list.value = rest
+        if (id in _split.value.panes) removePane(id)
         if (_active.value == id) _active.value = rest.lastOrNull()?.id
         updateService()
     }
@@ -149,6 +206,7 @@ class Sessions(private val context: Context, private val core: TermoakCore) {
         _list.value.forEach { it.close() }
         _list.value = emptyList()
         _active.value = null
+        _split.value = SplitState()
         updateService()
     }
 

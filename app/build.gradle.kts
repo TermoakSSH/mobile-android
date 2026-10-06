@@ -140,6 +140,8 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
+    // Window size classes: split view of terminals on tablets and unfolded foldables.
+    implementation("androidx.compose.material3:material3-window-size-class")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.13.0")
     // Per-app language on Android 12 and older (AppCompatDelegate.setApplicationLocales).

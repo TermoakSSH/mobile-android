@@ -2,6 +2,7 @@ package com.termoak.app.ui
 
 import android.net.Uri
 import androidx.annotation.StringRes
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -97,6 +98,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.termoak.app.MainActivity
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.JoinLinkRef
@@ -309,7 +311,17 @@ fun AppRoot(app: TermoakApp) {
                             popExitTransition = { fadeOut(tween(250)) },
                         ) { TerminalScreen(app, nav) }
                         composable(Routes.HOST_EDIT) { e ->
-                            HostEditor(app, e.arguments?.getString("id")?.takeIf { it != "new" }) { nav.popBackStack() }
+                            val activity = LocalActivity.current
+                            HostEditor(
+                                app, e.arguments?.getString("id")?.takeIf { it != "new" },
+                                onClose = { nav.popBackStack() },
+                                onConnect = { host ->
+                                    (activity as? MainActivity)?.askNotificationPermission()
+                                    nav.popBackStack()
+                                    app.sessions.openLocal(host)
+                                    nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
+                                },
+                            )
                         }
                         composable(Routes.AI_NEW) { NewAiTaskScreen(app, nav) }
                         composable(Routes.AI_TASK) { e -> AiTaskScreen(app, nav, e.arguments?.getString("id") ?: "") }
@@ -334,6 +346,8 @@ fun AppRoot(app: TermoakApp) {
                 }
             }
         }
+        // A snippet sent to several terminals: how it goes (from any screen).
+        SnippetRunSummary(app, nav)
     }
     LaunchedEffect(loggedIn) {
         if (loggedIn == false && route == Routes.AI) nav.goTab(Routes.HOSTS)

@@ -1,34 +1,54 @@
 package com.termoak.app.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.FormatColorReset
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -40,6 +60,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,13 +68,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.toColorInt
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.ffi.HostProxy
@@ -69,25 +99,69 @@ private enum class Auth(@StringRes val label: Int) {
     PASSWORD(R.string.common_password), KEY(R.string.host_auth_key), IDENTITY(R.string.common_identity)
 }
 
+/** Colors offered for a host (the desktop's). */
+private val HostColors = listOf("#4f7cff", "#30a46c", "#f5a524", "#e5484d", "#8e4ec6", "#0ea5e9", "#d6409f", "#12a594")
+
+/** Fields of the host editor that can show an error under them. */
+internal enum class HostField(val advanced: Boolean = false) {
+    ADDRESS, PORT, KEEPALIVE(true), ENV(true), PROXY_ADDRESS(true), PROXY_PORT(true)
+}
+
+/**
+ * Checks of the host editor (the desktop's host_editor.rs `parse_form`):
+ * every error at once, so each one shows under its field.
+ */
+internal object HostForm {
+    /** A TCP port (1-65535). */
+    fun port(text: String): UInt? = text.trim().toUIntOrNull()?.takeIf { it in 1u..65535u }
+
+    /** `KEY=value` lines (blank lines ignored); the first wrong line on error. */
+    fun env(text: String): Result<Map<String, String>> {
+        val env = linkedMapOf<String, String>()
+        for (raw in text.lines()) {
+            val line = raw.trim()
+            if (line.isEmpty()) continue
+            val eq = line.indexOf('=')
+            val key = if (eq > 0) line.substring(0, eq).trim() else ""
+            if (key.isEmpty() || key.any { it.isWhitespace() }) return Result.failure(IllegalArgumentException(line))
+            env[key] = line.substring(eq + 1).trim()
+        }
+        return Result.success(env)
+    }
+
+    /** Comma-separated tags, without empty ones or repetitions. */
+    fun tags(text: String): List<String> = text.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    fun envText(env: Map<String, String>): String = env.entries.joinToString("\n") { "${it.key}=${it.value}" }
+
+    /** Does the host use anything of the "Advanced" section? (Then it starts open.) */
+    fun hasAdvanced(s: HostSettings): Boolean =
+        !s.jumpHostIds.isNullOrEmpty() || s.proxy != null || s.agentForwarding == true || s.keepaliveSecs != null ||
+            s.startupSnippetId != null || s.env.isNotEmpty() || s.recordSessions == true || !s.term.isNullOrBlank() ||
+            s.theme != null
+}
+
 @Composable
-fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
+fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit, onConnect: (SshHost) -> Unit) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     val original = remember { hostId?.let { runCatching { app.core.getHost(it) }.getOrNull() } }
+    val s0 = original?.settings ?: HostSettings()
     val keys = remember { runCatching { app.core.listKeys() }.getOrDefault(emptyList()) }
     val identities = remember { runCatching { app.core.listIdentities() }.getOrDefault(emptyList()) }
-    val groups = remember { runCatching { app.core.listGroups() }.getOrDefault(emptyList()) }
+    val groups = remember { runCatching { app.core.listGroups() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    val snippets = remember { runCatching { app.core.listSnippets() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
 
     var label by remember { mutableStateOf(original?.label ?: "") }
     var address by remember { mutableStateOf(original?.address ?: "") }
-    var port by remember { mutableStateOf(original?.settings?.port?.toString() ?: "") }
-    var user by remember { mutableStateOf(original?.settings?.username ?: "") }
+    var port by remember { mutableStateOf(s0.port?.toString() ?: "") }
+    var user by remember { mutableStateOf(s0.username ?: "") }
     var auth by remember {
         mutableStateOf(
             when {
-                original?.settings?.identityId != null -> Auth.IDENTITY
-                original?.settings?.keyId != null -> Auth.KEY
+                s0.identityId != null -> Auth.IDENTITY
+                s0.keyId != null -> Auth.KEY
                 else -> Auth.PASSWORD
             },
         )
@@ -95,14 +169,15 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var clearPassword by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
-    var keyId by remember { mutableStateOf(original?.settings?.keyId) }
-    var identityId by remember { mutableStateOf(original?.settings?.identityId) }
+    var keyId by remember { mutableStateOf(s0.keyId) }
+    var identityId by remember { mutableStateOf(s0.identityId) }
     var groupId by remember { mutableStateOf(original?.groupId) }
     var tags by remember { mutableStateOf(original?.tags?.joinToString(", ") ?: "") }
+    var color by remember { mutableStateOf(original?.color) }
     var notes by remember { mutableStateOf(original?.notes ?: "") }
     var deviceOnly by remember { mutableStateOf(original?.syncMode == SyncMode.DEVICE_ONLY) }
     var favorite by remember { mutableStateOf(original?.favorite ?: false) }
-    val proxy0 = original?.settings?.proxy
+    val proxy0 = s0.proxy
     var proxyKind by remember { mutableStateOf(proxy0?.kind) }
     var proxyHost by remember { mutableStateOf(proxy0?.host ?: "") }
     var proxyPort by remember { mutableStateOf(proxy0?.port?.toString() ?: "") }
@@ -110,35 +185,93 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
     var proxyPassword by remember { mutableStateOf("") }
     val hadProxyPassword = remember { original?.let { runCatching { app.core.hostHasProxyPassword(it.id) }.getOrDefault(false) } ?: false }
     var clearProxyPassword by remember { mutableStateOf(false) }
-    var jumps by remember { mutableStateOf(original?.settings?.jumpHostIds ?: emptyList()) }
+    var jumps by remember { mutableStateOf(s0.jumpHostIds ?: emptyList()) }
     val otherHosts = remember { runCatching { app.core.listHosts() }.getOrDefault(emptyList()).filter { it.id != original?.id } }
+    var agentForwarding by remember { mutableStateOf(s0.agentForwarding == true) }
+    var keepalive by remember { mutableStateOf(s0.keepaliveSecs?.toString() ?: "") }
+    var startupSnippet by remember { mutableStateOf(s0.startupSnippetId) }
+    var env by remember { mutableStateOf(HostForm.envText(s0.env)) }
+    var term by remember { mutableStateOf(s0.term ?: "") }
+    var theme by remember { mutableStateOf(s0.theme) }
+    var record by remember { mutableStateOf(s0.recordSessions == true) }
+    var advancedOpen by remember { mutableStateOf(HostForm.hasAdvanced(s0)) }
+    var errors by remember { mutableStateOf<Map<HostField, String>>(emptyMap()) }
+    var deleting by remember { mutableStateOf(false) }
 
-    fun save() {
+    val focusAddress = remember { FocusRequester() }
+    val focusLabel = remember { FocusRequester() }
+    val focusUser = remember { FocusRequester() }
+    val focusPort = remember { FocusRequester() }
+    val focusPassword = remember { FocusRequester() }
+    // A new host: straight to the address.
+    LaunchedEffect(Unit) { if (original == null) runCatching { focusAddress.requestFocus() } }
+
+    fun clearError(field: HostField) {
+        if (field in errors) errors = errors - field
+    }
+
+    /** Checks the form; with errors, shows them and returns `null`. */
+    fun build(): SshHost? {
+        val e = linkedMapOf<HostField, String>()
+        val addr = address.trim()
+        when {
+            addr.isEmpty() -> e[HostField.ADDRESS] = resources.getString(R.string.editor_error_address)
+            addr.any { it.isWhitespace() } -> e[HostField.ADDRESS] = resources.getString(R.string.editor_error_address_spaces)
+        }
+        val portValue = port.trim().takeIf { it.isNotEmpty() }?.let { HostForm.port(it) }
+        if (port.isNotBlank() && portValue == null) e[HostField.PORT] = resources.getString(R.string.editor_error_port)
+        val keepaliveValue = keepalive.trim().takeIf { it.isNotEmpty() }?.toUIntOrNull()
+        if (keepalive.isNotBlank() && keepaliveValue == null) e[HostField.KEEPALIVE] = resources.getString(R.string.editor_error_keepalive)
+        val envValue = HostForm.env(env).getOrElse {
+            e[HostField.ENV] = resources.getString(R.string.editor_error_env, it.message ?: "")
+            emptyMap()
+        }
+        var proxyPortValue: UInt? = null
+        if (proxyKind != null) {
+            if (proxyHost.isBlank()) e[HostField.PROXY_ADDRESS] = resources.getString(R.string.editor_error_proxy_address)
+            proxyPortValue = HostForm.port(proxyPort)
+            if (proxyPortValue == null) e[HostField.PROXY_PORT] = resources.getString(R.string.editor_error_proxy_port)
+        }
+        if (e.isNotEmpty()) {
+            errors = e
+            // It may be out of sight (or in the closed "Advanced"): the first one also as a notice.
+            if (e.keys.any { it.advanced }) advancedOpen = true
+            scope.launch { snackbar.showSnackbar(e.values.first()) }
+            return null
+        }
+        errors = emptyMap()
         val base = original ?: SshHost(label = "", address = "")
-        val host = base.copy(
-            label = label.trim().ifEmpty { address.trim() },
-            address = address.trim(),
+        return base.copy(
+            label = label.trim().ifEmpty { addr },
+            address = addr,
             groupId = groupId,
-            tags = tags.split(',').map { it.trim() }.filter { it.isNotEmpty() },
+            tags = HostForm.tags(tags),
             notes = notes.trim(),
+            color = color,
             favorite = favorite,
             syncMode = if (deviceOnly) SyncMode.DEVICE_ONLY else SyncMode.SYNCED,
-            settings = (original?.settings ?: HostSettings()).copy(
-                port = port.toUIntOrNull(),
+            settings = s0.copy(
+                port = portValue,
                 username = user.trim().ifEmpty { null },
                 keyId = if (auth == Auth.KEY) keyId else null,
                 identityId = if (auth == Auth.IDENTITY) identityId else null,
                 jumpHostIds = jumps.ifEmpty { null },
+                startupSnippetId = startupSnippet,
+                env = envValue,
+                keepaliveSecs = keepaliveValue,
+                agentForwarding = if (agentForwarding) true else null,
+                term = term.trim().ifEmpty { null },
+                theme = theme,
+                recordSessions = if (record) true else null,
                 proxy = proxyKind?.let { k ->
-                    HostProxy(kind = k, host = proxyHost.trim(), port = proxyPort.toUIntOrNull() ?: 0u,
-                        username = proxyUser.trim().ifEmpty { null })
+                    HostProxy(kind = k, host = proxyHost.trim(), port = proxyPortValue ?: 0u, username = proxyUser.trim().ifEmpty { null })
                 },
             ),
         )
-        if (proxyKind != null && (proxyHost.isBlank() || (proxyPort.toUIntOrNull() ?: 0u) == 0u)) {
-            scope.launch { snackbar.showSnackbar(resources.getString(R.string.host_proxy_incomplete)) }
-            return
-        }
+    }
+
+    fun save(connect: Boolean) {
+        val host = build() ?: return
         val secret = when {
             auth != Auth.PASSWORD -> if (original?.hasPassword == true) SecretChange.Clear else SecretChange.Keep
             password.isNotEmpty() -> SecretChange.Set(password)
@@ -155,7 +288,7 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
             }
             app.core.setHostProxyPassword(saved.id, proxySecret)
             app.account.sync()
-            onClose()
+            if (connect) onConnect(saved) else onClose()
         } catch (e: TermoakException) {
             scope.launch { snackbar.showSnackbar(e.message ?: resources.getString(R.string.error_save_failed)) }
         }
@@ -164,59 +297,86 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
     val choose = stringResource(R.string.common_choose)
     val noGroup = stringResource(R.string.host_no_group)
     val noProxy = stringResource(R.string.host_no_proxy)
+    val none = stringResource(R.string.editor_none)
     ScreenScaffold(
-        title = stringResource(if (original == null) R.string.hosts_new_host else R.string.host_edit_title),
+        title = original?.label ?: stringResource(R.string.hosts_new_host),
+        subtitle = if (original != null) stringResource(R.string.host_edit_title) else null,
         navigationIcon = {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back)) }
         },
         actions = {
-            TextButton(onClick = { save() }, enabled = address.isNotBlank()) { Text(stringResource(R.string.common_save)) }
+            TextButton(onClick = { save(connect = true) }) { Text(stringResource(R.string.hosts_connect)) }
+            TextButton(onClick = { save(connect = false) }) { Text(stringResource(R.string.common_save)) }
         },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).imePadding()
                 .verticalScroll(rememberScrollState()).padding(bottom = 32.dp),
         ) {
-            // Header that looks like the host will in the list.
-            Row(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                HostTile(label.ifBlank { address.ifBlank { "?" } }, original?.os, original?.color, size = 52.dp)
-                Column(Modifier.padding(start = 16.dp)) {
+            // ----- Address (big) and label, like the desktop's editor -----
+            Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                HostTile(label.ifBlank { address.ifBlank { "?" } }, original?.os, color, size = 52.dp)
+                Column(Modifier.padding(start = 16.dp).weight(1f)) {
                     Text(
                         label.ifBlank { address.ifBlank { stringResource(R.string.hosts_new_host) } },
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleLarge, maxLines = 1,
                     )
                     Text(
-                        listOfNotNull("ssh", user.ifBlank { null }).joinToString(", "),
+                        listOfNotNull("ssh", user.ifBlank { null }, port.takeIf { it.isNotBlank() && it != "22" }?.let { ":$it" })
+                            .joinToString(", "),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-
-            FormSection(stringResource(R.string.host_section_general)) {
-                FormField(
-                    stringResource(R.string.host_address), address, { address = it.trim() },
-                    placeholder = stringResource(R.string.host_address_placeholder), keyboard = KeyboardType.Uri,
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    address, { address = it.trim(); clearError(HostField.ADDRESS) },
+                    Modifier.fillMaxWidth().focusRequester(focusAddress),
+                    label = { Text(stringResource(R.string.host_address)) },
+                    placeholder = { Text(stringResource(R.string.host_address_placeholder)) },
+                    leadingIcon = { Icon(Icons.Outlined.Dns, null) },
+                    textStyle = MaterialTheme.typography.titleLarge,
+                    singleLine = true,
+                    isError = HostField.ADDRESS in errors,
+                    supportingText = errors[HostField.ADDRESS]?.let { e -> @Composable { Text(e) } },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next, autoCorrectEnabled = false,
+                    ),
+                    keyboardActions = KeyboardActions(onNext = { runCatching { focusLabel.requestFocus() } }),
                 )
-                FormDivider()
-                FormField(stringResource(R.string.host_label), label, { label = it }, placeholder = address.ifBlank { "web-1" })
-                FormDivider()
-                FormPicker(
-                    stringResource(R.string.host_group), groups.firstOrNull { it.id == groupId }?.name ?: noGroup,
-                    listOf<Pair<String?, String>>(null to noGroup) + groups.map { it.id to it.name },
-                ) { groupId = it }
-                FormDivider()
-                FormField(stringResource(R.string.host_tags), tags, { tags = it }, placeholder = "prod, web")
+                OutlinedTextField(
+                    label, { label = it },
+                    Modifier.fillMaxWidth().focusRequester(focusLabel),
+                    label = { Text(stringResource(R.string.host_label)) },
+                    placeholder = { Text(stringResource(R.string.editor_label_placeholder)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { runCatching { focusUser.requestFocus() } }),
+                )
             }
 
+            // ----- SSH: user, port and the credential -----
             FormSection("SSH") {
-                FormField(
-                    stringResource(R.string.common_port), port, { port = it.filter(Char::isDigit).take(5) },
-                    placeholder = "22", keyboard = KeyboardType.Number,
-                )
-            }
-
-            FormSection(stringResource(R.string.host_section_credentials)) {
-                FormField(stringResource(R.string.common_username), user, { user = it.trim() }, placeholder = "root")
+                Row {
+                    Box(Modifier.weight(1f)) {
+                        FormField(
+                            stringResource(R.string.common_username), user, { user = it.trim() }, placeholder = "root",
+                            modifier = Modifier.focusRequester(focusUser),
+                            imeAction = ImeAction.Next, onIme = { runCatching { focusPort.requestFocus() } },
+                        )
+                    }
+                    Box(Modifier.width(112.dp)) {
+                        FormField(
+                            stringResource(R.string.common_port), port,
+                            { port = it.filter(Char::isDigit).take(5); clearError(HostField.PORT) },
+                            placeholder = "22", keyboard = KeyboardType.Number,
+                            modifier = Modifier.focusRequester(focusPort),
+                            error = errors[HostField.PORT],
+                            imeAction = if (auth == Auth.PASSWORD) ImeAction.Next else ImeAction.Done,
+                            onIme = { if (auth == Auth.PASSWORD) runCatching { focusPassword.requestFocus() } else save(false) },
+                        )
+                    }
+                }
                 FormDivider()
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(12.dp)) {
                     Auth.entries.forEachIndexed { i, a ->
@@ -236,6 +396,8 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
                                 else R.string.host_password_placeholder,
                             ),
                             keyboard = KeyboardType.Password, secret = !showPassword,
+                            modifier = Modifier.focusRequester(focusPassword),
+                            imeAction = ImeAction.Done, onIme = { save(false) },
                             trailing = {
                                 IconButton(onClick = { showPassword = !showPassword }) {
                                     Icon(
@@ -272,84 +434,184 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
                 }
             }
 
-            FormSection(stringResource(R.string.host_section_jumps)) {
-                if (jumps.isEmpty()) {
-                    FormNote(stringResource(R.string.host_no_jumps))
-                }
-                jumps.forEachIndexed { i, id ->
-                    val h = otherHosts.firstOrNull { it.id == id }
-                    ListItem(
-                        headlineContent = { Text("${i + 1}. ${h?.label ?: stringResource(R.string.host_deleted_host)}") },
-                        supportingContent = { h?.let { Text(it.address) } },
-                        trailingContent = {
-                            IconButton(onClick = { jumps = jumps.filterIndexed { j, _ -> j != i } }) {
-                                Icon(Icons.Outlined.Close, stringResource(R.string.host_remove))
-                            }
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    )
-                    FormDivider()
-                }
-                val candidates = otherHosts.filter { it.id !in jumps }
-                if (candidates.isNotEmpty()) {
-                    FormPicker(
-                        stringResource(R.string.host_add_jump), stringResource(R.string.host_choose_host),
-                        candidates.map { it.id to it.label },
-                    ) { jumps = jumps + it }
-                }
+            // ----- Group, tags and color -----
+            FormSection(stringResource(R.string.editor_section_group)) {
+                FormPicker(
+                    stringResource(R.string.host_group), groups.firstOrNull { it.id == groupId }?.name ?: noGroup,
+                    listOf<Pair<String?, String>>(null to noGroup) + groups.map { it.id to it.name },
+                ) { groupId = it }
+                FormDivider()
+                FormField(
+                    stringResource(R.string.host_tags), tags, { tags = it }, placeholder = "prod, web",
+                    imeAction = ImeAction.Done, onIme = { save(false) },
+                )
+                FormDivider()
+                Text(
+                    stringResource(R.string.editor_color), Modifier.padding(start = 16.dp, top = 12.dp),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ColorChoice(color) { color = it }
             }
 
-            FormSection(stringResource(R.string.host_section_proxy)) {
-                FormPicker(
-                    stringResource(R.string.host_proxy_type),
-                    when (proxyKind) {
-                        null -> noProxy
-                        ProxyKind.SOCKS5 -> "SOCKS5"
-                        ProxyKind.SOCKS4 -> "SOCKS4"
-                        ProxyKind.HTTP -> "HTTP (CONNECT)"
-                    },
-                    listOf<Pair<ProxyKind?, String>>(
-                        null to noProxy, ProxyKind.SOCKS5 to "SOCKS5", ProxyKind.SOCKS4 to "SOCKS4",
-                        ProxyKind.HTTP to "HTTP (CONNECT)",
-                    ),
-                ) { proxyKind = it }
-                if (proxyKind != null) {
-                    FormDivider()
-                    FormField(
-                        stringResource(R.string.host_proxy_address), proxyHost, { proxyHost = it.trim() },
-                        placeholder = stringResource(R.string.host_proxy_address_placeholder), keyboard = KeyboardType.Uri,
-                    )
-                    FormDivider()
-                    FormField(
-                        stringResource(R.string.common_port), proxyPort, { proxyPort = it.filter(Char::isDigit).take(5) },
-                        placeholder = if (proxyKind == ProxyKind.HTTP) "8080" else "1080", keyboard = KeyboardType.Number,
-                    )
-                    FormDivider()
-                    FormField(
-                        stringResource(R.string.common_username), proxyUser, { proxyUser = it.trim() },
-                        placeholder = stringResource(R.string.common_optional),
-                    )
-                    FormDivider()
-                    FormField(
-                        stringResource(R.string.common_password), proxyPassword, { proxyPassword = it; clearProxyPassword = false },
-                        placeholder = stringResource(
-                            if (hadProxyPassword && !clearProxyPassword) R.string.common_saved_secret else R.string.common_optional,
-                        ),
-                        keyboard = KeyboardType.Password, secret = true,
-                    )
-                    if (hadProxyPassword && !clearProxyPassword && proxyPassword.isEmpty()) {
-                        TextButton(onClick = { clearProxyPassword = true }, modifier = Modifier.padding(start = 4.dp)) {
-                            Text(stringResource(R.string.host_clear_proxy_password), color = MaterialTheme.colorScheme.error)
-                        }
+            // ----- Advanced (collapsible) -----
+            val advancedErrors = errors.keys.any { it.advanced }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp).clickable { advancedOpen = !advancedOpen }
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(if (advancedOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    Text(stringResource(R.string.editor_section_advanced), style = MaterialTheme.typography.titleSmall)
+                    if (!advancedOpen) {
+                        Text(
+                            stringResource(R.string.editor_advanced_summary), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
+                if (advancedErrors && !advancedOpen) {
+                    Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.editor_advanced_errors), tint = MaterialTheme.colorScheme.error)
+                }
             }
-            Text(
-                stringResource(R.string.host_proxy_note),
-                Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            AnimatedVisibility(advancedOpen) {
+                Column {
+                    FormSection(stringResource(R.string.host_section_jumps)) {
+                        if (jumps.isEmpty()) FormNote(stringResource(R.string.host_no_jumps))
+                        jumps.forEachIndexed { i, id ->
+                            val h = otherHosts.firstOrNull { it.id == id }
+                            ListItem(
+                                headlineContent = { Text("${i + 1}. ${h?.label ?: stringResource(R.string.host_deleted_host)}") },
+                                supportingContent = { h?.let { Text(it.address) } },
+                                trailingContent = {
+                                    IconButton(onClick = { jumps = jumps.filterIndexed { j, _ -> j != i } }) {
+                                        Icon(Icons.Outlined.Close, stringResource(R.string.host_remove))
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            )
+                            FormDivider()
+                        }
+                        val candidates = otherHosts.filter { it.id !in jumps }
+                        if (candidates.isNotEmpty()) {
+                            FormPicker(
+                                stringResource(R.string.host_add_jump), stringResource(R.string.host_choose_host),
+                                candidates.map { it.id to it.label },
+                            ) { jumps = jumps + it }
+                        }
+                    }
 
+                    FormSection(stringResource(R.string.host_section_proxy)) {
+                        FormPicker(
+                            stringResource(R.string.host_proxy_type),
+                            when (proxyKind) {
+                                null -> noProxy
+                                ProxyKind.SOCKS5 -> "SOCKS5"
+                                ProxyKind.SOCKS4 -> "SOCKS4"
+                                ProxyKind.HTTP -> "HTTP (CONNECT)"
+                            },
+                            listOf<Pair<ProxyKind?, String>>(
+                                null to noProxy, ProxyKind.SOCKS5 to "SOCKS5", ProxyKind.SOCKS4 to "SOCKS4",
+                                ProxyKind.HTTP to "HTTP (CONNECT)",
+                            ),
+                        ) {
+                            proxyKind = it
+                            clearError(HostField.PROXY_ADDRESS)
+                            clearError(HostField.PROXY_PORT)
+                        }
+                        if (proxyKind != null) {
+                            FormDivider()
+                            FormField(
+                                stringResource(R.string.host_proxy_address), proxyHost,
+                                { proxyHost = it.trim(); clearError(HostField.PROXY_ADDRESS) },
+                                placeholder = stringResource(R.string.host_proxy_address_placeholder), keyboard = KeyboardType.Uri,
+                                error = errors[HostField.PROXY_ADDRESS], imeAction = ImeAction.Next,
+                            )
+                            FormDivider()
+                            FormField(
+                                stringResource(R.string.common_port), proxyPort,
+                                { proxyPort = it.filter(Char::isDigit).take(5); clearError(HostField.PROXY_PORT) },
+                                placeholder = if (proxyKind == ProxyKind.HTTP) "8080" else "1080", keyboard = KeyboardType.Number,
+                                error = errors[HostField.PROXY_PORT], imeAction = ImeAction.Next,
+                            )
+                            FormDivider()
+                            FormField(
+                                stringResource(R.string.common_username), proxyUser, { proxyUser = it.trim() },
+                                placeholder = stringResource(R.string.common_optional), imeAction = ImeAction.Next,
+                            )
+                            FormDivider()
+                            FormField(
+                                stringResource(R.string.common_password), proxyPassword, { proxyPassword = it; clearProxyPassword = false },
+                                placeholder = stringResource(
+                                    if (hadProxyPassword && !clearProxyPassword) R.string.common_saved_secret else R.string.common_optional,
+                                ),
+                                keyboard = KeyboardType.Password, secret = true, imeAction = ImeAction.Done, onIme = { save(false) },
+                            )
+                            if (hadProxyPassword && !clearProxyPassword && proxyPassword.isEmpty()) {
+                                TextButton(onClick = { clearProxyPassword = true }, modifier = Modifier.padding(start = 4.dp)) {
+                                    Text(stringResource(R.string.host_clear_proxy_password), color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                    FormHint(stringResource(R.string.host_proxy_note))
+
+                    FormSection(stringResource(R.string.editor_section_connection)) {
+                        FormSwitch(
+                            stringResource(R.string.editor_agent_forwarding), stringResource(R.string.editor_agent_forwarding_hint),
+                            agentForwarding,
+                        ) { agentForwarding = it }
+                        FormDivider()
+                        FormField(
+                            stringResource(R.string.editor_keepalive), keepalive,
+                            { keepalive = it.filter(Char::isDigit).take(6); clearError(HostField.KEEPALIVE) },
+                            placeholder = "30", keyboard = KeyboardType.Number,
+                            error = errors[HostField.KEEPALIVE] ?: stringResource(R.string.editor_keepalive_hint),
+                            isError = HostField.KEEPALIVE in errors,
+                            imeAction = ImeAction.Done, onIme = { save(false) },
+                        )
+                    }
+
+                    FormSection(stringResource(R.string.editor_section_terminal)) {
+                        FormPicker(
+                            stringResource(R.string.editor_startup_snippet),
+                            snippets.firstOrNull { it.id == startupSnippet }?.name
+                                ?: if (startupSnippet == null) none else stringResource(R.string.editor_deleted_snippet),
+                            listOf<Pair<String?, String>>(null to none) + snippets.map { it.id to it.name },
+                        ) { startupSnippet = it }
+                        FormDivider()
+                        FormField(
+                            stringResource(R.string.editor_env), env, { env = it; clearError(HostField.ENV) },
+                            placeholder = stringResource(R.string.editor_env_placeholder), singleLine = false,
+                            error = errors[HostField.ENV], mono = true,
+                        )
+                        FormDivider()
+                        FormField(
+                            stringResource(R.string.editor_term), term, { term = it.trim() }, placeholder = "xterm-256color",
+                            error = stringResource(R.string.editor_term_hint), isError = false,
+                            imeAction = ImeAction.Done, onIme = { save(false) },
+                        )
+                        FormDivider()
+                        val themes = listOf<Pair<String?, String>>(
+                            null to stringResource(R.string.editor_theme_follow),
+                            "dark" to stringResource(R.string.settings_theme_dark),
+                            "light" to stringResource(R.string.settings_theme_light),
+                        )
+                        FormPicker(
+                            stringResource(R.string.editor_theme),
+                            themes.firstOrNull { it.first == theme }?.second ?: theme.orEmpty(),
+                            themes,
+                        ) { theme = it }
+                        FormDivider()
+                        FormSwitch(stringResource(R.string.editor_record), stringResource(R.string.editor_record_hint), record) {
+                            record = it
+                        }
+                    }
+                    FormHint(stringResource(R.string.editor_theme_note))
+                }
+            }
+
+            // ----- Organization -----
             FormSection(stringResource(R.string.common_options)) {
                 FormSwitch(stringResource(R.string.host_favorite), stringResource(R.string.host_favorite_hint), favorite) {
                     favorite = it
@@ -364,6 +626,61 @@ fun HostEditor(app: TermoakApp, hostId: String?, onClose: () -> Unit) {
                     placeholder = stringResource(R.string.common_optional), singleLine = false,
                 )
             }
+
+            if (original != null) {
+                OutlinedButton(
+                    onClick = { deleting = true },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp).fillMaxWidth(),
+                ) {
+                    Icon(Icons.Outlined.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.editor_delete), Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+
+    if (deleting && original != null) {
+        ConfirmDialog(
+            title = stringResource(R.string.hosts_delete_title, original.label),
+            text = stringResource(R.string.hosts_delete_text),
+            confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { deleting = false },
+        ) {
+            runCatching { app.core.deleteHost(original.id) }
+            app.account.sync()
+            scope.launch { snackbar.showSnackbar(resources.getString(R.string.hosts_deleted, original.label)) }
+            onClose()
+        }
+    }
+}
+
+/** The host's color: the desktop's palette, or none (the system's or the name's). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColorChoice(selected: String?, onSelect: (String?) -> Unit) {
+    fun same(a: String?, b: String?) = a?.trim()?.removePrefix("#").equals(b?.trim()?.removePrefix("#"), ignoreCase = true)
+    FlowRow(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val noneSelected = selected == null
+        Box(
+            Modifier.size(34.dp).clip(CircleShape)
+                .border(
+                    if (noneSelected) 2.dp else 1.dp,
+                    if (noneSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                    CircleShape,
+                )
+                .clickable { onSelect(null) },
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Outlined.FormatColorReset, stringResource(R.string.editor_color_none), Modifier.size(18.dp)) }
+        val known = HostColors.any { same(it, selected) }
+        (if (selected != null && !known) HostColors + selected else HostColors).forEach { hex ->
+            val c = runCatching { Color(hex.toColorInt()) }.getOrNull() ?: return@forEach
+            Box(
+                Modifier.size(34.dp).clip(CircleShape).background(c).clickable { onSelect(hex) },
+                contentAlignment = Alignment.Center,
+            ) { if (same(hex, selected)) Icon(Icons.Outlined.Check, null, Modifier.size(18.dp), tint = Color.White) }
         }
     }
 }
@@ -388,28 +705,62 @@ fun FormNote(text: String) {
     Text(text, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
+/** Small text under a form card. */
+@Composable
+fun FormHint(text: String) {
+    Text(
+        text, Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * Field of a form card. [error] shows under it (in red with [isError]; a
+ * hint otherwise); [imeAction] and [onIme] set the keyboard's action key
+ * (Next, Done...).
+ */
 @Composable
 fun FormField(
     label: String,
     value: String,
     onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
     placeholder: String = "",
     keyboard: KeyboardType = KeyboardType.Text,
     secret: Boolean = false,
     singleLine: Boolean = true,
+    error: String? = null,
+    isError: Boolean = error != null,
+    imeAction: ImeAction = ImeAction.Default,
+    onIme: (() -> Unit)? = null,
+    mono: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val focus = LocalFocusManager.current
     TextField(
-        value, onChange, Modifier.fillMaxWidth(),
+        value, onChange, modifier.fillMaxWidth(),
         label = { Text(label) },
         placeholder = { Text(placeholder) },
         singleLine = singleLine,
+        minLines = if (singleLine) 1 else 2,
         trailingIcon = trailing,
+        isError = isError,
+        supportingText = error?.let { e -> @Composable { Text(e) } },
+        textStyle = if (mono) LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace) else LocalTextStyle.current,
         visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = keyboard,
+            imeAction = imeAction,
+            autoCorrectEnabled = if (singleLine || mono || keyboard != KeyboardType.Text) false else null,
+        ),
+        keyboardActions = KeyboardActions(
+            onNext = { if (onIme != null) onIme() else focus.moveFocus(FocusDirection.Down) },
+            onDone = { if (onIme != null) onIme() else focus.clearFocus() },
+        ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.Transparent,
             unfocusedContainerColor = Color.Transparent,
+            errorContainerColor = Color.Transparent,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
         ),

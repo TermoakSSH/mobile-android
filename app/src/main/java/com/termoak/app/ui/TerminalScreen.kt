@@ -5,6 +5,15 @@ import android.content.ClipboardManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.CellTower
+import androidx.compose.material.icons.outlined.CloseFullscreen
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LocalContentColor
+import com.termoak.app.term.Paste
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -86,7 +95,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
@@ -112,7 +120,6 @@ import com.termoak.app.term.TermState
 import com.termoak.app.term.TerminalView
 import com.termoak.ffi.Snippet
 import com.termoak.ffi.TerminalKey
-import com.termoak.ffi.renderSnippet
 import com.termoak.ffi.snippetVariables
 import kotlinx.coroutines.delay
 
@@ -130,18 +137,23 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val context = LocalContext.current
     val sessions by app.sessions.list.collectAsState()
     val activeId by app.sessions.active.collectAsState()
+    val split by app.sessions.split.collectAsState()
     val fontSize by app.prefs.fontSize.collectAsState()
     val keepOn by app.prefs.keepScreenOn.collectAsState()
-    val vibrate by app.prefs.vibrateOnBell.collectAsState()
+    val confirmPaste by app.prefs.confirmMultilinePaste.collectAsState()
     val session = sessions.firstOrNull { it.id == activeId } ?: sessions.lastOrNull()
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
-    var view by remember { mutableStateOf<TerminalView?>(null) }
+    // The terminal views on screen (one, or one per pane): the keyboard goes to the focused one.
+    val views = remember { mutableListOf<TerminalView>() }
     var showSnippets by remember { mutableStateOf(false) }
-    var longPressMenu by remember { mutableStateOf(false) }
+    var showSplitPicker by remember { mutableStateOf(false) }
     var terminating by remember { mutableStateOf<ServerTerminal?>(null) }
+    var pasteAsk by remember { mutableStateOf<Pair<TermSession, String>?>(null) }
     // Copilot: side by side on tablets; on top, from the right, on phones.
     var copilotOpen by rememberSaveable { mutableStateOf(false) }
-    val wide = LocalConfiguration.current.screenWidthDp >= 600
+    // Window size class (it changes when a foldable folds or unfolds; the sessions stay).
+    val maxPanes = rememberMaxPanes()
+    val wide = maxPanes >= 2
 
     LaunchedEffect(sessions.isEmpty()) { if (sessions.isEmpty()) nav.popBackStack() }
     if (session == null) return
@@ -160,33 +172,26 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val sharable = canShare(session, loggedIn == true, live.isOwner)
     // Notices of this terminal ("You have the keyboard", an action that wasn't allowed...).
     LaunchedEffect(session.id) { session.toasts.collect { snackbar.showSnackbar(it.resolve(resources)) } }
-    // Connection steps (like Termius' connection screen).
-    val steps = remember(session.id) { androidx.compose.runtime.mutableStateListOf<UiText>() }
-    var everRan by remember(session.id) { mutableStateOf(false) }
-    LaunchedEffect(session.id) {
-        session.state.collect { st ->
-            when (st) {
-                is TermState.Connecting -> if (st != InitialConnecting && steps.lastOrNull() != st.message) steps.add(st.message)
-                TermState.Running -> everRan = true
-                is TermState.Closed, TermState.Asleep -> Unit
-            }
-        }
-    }
     val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it) }.getOrNull() } }
+
+    // ----- Split view: the panes that fit this window (none on a phone) -----
+    val panes = if (split.maximized != null) emptyList() else
+        split.visible(maxPanes, session.id).mapNotNull { id -> sessions.firstOrNull { it.id == id } }
+    val splitShown = panes.size >= 2 && session in panes
+    val broadcasting = splitShown && split.broadcast
+    // Broadcast input: what is typed in the focused pane goes to the other visible ones.
+    val broadcastTargets = if (broadcasting) panes.filter { it.id != session.id } else emptyList()
+    DisposableEffect(session, broadcastTargets) {
+        session.onInput = if (broadcastTargets.isEmpty()) null else { input -> broadcastTargets.forEach { it.apply(input) } }
+        onDispose { session.onInput = null }
+    }
 
     val hostView = LocalView.current
     DisposableEffect(keepOn) {
         hostView.keepScreenOn = keepOn
         onDispose { hostView.keepScreenOn = false }
     }
-    DisposableEffect(session, vibrate) {
-        session.onCopy = { text -> clipboard?.setPrimaryClip(ClipData.newPlainText("terminal", text)) }
-        session.onBell = {
-            if (vibrate) context.getSystemService(Vibrator::class.java)
-                ?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
-        }
-        onDispose { session.onBell = {} }
-    }
+    fun focusedView(): TerminalView? = views.firstOrNull { it.session === session } ?: views.firstOrNull()
     // When the panel closes, the AI stops and loses access to the terminal.
     fun closeCopilot() {
         copilotOpen = false
@@ -194,11 +199,30 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     }
     BackHandler { if (copilotOpen) closeCopilot() else nav.popBackStack() }
 
-    fun copyScreen() {
-        clipboard?.setPrimaryClip(ClipData.newPlainText("terminal", session.screen.screenText()))
+    /** Pastes into [target], asking first for several lines (unless it uses bracketed paste). */
+    fun requestPaste(target: TermSession, text: String) {
+        if (text.isEmpty()) return
+        if (Paste.needsConfirmation(text, confirmPaste, target.bracketedPaste)) pasteAsk = target to text else target.paste(text)
     }
-    fun paste() {
-        clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.let { session.paste(it.toString()) }
+    fun paste(target: TermSession) {
+        clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.let { requestPaste(target, it.toString()) }
+    }
+    fun copyScreen(target: TermSession) {
+        clipboard?.setPrimaryClip(ClipData.newPlainText("terminal", target.screen.screenText()))
+    }
+
+    /** A terminal (the whole screen, or a pane of the split view). */
+    @Composable
+    fun Pane(s: TermSession, focused: Boolean) {
+        TerminalPane(
+            app, nav, s, fontSize, focused,
+            views = views,
+            onFocus = { if (s.id != app.sessions.active.value) app.sessions.select(s.id) },
+            onPaste = { requestPaste(s, it) },
+            pasteClipboard = { paste(s) },
+            copyScreen = { copyScreen(s) },
+            onParticipants = { showParticipants = true },
+        )
     }
 
     // The terminal makes room for its own keyboard (fewer rows). On a phone the
@@ -254,12 +278,25 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     if (live.others.isNotEmpty() || live.pendingRequests > 0) {
                         ParticipantsChip(live) { showParticipants = true }
                     }
+                    // Split view (tablets, unfolded foldables); a maximized pane goes back to the grid.
+                    if (split.maximized != null && split.on && wide) {
+                        IconButton(onClick = { app.sessions.maximize(null) }) {
+                            Icon(Icons.Outlined.CloseFullscreen, stringResource(R.string.split_restore), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    } else if (wide && sessions.size >= 2) {
+                        IconButton(onClick = { showSplitPicker = true }) {
+                            Icon(
+                                Icons.Outlined.GridView, stringResource(R.string.split_title),
+                                tint = if (splitShown) MaterialTheme.colorScheme.primary else KeyFg,
+                            )
+                        }
+                    }
                     IconButton(onClick = {
                         if (copilotOpen) {
                             closeCopilot()
                         } else {
                             copilotOpen = true
-                            if (!wide) view?.hideKeyboard()
+                            if (!wide) focusedView()?.hideKeyboard()
                         }
                     }) {
                         Icon(
@@ -270,21 +307,28 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     IconButton(onClick = { showSnippets = true }) {
                         Icon(Icons.Outlined.Code, stringResource(R.string.section_snippets), tint = KeyFg)
                     }
-                    IconButton(onClick = { view?.showKeyboard() }) {
+                    IconButton(onClick = { focusedView()?.showKeyboard() }) {
                         Icon(Icons.Outlined.Keyboard, stringResource(R.string.term_keyboard), tint = KeyFg)
                     }
                     Box {
                         var menu by remember { mutableStateOf(false) }
                         IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more), tint = KeyFg) }
                         DropdownMenu(menu, { menu = false }) {
-                            DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { menu = false; paste() },
+                            DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { menu = false; paste(session) },
                                 leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
-                            DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { menu = false; copyScreen() },
+                            DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { menu = false; copyScreen(session) },
                                 leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
                             DropdownMenuItem({ Text(stringResource(R.string.term_font_bigger)) }, { app.prefs.setFontSize(fontSize + 1) },
                                 leadingIcon = { Icon(Icons.Outlined.TextIncrease, null) })
                             DropdownMenuItem({ Text(stringResource(R.string.term_font_smaller)) }, { app.prefs.setFontSize(fontSize - 1) },
                                 leadingIcon = { Icon(Icons.Outlined.TextDecrease, null) })
+                            if (splitShown) {
+                                DropdownMenuItem(
+                                    { Text(stringResource(if (split.broadcast) R.string.split_broadcast_stop else R.string.split_broadcast)) },
+                                    { menu = false; app.sessions.setBroadcast(!split.broadcast) },
+                                    leadingIcon = { Icon(Icons.Outlined.CellTower, null, tint = if (split.broadcast) Brand.Amber else LocalContentColor.current) },
+                                )
+                            }
                             HorizontalDivider()
                             if (sharable) {
                                 DropdownMenuItem({ Text(stringResource(R.string.share_action)) }, { menu = false; showShare = true },
@@ -321,80 +365,31 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    sessions.forEach { s -> SessionTab(s, s.id == session.id, { app.sessions.select(s.id) }, { app.sessions.close(s.id) }) }
+                    sessions.forEach { s ->
+                        SessionTab(s, s.id == session.id, inSplit = splitShown && s in panes, { app.sessions.select(s.id) }, { app.sessions.close(s.id) })
+                    }
                     Box(
                         Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).clickable { nav.goTab(Routes.HOSTS) },
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Outlined.Add, stringResource(R.string.term_open_another), Modifier.size(18.dp), tint = KeyFg) }
                 }
 
-                // ----- Terminal -----
+                // ----- Broadcast banner (orange, like the desktop's) -----
+                if (broadcasting) BroadcastBanner(panes.size) { app.sessions.setBroadcast(false) }
+
+                // ----- Terminal(s) -----
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    AndroidView(
-                        factory = { ctx ->
-                            TerminalView(ctx).apply {
-                                setPadding(12, 6, 12, 6)
-                                onFontSizeChanged = { app.prefs.setFontSize(it) }
-                                onLongPress = { longPressMenu = true }
-                                view = this
-                                post { showKeyboard() }
-                            }
-                        },
-                        update = { v ->
-                            v.session = session
-                            v.setFontSize(fontSize)
-                            // Watching only: no keyboard (nothing would reach the terminal).
-                            v.readOnly = !live.canWrite
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    DropdownMenu(longPressMenu, { longPressMenu = false }) {
-                        DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { longPressMenu = false; paste() },
-                            leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
-                        DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { longPressMenu = false; copyScreen() },
-                            leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+                    if (splitShown) {
+                        SplitPanes(
+                            panes, session.id, split.broadcast,
+                            onFocus = { app.sessions.select(it.id) },
+                            onMaximize = { app.sessions.maximize(it.id) },
+                            onRemove = { app.sessions.removePane(it.id) },
+                            onBroadcast = { app.sessions.setBroadcast(!split.broadcast) },
+                        ) { s, focused -> Pane(s, focused) }
+                    } else {
+                        Pane(session, focused = true)
                     }
-                    val waiting = live.waiting
-                    val ended = live.ended
-                    if (ended != null) {
-                        EndPanel(ended) { app.sessions.close(session.id) }
-                    } else if (waiting != null && session is ServerTerminal) {
-                        WaitingRoom(
-                            session, waiting,
-                            guestName = if (session.asGuest) app.prefs.guestName.orEmpty() else null,
-                            onRename = { name -> app.prefs.guestName = name; session.setName(name) },
-                            onLeave = { app.sessions.close(session.id) },
-                        )
-                    } else when (val s = state) {
-                        is TermState.Connecting -> ConnectingPanel(session, host, steps, error = null)
-                        is TermState.Closed -> if (!everRan) {
-                            ConnectingPanel(session, host, steps, error = s.message.asString(),
-                                onRetry = { steps.clear(); session.reconnect() },
-                                onEdit = session.hostId?.let { id -> { app.sessions.close(session.id); nav.navigate(Routes.hostEdit(id)) } },
-                                onClose = { app.sessions.close(session.id) })
-                        } else {
-                            Surface(
-                                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
-                                color = BarBg, shape = RoundedCornerShape(16.dp),
-                            ) {
-                                Column(Modifier.padding(16.dp)) {
-                                    Text(stringResource(R.string.term_disconnected), color = KeyFg, style = MaterialTheme.typography.titleSmall)
-                                    Text(s.message.asString(), color = KeyFg.copy(alpha = 0.75f), style = MaterialTheme.typography.bodyMedium)
-                                    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Button(onClick = { steps.clear(); session.reconnect() }) {
-                                            Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
-                                            Text(stringResource(R.string.term_reconnect), Modifier.padding(start = 8.dp))
-                                        }
-                                        OutlinedButton(onClick = { app.sessions.close(session.id) }) {
-                                            Text(stringResource(R.string.common_close))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        TermState.Running, TermState.Asleep -> Unit
-                    }
-                    RequestBanners(session, live, Modifier.align(Alignment.TopCenter)) { showParticipants = true }
                 }
                 KeyboardStrip(session, live)
                 if (live.canWrite) ExtraKeys(session)
@@ -456,11 +451,41 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         is Pending.Credentials -> CredentialsDialog(p)
         null -> Unit
     }
+    pasteAsk?.let { (target, text) ->
+        PasteConfirmDialog(
+            text, onDismiss = { pasteAsk = null },
+        ) { dontAsk ->
+            if (dontAsk) app.prefs.setConfirmMultilinePaste(false)
+            pasteAsk = null
+            target.paste(text)
+        }
+    }
     if (showSnippets) {
-        SnippetsSheet(app, onDismiss = { showSnippets = false }) { text, run ->
-            session.paste(text)
-            if (run) session.key(TerminalKey.Enter)
+        SnippetsSheet(
+            app,
+            panes = if (splitShown) panes.size else 0,
+            openCount = sessions.size,
+            onDismiss = { showSnippets = false },
+        ) { sn, text, run, target ->
             showSnippets = false
+            when (target) {
+                SnippetTarget.THIS -> {
+                    // Typed here (and, while broadcasting, in the other panes too).
+                    session.paste(text)
+                    if (run) session.key(TerminalKey.Enter)
+                }
+                SnippetTarget.PANES -> app.snippetRuns.onSessions(sn.name, text, run, panes.map { it.id })
+                SnippetTarget.ALL_OPEN -> app.snippetRuns.onSessions(sn.name, text, run, sessions.map { it.id })
+            }
+        }
+    }
+    if (showSplitPicker) {
+        SplitPickerSheet(
+            sessions, current = if (split.on) split.panes else listOf(session.id), max = maxPanes, splitOn = split.on,
+            onDismiss = { showSplitPicker = false },
+        ) { ids ->
+            showSplitPicker = false
+            app.sessions.setSplit(ids)
         }
     }
     if (showShare) {
@@ -487,8 +512,141 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     }
 }
 
+/**
+ * One terminal: the emulator view, its copy/paste menu and what goes over it
+ * (connecting, disconnected, waiting room, requests). [focused]: the one the
+ * keyboard types into (in the split view, the others are only watched until
+ * tapped).
+ */
 @Composable
-private fun SessionTab(s: TermSession, selected: Boolean, onClick: () -> Unit, onClose: () -> Unit) {
+private fun TerminalPane(
+    app: TermoakApp,
+    nav: NavHostController,
+    session: TermSession,
+    fontSize: Float,
+    focused: Boolean,
+    views: MutableList<TerminalView>,
+    onFocus: () -> Unit,
+    onPaste: (String) -> Unit,
+    pasteClipboard: () -> Unit,
+    copyScreen: () -> Unit,
+    onParticipants: () -> Unit,
+) {
+    val context = LocalContext.current
+    val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
+    val vibrate by app.prefs.vibrateOnBell.collectAsState()
+    val state by session.state.collectAsState()
+    val pending by session.pending.collectAsState()
+    val live by session.live.collectAsState()
+    var longPressMenu by remember { mutableStateOf(false) }
+    val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it) }.getOrNull() } }
+    // Connection steps (like Termius' connection screen).
+    val steps = remember(session.id) { androidx.compose.runtime.mutableStateListOf<UiText>() }
+    var everRan by remember(session.id) { mutableStateOf(false) }
+    LaunchedEffect(session.id) {
+        session.state.collect { st ->
+            when (st) {
+                is TermState.Connecting -> if (st != InitialConnecting && steps.lastOrNull() != st.message) steps.add(st.message)
+                TermState.Running -> everRan = true
+                is TermState.Closed, TermState.Asleep -> Unit
+            }
+        }
+    }
+    DisposableEffect(session, vibrate) {
+        session.onCopy = { text -> clipboard?.setPrimaryClip(ClipData.newPlainText("terminal", text)) }
+        session.onBell = {
+            if (vibrate) context.getSystemService(Vibrator::class.java)
+                ?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+        }
+        onDispose { session.onBell = {} }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { ctx ->
+                TerminalView(ctx).apply {
+                    setPadding(12, 6, 12, 6)
+                    onFontSizeChanged = { app.prefs.setFontSize(it) }
+                    views += this
+                    if (focused) post { showKeyboard() }
+                }
+            },
+            update = { v ->
+                v.session = session
+                v.setFontSize(fontSize)
+                v.onTouched = onFocus
+                v.onLongPress = { onFocus(); longPressMenu = true }
+                v.onPasteText = onPaste
+                // Watching only: no keyboard (nothing would reach the terminal).
+                v.readOnly = !live.canWrite
+            },
+            onRelease = { views -= it },
+            modifier = Modifier.fillMaxSize(),
+        )
+        DropdownMenu(longPressMenu, { longPressMenu = false }) {
+            DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { longPressMenu = false; pasteClipboard() },
+                leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
+            DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { longPressMenu = false; copyScreen() },
+                leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+        }
+        val waiting = live.waiting
+        val ended = live.ended
+        if (ended != null) {
+            EndPanel(ended) { app.sessions.close(session.id) }
+        } else if (waiting != null && session is ServerTerminal) {
+            WaitingRoom(
+                session, waiting,
+                guestName = if (session.asGuest) app.prefs.guestName.orEmpty() else null,
+                onRename = { name -> app.prefs.guestName = name; session.setName(name) },
+                onLeave = { app.sessions.close(session.id) },
+            )
+        } else when (val s = state) {
+            is TermState.Connecting -> ConnectingPanel(session, host, steps, error = null)
+            is TermState.Closed -> if (!everRan) {
+                ConnectingPanel(session, host, steps, error = s.message.asString(),
+                    onRetry = { steps.clear(); session.reconnect() },
+                    onEdit = session.hostId?.let { id -> { app.sessions.close(session.id); nav.navigate(Routes.hostEdit(id)) } },
+                    onClose = { app.sessions.close(session.id) })
+            } else {
+                Surface(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                    color = BarBg, shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(stringResource(R.string.term_disconnected), color = KeyFg, style = MaterialTheme.typography.titleSmall)
+                        Text(s.message.asString(), color = KeyFg.copy(alpha = 0.75f), style = MaterialTheme.typography.bodyMedium)
+                        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { steps.clear(); session.reconnect() }) {
+                                Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
+                                Text(stringResource(R.string.term_reconnect), Modifier.padding(start = 8.dp))
+                            }
+                            OutlinedButton(onClick = { app.sessions.close(session.id) }) {
+                                Text(stringResource(R.string.common_close))
+                            }
+                        }
+                    }
+                }
+            }
+            TermState.Running, TermState.Asleep -> Unit
+        }
+        // Another pane asks something (host key, password): it is answered once focused.
+        if (!focused && pending != null) {
+            Surface(
+                Modifier.align(Alignment.TopCenter).padding(8.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onFocus),
+                color = Brand.Amber, contentColor = Color.Black,
+            ) {
+                Text(
+                    stringResource(R.string.split_needs_answer), Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
+        RequestBanners(session, live, Modifier.align(Alignment.TopCenter), onParticipants)
+    }
+}
+
+@Composable
+private fun SessionTab(s: TermSession, selected: Boolean, inSplit: Boolean, onClick: () -> Unit, onClose: () -> Unit) {
     val state by s.state.collectAsState()
     val title by s.title.collectAsState()
     val dot = when (state) {
@@ -504,6 +662,8 @@ private fun SessionTab(s: TermSession, selected: Boolean, onClick: () -> Unit, o
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (s.persistent) Icon(Icons.Outlined.CloudQueue, null, Modifier.size(14.dp), tint = KeyFg.copy(alpha = 0.7f))
+        // In the split view on screen.
+        if (inSplit) Icon(Icons.Outlined.GridView, null, Modifier.padding(end = 4.dp).size(12.dp), tint = KeyFg.copy(alpha = 0.7f))
         StatusDot(dot, 7.dp)
         Text(
             title ?: s.label, Modifier.padding(start = 6.dp).widthIn(max = 140.dp),
@@ -638,14 +798,46 @@ private fun CredentialsDialog(p: Pending.Credentials) {
     )
 }
 
-/** Vault snippets: pasted into the terminal (and optionally run). */
+/** Where a snippet from the terminal goes. */
+private enum class SnippetTarget { THIS, PANES, ALL_OPEN }
+
+/**
+ * Vault snippets: pasted into the terminal (and optionally run), into all
+ * the panes of the split view ([panes] > 0) or into every open terminal.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SnippetsSheet(app: TermoakApp, onDismiss: () -> Unit, onUse: (String, Boolean) -> Unit) {
+private fun SnippetsSheet(
+    app: TermoakApp,
+    panes: Int,
+    openCount: Int,
+    onDismiss: () -> Unit,
+    onUse: (Snippet, String, Boolean, SnippetTarget) -> Unit,
+) {
     val snippets = remember { runCatching { app.core.listSnippets() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
-    var filling by remember { mutableStateOf<Snippet?>(null) }
+    var filling by remember { mutableStateOf<Pair<Snippet, Boolean>?>(null) }
+    var target by remember { mutableStateOf(SnippetTarget.THIS) }
+    fun use(sn: Snippet, run: Boolean) {
+        if (snippetVariables(sn.script).isEmpty()) onUse(sn, sn.script, run, target) else filling = sn to run
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Text(stringResource(R.string.section_snippets), Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge)
+        if (panes > 0 || openCount > 1) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(target == SnippetTarget.THIS, { target = SnippetTarget.THIS }, { Text(stringResource(R.string.multi_target_this)) })
+                if (panes > 0) {
+                    FilterChip(target == SnippetTarget.PANES, { target = SnippetTarget.PANES },
+                        { Text(stringResource(R.string.multi_target_panes, panes)) })
+                }
+                if (openCount > 1) {
+                    FilterChip(target == SnippetTarget.ALL_OPEN, { target = SnippetTarget.ALL_OPEN },
+                        { Text(stringResource(R.string.multi_target_all_open, openCount)) })
+                }
+            }
+        }
         if (snippets.isEmpty()) {
             Text(
                 stringResource(R.string.snippets_none_yet),
@@ -662,43 +854,56 @@ private fun SnippetsSheet(app: TermoakApp, onDismiss: () -> Unit, onUse: (String
                     },
                     trailingContent = {
                         Row {
-                            TextButton(onClick = { use(sn, false, onUse) { filling = it } }) { Text(stringResource(R.string.common_paste)) }
-                            Button(onClick = { use(sn, true, onUse) { filling = it } }) { Text(stringResource(R.string.snippets_run)) }
+                            TextButton(onClick = { use(sn, false) }) { Text(stringResource(R.string.common_paste)) }
+                            Button(onClick = { use(sn, true) }) { Text(stringResource(R.string.snippets_run)) }
                         }
                     },
                 )
             }
         }
     }
-    filling?.let { sn -> SnippetVariablesDialog(sn, onDismiss = { filling = null }) { text -> onUse(text, false) } }
+    filling?.let { (sn, run) ->
+        SnippetVariablesDialog(
+            sn, stringResource(if (run) R.string.snippets_run else R.string.common_paste), onDismiss = { filling = null },
+        ) { text ->
+            filling = null
+            onUse(sn, text, run, target)
+        }
+    }
 }
 
-private fun use(sn: Snippet, run: Boolean, onUse: (String, Boolean) -> Unit, needsVars: (Snippet) -> Unit) {
-    if (snippetVariables(sn.script).isEmpty()) onUse(sn.script, run) else needsVars(sn)
-}
-
+/** "Paste N lines?": each line runs as a command when it reaches the shell. */
 @Composable
-private fun SnippetVariablesDialog(sn: Snippet, onDismiss: () -> Unit, onDone: (String) -> Unit) {
-    val names = remember(sn) { snippetVariables(sn.script) }
-    val values = remember(sn) { names.map { mutableStateOf("") } }
+private fun PasteConfirmDialog(text: String, onDismiss: () -> Unit, onPaste: (dontAskAgain: Boolean) -> Unit) {
+    val lines = remember(text) { Paste.lineCount(text) }
+    val preview = remember(text) { Paste.preview(text) }
+    var dontAsk by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(sn.name) },
+        icon = { Icon(Icons.Outlined.ContentPaste, null) },
+        title = { Text(pluralStringResource(R.plurals.paste_confirm_title, lines, lines)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                names.forEachIndexed { i, n ->
-                    OutlinedTextField(values[i].value, { values[i].value = it }, label = { Text(n) }, singleLine = true)
+            Column {
+                Text(stringResource(R.string.paste_confirm_text))
+                Surface(
+                    Modifier.padding(top = 12.dp).fillMaxWidth().heightIn(max = 220.dp),
+                    color = TermBg, contentColor = KeyFg, shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        preview, Modifier.verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(10.dp),
+                        fontFamily = FontFamily.Monospace, fontSize = 12.sp, softWrap = false,
+                    )
+                }
+                Row(
+                    Modifier.padding(top = 8.dp).clip(RoundedCornerShape(8.dp)).clickable { dontAsk = !dontAsk }.padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(dontAsk, { dontAsk = it })
+                    Text(stringResource(R.string.paste_confirm_dont_ask))
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = {
-                val rendered = runCatching {
-                    renderSnippet(sn.script, names.zip(values.map { it.value }).toMap())
-                }.getOrDefault(sn.script)
-                onDone(rendered)
-            }) { Text(stringResource(R.string.common_paste)) }
-        },
+        confirmButton = { TextButton(onClick = { onPaste(dontAsk) }) { Text(stringResource(R.string.common_paste)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

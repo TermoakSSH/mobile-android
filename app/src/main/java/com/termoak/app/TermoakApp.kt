@@ -9,6 +9,7 @@ import com.termoak.app.data.Prefs
 import com.termoak.app.data.ShareNotices
 import com.termoak.app.data.Updates
 import com.termoak.app.term.Sessions
+import com.termoak.app.term.SnippetRuns
 import com.termoak.ffi.LogLevel
 import com.termoak.ffi.LogListener
 import com.termoak.ffi.TermoakCore
@@ -25,6 +26,8 @@ class TermoakApp : Application() {
     val prefs: Prefs by lazy { Prefs(this) }
     val account: Account by lazy { Account(core) }
     val sessions: Sessions by lazy { Sessions(this, core) }
+    /** A snippet sent to several terminals at once, and how it went. */
+    val snippetRuns: SnippetRuns by lazy { SnippetRuns(sessions) }
     val copilot: Copilot by lazy { Copilot(this, core, account, sessions) }
     val shareNotices: ShareNotices by lazy { ShareNotices(this, sessions, account) }
     /** New versions of the app (APK published on the server). */

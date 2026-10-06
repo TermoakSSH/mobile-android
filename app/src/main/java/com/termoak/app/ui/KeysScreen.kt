@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.AlertDialog
@@ -275,6 +276,8 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
     var snippets by remember { mutableStateOf(runCatching { app.core.listSnippets() }.getOrDefault(emptyList())) }
     var editing by remember { mutableStateOf<Snippet?>(null) }
     var deleting by remember { mutableStateOf<Snippet?>(null) }
+    // "Run on several servers": hosts or groups, or the open terminals.
+    var running by remember { mutableStateOf<Snippet?>(null) }
     val reload = { snippets = runCatching { app.core.listSnippets() }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
@@ -302,6 +305,9 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
                         Column(Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(sn.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                                IconButton(onClick = { running = sn }) {
+                                    Icon(Icons.Outlined.PlayArrow, stringResource(R.string.multi_run_on), tint = MaterialTheme.colorScheme.primary)
+                                }
                                 IconButton(onClick = { editing = sn }) { Icon(Icons.Outlined.Edit, stringResource(R.string.common_edit)) }
                                 IconButton(onClick = { deleting = sn }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
                             }
@@ -347,6 +353,9 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
             },
             dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
+    }
+    running?.let { sn ->
+        RunSnippetSheet(app, sn, onDismiss = { running = null }) { running = null }
     }
     deleting?.let { sn ->
         ConfirmDialog(

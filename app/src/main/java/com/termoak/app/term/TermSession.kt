@@ -45,6 +45,13 @@ sealed class TermState {
     data class Closed(val message: UiText) : TermState()
 }
 
+/** Something typed in a terminal, to repeat it in others (broadcast input). */
+sealed class TermInput {
+    data class Text(val text: String, val modifiers: KeyModifiers) : TermInput()
+    data class Key(val key: TerminalKey, val modifiers: KeyModifiers) : TermInput()
+    data class Paste(val text: String) : TermInput()
+}
+
 /** The first, generic connecting step ("Connecting…"), before the real ones. */
 val InitialConnecting = TermState.Connecting(uiText(R.string.term_connecting))
 
@@ -144,20 +151,47 @@ abstract class TermSession(val label: String, val hostId: String?) {
         send(bytes)
     }
 
-    fun text(text: String) {
-        val m = modifiers()
-        if (m.ctrl || m.alt) {
-            text.codePoints().forEach { cp -> write(screen.character(String(Character.toChars(cp)), m)) }
-        } else {
-            write(text.toByteArray())
+    /**
+     * Mirror of what is typed here (keys, text and pastes), for broadcast
+     * input in the split view: the other panes apply it with [apply].
+     */
+    @Volatile var onInput: ((TermInput) -> Unit)? = null
+
+    fun text(text: String) = input(TermInput.Text(text, modifiers()))
+
+    fun key(key: TerminalKey, shift: Boolean = false) = input(TermInput.Key(key, modifiers().copy(shift = shift)))
+
+    fun paste(text: String) = input(TermInput.Paste(text))
+
+    private fun input(input: TermInput) {
+        apply(input)
+        onInput?.invoke(input)
+    }
+
+    /**
+     * Types [input] here, encoded for this terminal's own modes (cursor
+     * keys, bracketed paste...): what another pane broadcasts.
+     */
+    fun apply(input: TermInput) {
+        when (input) {
+            is TermInput.Text -> if (input.modifiers.ctrl || input.modifiers.alt) {
+                input.text.codePoints().forEach { cp -> write(screen.character(String(Character.toChars(cp)), input.modifiers)) }
+            } else {
+                write(input.text.toByteArray())
+            }
+            is TermInput.Key -> write(screen.key(input.key, input.modifiers))
+            is TermInput.Paste -> write(screen.paste(input.text))
         }
     }
 
-    fun key(key: TerminalKey, shift: Boolean = false) {
-        write(screen.key(key, modifiers().copy(shift = shift)))
-    }
-
-    fun paste(text: String) = write(screen.paste(text))
+    /**
+     * The program asked for bracketed paste (modern shells, vim...): a paste
+     * is not run line by line until Enter is pressed.
+     */
+    val bracketedPaste: Boolean
+        get() = runCatching { screen.paste("x") }.getOrNull()?.let { b ->
+            b.size > 6 && b[0] == 0x1b.toByte() && String(b, 1, 5, Charsets.US_ASCII) == "[200~"
+        } ?: false
 
     open fun resize(cols: Int, rows: Int) {
         if (cols.toUInt() == screen.cols() && rows.toUInt() == screen.rows()) return
