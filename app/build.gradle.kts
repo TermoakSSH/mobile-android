@@ -1,3 +1,4 @@
+import com.android.build.api.variant.FilterConfiguration
 import java.util.Properties
 
 plugins {
@@ -9,6 +10,10 @@ plugins {
 val appVersion = providers.gradleProperty("termoakVersion").get()
 val appVersionCode = appVersion.substringBefore('-').split('.').map { it.toInt() }
     .let { (major, minor, patch) -> major * 10_000 + minor * 100 + patch }
+
+// The ABIs of the published APKs (one per ABI plus a universal one with both;
+// scripts/release-local.sh builds the engine for them). Debug builds add x86_64.
+val releaseAbis = listOf("arm64-v8a", "armeabi-v7a")
 
 // Signing for published versions: keystore.properties (or the
 // TERMOAK_ANDROID_* environment variables). Without it, the release APK is unsigned.
@@ -32,8 +37,6 @@ android {
         targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersion
-        // The ABIs the engine is built for (scripts/release-local.sh).
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
         // Server suggested on the sign-in screen.
         buildConfigField(
             "String",
@@ -62,6 +65,19 @@ android {
         }
     }
 
+    // One APK per ABI plus a universal one (scripts/release-local.sh): each
+    // device downloads only its engine (libtermoak_ffi.so is most of the APK).
+    // x86_64 (emulator) only goes into the debug universal APK: the ABIs that
+    // are packaged are chosen in androidComponents below.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include(*releaseAbis.toTypedArray())
+            isUniversalApk = true
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -87,6 +103,28 @@ android {
     packaging {
         // The Rust .so files are already stripped of debug symbols.
         jniLibs.keepDebugSymbols += "**/libtermoak_ffi.so"
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        // Only the ABIs the engine is built for: release, arm64-v8a and
+        // armeabi-v7a; debug, also x86_64 for the emulator. JNA ships more
+        // (x86, armeabi, mips...), without the engine they would break the app.
+        val abis = if (variant.buildType == "release") releaseAbis else releaseAbis + "x86_64"
+        variant.packaging.jniLibs.excludes.addAll(
+            listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64", "mips", "mips64")
+                .filter { it !in abis }.map { "**/$it/**" },
+        )
+        // versionCode·10 + ABI (universal 0, armeabi-v7a 1, arm64-v8a 2). Every
+        // APK of a version is above every APK of the previous one, and above the
+        // single APK of earlier releases (plain versionCode): any of them
+        // updates any earlier install, whichever APK it came from.
+        val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2)
+        variant.outputs.forEach { output ->
+            val abi = output.filters.find { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier
+            output.versionCode.set(appVersionCode * 10 + (abiCodes[abi] ?: 0))
+        }
     }
 }
 

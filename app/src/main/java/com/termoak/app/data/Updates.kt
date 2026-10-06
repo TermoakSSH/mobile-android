@@ -1,6 +1,7 @@
 package com.termoak.app.data
 
 import android.content.Context
+import android.os.Build
 import androidx.core.content.edit
 import com.termoak.app.BuildConfig
 import kotlinx.coroutines.CoroutineScope
@@ -97,8 +98,10 @@ class Updates(context: Context, private val prefs: Prefs) {
             val files = json.optJSONArray("files") ?: return@withContext null
             val apks = (0 until files.length()).mapNotNull { files.optJSONObject(it) }
                 .filter { it.optString("name").endsWith(".apk", ignoreCase = true) && it.optString("url").isNotBlank() }
-            val apk = apks.firstOrNull { it.optString("component") == "android" && it.optString("kind") == "app" }
-                ?: apks.firstOrNull { it.optString("component") == "android" || it.optString("os") == "android" }
+            val android = apks.filter { it.optString("component") == "android" && it.optString("kind") == "app" }
+                .ifEmpty { apks.filter { it.optString("component") == "android" || it.optString("os") == "android" } }
+            val apk = pickApk(android.map { it.optString("name") }, Build.SUPPORTED_ABIS.firstOrNull())
+                ?.let { name -> android.first { it.optString("name") == name } }
                 ?: return@withContext null
             // Absolute in practice; resolved against the server just in case.
             AppUpdate(version, URL(base, apk.optString("url")).toString())
@@ -114,6 +117,21 @@ class Updates(context: Context, private val prefs: Prefs) {
         const val LATEST_URL = "latest_url"
         const val DISMISSED = "dismissed"
     }
+}
+
+/**
+ * The APK of a release for this device, among the file [names]. Releases
+ * have one APK per ABI (`Termoak-android-vX.Y.Z-arm64-v8a.apk`,
+ * `…-armeabi-v7a.apk`) plus `…-universal.apk` with both: the one of the
+ * device's primary ABI ([abi], `Build.SUPPORTED_ABIS[0]`), else the universal
+ * one (e.g. x86_64 Chromebooks, which run ARM code), else the first one
+ * (older releases had a single `Termoak-android-vX.Y.Z.apk`).
+ */
+fun pickApk(names: List<String>, abi: String?): String? {
+    fun endsWith(name: String, suffix: String) = name.substringBeforeLast('.').endsWith("-$suffix", ignoreCase = true)
+    return abi?.let { a -> names.firstOrNull { endsWith(it, a) } }
+        ?: names.firstOrNull { endsWith(it, "universal") }
+        ?: names.firstOrNull()
 }
 
 /**

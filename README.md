@@ -5,7 +5,7 @@ with an optional self-hosted server: Jetpack Compose on top of the same Rust
 engine as the desktop app and the CLI (through UniFFI).
 
 The app is built in Docker, with nothing else to install:
-`scripts/release-local.sh build android` puts the signed APK in
+`scripts/release-local.sh build android` puts the signed APKs in
 `dist/android/` (see [Releases](#releases)). It uses AGP 9
 (with built-in Kotlin), compileSdk 37 and minSdk 26 (Android 8).
 
@@ -39,7 +39,8 @@ What it does:
   updates"), the app asks the server it is signed in to, or termoak.com,
   for the latest Android release (`GET /api/v1/downloads`). A newer version
   shows a notice in the Vault, dismissible per version, whose "Download"
-  opens the APK in the browser.
+  opens the APK in the browser: the one for the phone's ABI, else the
+  universal one.
 - **Invitation links**: `https://termoak.com/join/…` and
   `https://next.termoak.com/join/…` open the app directly (Android App
   Links, verified against the release signing key in
@@ -79,22 +80,42 @@ ABIS="arm64-v8a x86_64" ANDROID_API=26 core/scripts/build-android.sh debug
 ./gradlew assembleDebug
 ```
 
+Debug builds package the engine for arm64-v8a, armeabi-v7a and x86_64 (the
+emulator) when it is in `jniLibs`; release builds only for the two ARM ABIs.
+
 Without any of that installed, the release build below does everything in
 Docker.
 
 ## Releases
 
 The app is released as the `android-vX.Y.Z` GitHub release (currently
-0.3.8, `termoakVersion` in `gradle.properties`), with an APK signed with
+0.3.8, `termoakVersion` in `gradle.properties`), with APKs signed with
 your keystore, built in the `core/scripts/android-builder.Dockerfile` image
 (JDK 17, SDK 37, NDK 30, Rust and `cargo-ndk`):
 
 ```sh
 scripts/release-local.sh android-keystore     # once: the signing key
 scripts/release-local.sh version android 0.3.9
-scripts/release-local.sh build android        # dist/android/Termoak-android-vX.Y.Z.apk
+scripts/release-local.sh build android        # dist/android/Termoak-android-vX.Y.Z-*.apk
 scripts/release-local.sh publish android
 ```
+
+The engine (`termoak-ffi`) is built with core's `mobile` Cargo profile
+(optimized for size, fat LTO), and each release has one APK per ABI plus a
+universal one, so a phone only downloads the engine it runs:
+
+| File | For |
+|---|---|
+| `Termoak-android-vX.Y.Z-arm64-v8a.apk` | Almost every phone and tablet (64-bit ARM) |
+| `Termoak-android-vX.Y.Z-armeabi-v7a.apk` | Older 32-bit ARM phones |
+| `Termoak-android-vX.Y.Z-universal.apk` | Both ABIs, when in doubt (and x86_64 Chromebooks, which run ARM code) |
+
+Their `versionCode` is the version's (`X·10000 + Y·100 + Z`) times 10 plus
+the ABI: 0 universal, 1 armeabi-v7a, 2 arm64-v8a. Every APK of a version is
+above every APK of the previous one (and above the single APK of releases
+before the split, which used the plain code), so any of them installs over
+an earlier version whichever APK that came from. The app's update notice
+picks the APK of the phone's ABI, else the universal one.
 
 The keystore is kept in `~/.config/termoak/android/` (`keystore.jks` and its
 password in `keystore.env`). **Keep a copy outside the machine**: Android

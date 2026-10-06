@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Builds and publishes the Android app without GitHub Actions, with the
 # version in gradle.properties (termoakVersion), as the android-vX.Y.Z
-# release: the APK signed with your keystore (arm64-v8a, armeabi-v7a and
-# x86_64).
+# release: APKs signed with your keystore, one per ABI plus a universal one
+# with both (Termoak-android-vX.Y.Z-arm64-v8a.apk, ...-armeabi-v7a.apk and
+# ...-universal.apk). x86_64 (emulator) only goes into debug builds.
 #
 #   scripts/release-local.sh status
 #   scripts/release-local.sh version android [X.Y.Z]
@@ -10,9 +11,10 @@
 #   scripts/release-local.sh publish android
 #   scripts/release-local.sh android-keystore
 #
-# build compiles the engine (termoak-ffi, from the core/ submodule) and the
-# APK in the core/scripts/android-builder.Dockerfile image: no Android Studio
-# needed. The cargo registry and the Gradle cache are kept in target/android.
+# build compiles the engine (termoak-ffi, from the core/ submodule, with
+# core's size-optimized `mobile` profile) and the APKs in the
+# core/scripts/android-builder.Dockerfile image: no Android Studio needed.
+# The cargo registry and the Gradle cache are kept in target/android.
 #
 # publish creates the <component>-vX.Y.Z release with the contents of
 # dist/<component>/, using the GitHub API (curl, no `gh`). It is created as a
@@ -161,14 +163,15 @@ build_android_image() {
 }
 
 build_android() {
-  local dir abis=(arm64-v8a armeabi-v7a x86_64) targets=() abi
+  # The same ABIs as releaseAbis in app/build.gradle.kts.
+  local dir abis=(arm64-v8a armeabi-v7a) targets=() abi apk
   dir="$(android_dir)"
   [[ -f "$dir/keystore.jks" && -f "$dir/keystore.env" ]] ||
     die "the Android keystore is missing: scripts/release-local.sh android-keystore"
   command -v docker >/dev/null || die "Docker is missing"
   build_android_image
   for abi in "${abis[@]}"; do targets+=(-t "$abi"); done
-  say "Android $version: engine (${abis[*]}) and APK"
+  say "Android $version: engine (${abis[*]}) and APKs"
   # The cargo registry and the Gradle cache are kept in target/android.
   docker run --rm -v "$root:/src" -v "$dir:/ks:ro" -w /src \
     -e CARGO_HOME=/src/target/android/cargo-home -e CARGO_TARGET_DIR=/src/target/android \
@@ -179,10 +182,14 @@ build_android() {
       rm -rf core/bindings/kotlin/src/main/jniLibs
       cd core
       cargo ndk ${targets[*]} --platform 26 -o bindings/kotlin/src/main/jniLibs \
-        build -p termoak-ffi --lib --release --locked
+        build -p termoak-ffi --lib --profile mobile --locked
       cd ..
       ./gradlew --no-daemon -q clean assembleRelease"
-  cp app/build/outputs/apk/release/app-release.apk "$dist/Termoak-android-v$version.apk"
+  # Gradle's ABI splits (app/build.gradle.kts): app-<abi>-release.apk and
+  # app-universal-release.apk.
+  for apk in "${abis[@]}" universal; do
+    cp "app/build/outputs/apk/release/app-$apk-release.apk" "$dist/Termoak-android-v$version-$apk.apk"
+  done
 }
 
 cmd_build() { # android
