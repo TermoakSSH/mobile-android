@@ -12,7 +12,16 @@ The app is built in Docker, with nothing else to install:
 What it does:
 
 - **Navigation** in the style of Termius: a bottom bar with Vault,
-  Connections, AI and Settings on phones, and a navigation rail on tablets.
+  Connections, AI and Settings on phones, and a navigation rail on medium
+  windows (tablets in portrait, small foldables).
+- **Desktop layout** on wide windows (≥ 840 dp: tablets in landscape,
+  unfolded foldables, Chromebooks, Samsung DeX), like the desktop app: a tab
+  bar with Home and one tab per terminal (drag to reorder, "+" for a quick
+  connect), and on Home a sidebar with the account, the Vault, Server and App
+  sections; hosts as cards with a context menu and the editor in a side
+  panel; the terminal with the desktop's toolbar, the split view and the
+  copilot on the right. Folding or unfolding switches layouts and keeps the
+  terminals.
 - **Vault**: hosts with search, groups as folders, favorites, tags and the
   logo of the detected OS, a full editor (password, key or identity, group,
   tags, notes, only on this phone) and pull-to-refresh sync. The "+" creates
