@@ -214,6 +214,12 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
         _split.value = _split.value.copy(broadcast = on && _split.value.on)
     }
 
+    /** Moves tab [id] to position [to] of the list (the tab bar of wide windows). */
+    fun move(id: String, to: Int) {
+        val list = _list.value
+        _list.value = TabOrder.move(list, list.indexOfFirst { it.id == id }, to)
+    }
+
     /** Closes the tab (a server session stays alive there). */
     fun close(id: String) {
         val session = get(id) ?: return

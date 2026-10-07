@@ -1198,4 +1198,33 @@
     <string name="settings_key_bar_keyboard">Barra de teclas con teclado físico</string>
     <string name="settings_key_bar_keyboard_hint">Mantener la fila de teclas extra (Esc, Ctrl, flechas…) cuando hay un teclado conectado</string>
     <string name="settings_shortcuts_hint">Para teclados físicos. Ctrl+/ los muestra en cualquier sitio</string>
+    <!-- Diseño de escritorio de las ventanas anchas (tabletas, plegables abiertos, Chromebooks, DeX) -->
+    <string name="desktop_home">Inicio</string>
+    <string name="desktop_search_hosts">Busca hosts, direcciones o etiquetas…</string>
+    <string name="sidebar_group_server">Servidor</string>
+    <string name="sidebar_group_app">App</string>
+    <string name="sidebar_server_sessions">Sesiones en el servidor</string>
+    <string name="sidebar_collapse">Contraer la barra lateral</string>
+    <string name="sidebar_expand">Expandir la barra lateral</string>
+    <string name="sidebar_no_server">Sin servidor</string>
+    <string name="sidebar_synced">Sincronizado</string>
+    <string name="sidebar_not_synced">Sin sincronizar</string>
+    <plurals name="sidebar_sessions_running">
+        <item quantity="one">%d sesión abierta en el servidor</item>
+        <item quantity="many">%d sesiones abiertas en el servidor</item>
+        <item quantity="other">%d sesiones abiertas en el servidor</item>
+    </plurals>
+    <string name="tabs_quick_connect">Conexión rápida</string>
+    <string name="tabs_move_left">Mover a la izquierda</string>
+    <string name="tabs_move_right">Mover a la derecha</string>
+    <string name="common_refresh">Actualizar</string>
+    <string name="teams_title">Equipos</string>
+    <string name="teams_explain">Los equipos a los que perteneces en tus servidores. Comparte con ellos sesiones y bóvedas; crea equipos y gestiona sus miembros en la app de escritorio.</string>
+    <string name="teams_role_owner">Propietario</string>
+    <string name="teams_role_admin">Administrador</string>
+    <string name="teams_role_member">Miembro</string>
+    <string name="teams_role_none">Admin. del servidor</string>
+    <string name="teams_load_failed">No se pudieron cargar los equipos</string>
+    <string name="teams_signed_out_title">Los equipos están en un servidor</string>
+    <string name="teams_signed_out_text">Inicia sesión en un servidor de Termoak para ver tus equipos.</string>
 </resources>

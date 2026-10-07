@@ -133,6 +133,8 @@ object Routes {
     const val ACCOUNTS = "accounts"
     const val VAULTS = "vaults"
     const val VAULT = "vault/{account}/{id}"
+    /** Your teams on the servers (the sidebar of wide windows). */
+    const val TEAMS = "teams"
     /** Remote files (SFTP) of a host or a terminal: `id` of a [com.termoak.app.files.FileSources] entry. */
     const val FILES = "files/{id}"
     /** Joining a shared session with an invitation link. */
@@ -167,6 +169,9 @@ private val TopLevel = VaultRoutes + setOf(Routes.CONNECTIONS, Routes.AI, Routes
 /** Screens without any app navigation (not even the rail on tablets). */
 private val Immersive = setOf(Routes.TERMINAL, Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN, Routes.FILES)
 
+/** Screens of the desktop layout without its tab bar and sidebar: the sign-in flow. */
+private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
+
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
     Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.LOGIN, Routes.JOIN,
@@ -177,7 +182,7 @@ private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.IMPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW -> Tab.AI
-    Routes.SETTINGS, Routes.AI_KEYS, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT -> Tab.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
     else -> null
 }
 
@@ -207,6 +212,8 @@ fun AppRoot(app: TermoakApp) {
     val open by app.sessions.list.collectAsState()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
+    // Tablets, unfolded foldables, Chromebooks and DeX: the desktop's layout (tabs on top, sidebar).
+    val desktop = rememberDesktopLayout()
 
     if (loggedIn == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -228,7 +235,7 @@ fun AppRoot(app: TermoakApp) {
         else -> 0
     }
 
-    CompositionLocalProvider(LocalSnackbar provides snackbar) {
+    CompositionLocalProvider(LocalSnackbar provides snackbar, LocalDesktop provides desktop) {
         // Keyboard shortcuts for the whole app (the terminal adds its own on top).
         ShortcutHandler { shortcut ->
             when (shortcut) {
@@ -237,9 +244,28 @@ fun AppRoot(app: TermoakApp) {
                     nav.goTab(Routes.HOSTS)
                     KeyShortcuts.hostSearch.value = true
                 }
+                // Desktop layout, on Home: a new tab, or to the terminal tabs.
+                Shortcut.NEW_TAB -> if (desktop) DesktopUi.quickConnect.value = true else return@ShortcutHandler false
+                Shortcut.NEXT_TAB, Shortcut.PREV_TAB -> {
+                    val list = app.sessions.list.value
+                    if (!desktop || list.isEmpty() || route == Routes.TERMINAL) return@ShortcutHandler false
+                    val target = app.sessions.active.value?.takeIf { id -> list.any { it.id == id } }
+                        ?: (if (shortcut == Shortcut.NEXT_TAB) list.first() else list.last()).id
+                    app.sessions.select(target)
+                    nav.showTerminal()
+                }
                 else -> return@ShortcutHandler false
             }
             true
+        }
+        val quickConnecting by DesktopUi.quickConnect.collectAsState()
+        if (quickConnecting && desktop) {
+            val activity = LocalActivity.current
+            QuickConnectDialog(app, onDismiss = { DesktopUi.quickConnect.value = false }) { host ->
+                DesktopUi.quickConnect.value = false
+                (activity as? MainActivity)?.askNotificationPermission()
+                quickConnect(app, nav, host)
+            }
         }
         val shortcutsSheet by KeyShortcuts.sheet.collectAsState()
         if (shortcutsSheet) KeyboardShortcutsSheet { KeyShortcuts.sheet.value = false }
@@ -248,12 +274,16 @@ fun AppRoot(app: TermoakApp) {
             val showBar = !wide && route in TopLevel
             val barState = remember { MutableTransitionState(showBar) }
             barState.targetState = showBar
-            val showRail = wide && route != null && route !in Immersive
-            // Open terminals at hand (except on Connections, which lists them).
-            val showTerminals = route != Routes.TERMINAL && route != Routes.WELCOME && route != Routes.VERIFY_EMAIL &&
+            val showRail = wide && !desktop && route != null && route !in Immersive
+            // Open terminals at hand (except on Connections, which lists them; the desktop layout has its tabs).
+            val showTerminals = !desktop && route != Routes.TERMINAL && route != Routes.WELCOME && route != Routes.VERIFY_EMAIL &&
                 route != Routes.CONNECTIONS && route != Routes.FILES
+            // Desktop layout: the tab bar, except while signing in; the sidebar on Home.
+            val showTabs = desktop && route != null && route !in Unframed
+            val showSidebar = showTabs && route != Routes.TERMINAL
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbar) },
+                topBar = { if (showTabs) DesktopTabBar(app, nav, route) },
                 // The terminal handles its own insets; the rest leaves room for the gesture bar.
                 contentWindowInsets = if (route == Routes.TERMINAL) WindowInsets(0, 0, 0, 0) else WindowInsets.navigationBars,
                 bottomBar = bar@{
@@ -309,6 +339,10 @@ fun AppRoot(app: TermoakApp) {
                             Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
                         }
                     }
+                    if (showSidebar) {
+                        DesktopSidebar(app, nav, route)
+                        Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                    }
                     NavHost(
                         nav, startDestination = start, modifier = Modifier.weight(1f),
                         enterTransition = { if (targetState.destination.route in Details) slideIn() else fadeThroughIn() },
@@ -345,6 +379,7 @@ fun AppRoot(app: TermoakApp) {
                         }
                         composable(Routes.ACCOUNTS) { ManageAccountsScreen(app, nav) }
                         composable(Routes.VAULTS) { VaultsScreen(app, nav) }
+                        composable(Routes.TEAMS) { TeamsScreen(app, nav) }
                         composable(Routes.VAULT) { e ->
                             VaultScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
                         }
@@ -599,6 +634,11 @@ fun ScreenScaffold(
     header: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
+    // The main screens of the desktop layout: a header like the desktop's, beside the sidebar.
+    if (large && LocalDesktop.current) {
+        DesktopScaffold(title, subtitle, actions, floatingActionButton, header, content)
+        return
+    }
     val scroll = if (large) TopAppBarDefaults.exitUntilCollapsedScrollBehavior() else TopAppBarDefaults.pinnedScrollBehavior()
     // Flat bars (like Termius): a line under them when the content scrolls beneath.
     val colors = TopAppBarDefaults.topAppBarColors(scrolledContainerColor = MaterialTheme.colorScheme.surface)

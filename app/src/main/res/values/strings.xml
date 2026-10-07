@@ -1153,4 +1153,32 @@
     <string name="settings_key_bar_keyboard">Key bar with a hardware keyboard</string>
     <string name="settings_key_bar_keyboard_hint">Keep the row of extra keys (Esc, Ctrl, arrows…) when a keyboard is attached</string>
     <string name="settings_shortcuts_hint">For hardware keyboards. Ctrl+/ shows them anywhere</string>
+    <!-- Desktop layout of wide windows (tablets, unfolded foldables, Chromebooks, DeX) -->
+    <string name="desktop_home">Home</string>
+    <string name="desktop_search_hosts">Search hosts, addresses or tags…</string>
+    <string name="sidebar_group_server">Server</string>
+    <string name="sidebar_group_app">App</string>
+    <string name="sidebar_server_sessions">Server sessions</string>
+    <string name="sidebar_collapse">Collapse the sidebar</string>
+    <string name="sidebar_expand">Expand the sidebar</string>
+    <string name="sidebar_no_server">No server</string>
+    <string name="sidebar_synced">Synced</string>
+    <string name="sidebar_not_synced">Not synced</string>
+    <plurals name="sidebar_sessions_running">
+        <item quantity="one">%d session running on the server</item>
+        <item quantity="other">%d sessions running on the server</item>
+    </plurals>
+    <string name="tabs_quick_connect">Quick connect</string>
+    <string name="tabs_move_left">Move left</string>
+    <string name="tabs_move_right">Move right</string>
+    <string name="common_refresh">Refresh</string>
+    <string name="teams_title">Teams</string>
+    <string name="teams_explain">The teams you belong to on your servers. Share sessions and vaults with them; create teams and manage their members in the desktop app.</string>
+    <string name="teams_role_owner">Owner</string>
+    <string name="teams_role_admin">Admin</string>
+    <string name="teams_role_member">Member</string>
+    <string name="teams_role_none">Server admin</string>
+    <string name="teams_load_failed">Couldn\'t load the teams</string>
+    <string name="teams_signed_out_title">Teams live on a server</string>
+    <string name="teams_signed_out_text">Sign in to a Termoak server to see your teams.</string>
 </resources>

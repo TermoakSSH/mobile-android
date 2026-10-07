@@ -61,6 +61,21 @@ fun VaultScaffold(
     floatingActionButton: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
+    // Desktop layout: the sidebar has the sections, the account switcher and the vault filter.
+    if (LocalDesktop.current) {
+        DesktopScaffold(
+            title = stringResource(section.label),
+            actions = actions,
+            floatingActionButton = floatingActionButton,
+            header = {
+                val app = LocalContext.current.applicationContext as TermoakApp
+                attentionAccount(app)?.let { AccountAttention(app, nav, it) }
+                UpdateBanner()
+            },
+            content = content,
+        )
+        return
+    }
     ScreenScaffold(
         title = stringResource(R.string.nav_vault),
         large = true,
@@ -97,7 +112,7 @@ private fun VaultTabs(selected: VaultSection, onSelect: (VaultSection) -> Unit) 
 
 /** "Termoak X.Y.Z is available · Download", until it is dismissed (Updates). */
 @Composable
-private fun UpdateBanner() {
+internal fun UpdateBanner() {
     val context = LocalContext.current
     val app = context.applicationContext as TermoakApp
     val enabled by app.prefs.checkUpdates.collectAsState()

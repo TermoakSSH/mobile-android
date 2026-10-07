@@ -134,7 +134,7 @@ fun vaultColor(v: VaultInfo?): Color =
  * sign in again or verify its email.
  */
 @Composable
-fun AccountSwitcher(app: TermoakApp, nav: NavHostController) {
+fun AccountSwitcher(app: TermoakApp, nav: NavHostController, attention: Boolean = true) {
     val accounts by app.accounts.list.collectAsState()
     val view by app.accounts.view.collectAsState()
     if (accounts.isEmpty()) return
@@ -225,8 +225,16 @@ fun AccountSwitcher(app: TermoakApp, nav: NavHostController) {
         }
     }
     // The account shown has to sign in again (or verify its email).
-    val attention = shown ?: accounts.singleOrNull()?.takeIf { view != AccountView.Device }
-    attention?.let { a -> AccountAttention(app, nav, a) }
+    if (attention) attentionAccount(app)?.let { a -> AccountAttention(app, nav, a) }
+}
+
+/** The account whose sign-in or email needs attention in the Vault: the one shown, or the only one. */
+@Composable
+fun attentionAccount(app: TermoakApp): AccountInfo? {
+    val accounts by app.accounts.list.collectAsState()
+    val view by app.accounts.view.collectAsState()
+    val shown = (view as? AccountView.One)?.let { v -> accounts.firstOrNull { it.id == v.id } }
+    return shown ?: accounts.singleOrNull()?.takeIf { view != AccountView.Device }
 }
 
 /** "Signed out", "Confirm your email"... (`null`: active). */
@@ -304,6 +312,73 @@ fun VaultFilterRow(app: TermoakApp) {
             { Text(stringResource(R.string.vault_this_device)) },
             leadingIcon = { Icon(Icons.Outlined.PhoneAndroid, null, Modifier.size(FilterChipDefaults.IconSize)) },
         )
+    }
+}
+
+/**
+ * The vault filter of the sidebar (desktop layout): the same choices as
+ * [VaultFilterRow] in a menu. Hidden when there is only one vault.
+ */
+@Composable
+fun VaultFilterMenu(app: TermoakApp) {
+    val vaults by app.accounts.vaults.collectAsState()
+    val view by app.accounts.view.collectAsState()
+    val selected by app.accounts.vaultFilter.collectAsState()
+    val accounts by app.accounts.list.collectAsState()
+    if (view == AccountView.Device) return
+    val shown = remember(vaults, view) { app.accounts.vaultsInView() }
+    if (shown.size <= 1) return
+    val several = accounts.size > 1 && view == AccountView.All
+    var open by remember { mutableStateOf(false) }
+    val current = shown.firstOrNull { it.id == selected }
+    Box(Modifier.padding(horizontal = 12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { open = true }.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            when {
+                current != null -> Box(Modifier.padding(horizontal = 4.dp).size(10.dp).clip(CircleShape).background(vaultColor(current)))
+                selected == DEVICE_VAULT -> Icon(Icons.Outlined.PhoneAndroid, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                when {
+                    current != null -> vaultName(current)
+                    selected == DEVICE_VAULT -> stringResource(R.string.vault_this_device)
+                    else -> stringResource(R.string.vaults_all)
+                },
+                Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Icon(Icons.Outlined.ArrowDropDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(open, { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.vaults_all)) },
+                trailingIcon = { if (selected == null) Icon(Icons.Outlined.Check, null) },
+                onClick = { open = false; app.accounts.setVaultFilter(null) },
+            )
+            shown.forEach { v ->
+                val owner = if (several) accounts.firstOrNull { it.id == v.accountId }?.email?.substringBefore('@') else null
+                DropdownMenuItem(
+                    text = { Text(listOfNotNull(vaultName(v), owner).joinToString(" · "), maxLines = 1) },
+                    leadingIcon = { Box(Modifier.size(10.dp).clip(CircleShape).background(vaultColor(v))) },
+                    trailingIcon = {
+                        when {
+                            selected == v.id -> Icon(Icons.Outlined.Check, null)
+                            v.role == VaultRole.USE_ONLY -> Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.size(16.dp))
+                        }
+                    },
+                    onClick = { open = false; app.accounts.setVaultFilter(v.id) },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.vault_this_device)) },
+                leadingIcon = { Icon(Icons.Outlined.PhoneAndroid, null) },
+                trailingIcon = { if (selected == DEVICE_VAULT) Icon(Icons.Outlined.Check, null) },
+                onClick = { open = false; app.accounts.setVaultFilter(DEVICE_VAULT) },
+            )
+        }
     }
 }
 

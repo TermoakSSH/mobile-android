@@ -168,10 +168,15 @@ fun VaultsScreen(app: TermoakApp, nav: NavHostController) {
     var creating by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { app.accounts.sync() }
     val withVaults = accounts.filter { it.vaultsSupported && it.status != AccountStatus.UNVERIFIED }
+    // Desktop layout: a section of the sidebar, without a way back.
+    val desktop = LocalDesktop.current
     ScreenScaffold(
         title = stringResource(R.string.vaults_title),
+        large = desktop,
         navigationIcon = {
-            IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back)) }
+            if (!desktop) {
+                IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back)) }
+            }
         },
         floatingActionButton = {
             if (withVaults.any { it.status == AccountStatus.ACTIVE }) {

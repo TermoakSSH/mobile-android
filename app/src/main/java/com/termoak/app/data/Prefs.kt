@@ -82,6 +82,14 @@ class Prefs(context: Context) {
         sp.edit { putBoolean("key_bar_with_keyboard", on) }
     }
 
+    private val _sidebarCollapsed = MutableStateFlow(sp.getBoolean("sidebar_collapsed", false))
+    /** The sidebar of wide windows (tablets, Chromebooks, DeX) is shrunk to its icons. */
+    val sidebarCollapsed: StateFlow<Boolean> = _sidebarCollapsed
+    fun setSidebarCollapsed(on: Boolean) {
+        _sidebarCollapsed.value = on
+        sp.edit { putBoolean("sidebar_collapsed", on) }
+    }
+
     /** The Vault shows only This-device items (the account switcher's "This device only"). */
     var deviceOnlyView: Boolean
         get() = sp.getBoolean("view_device_only", false)

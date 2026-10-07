@@ -79,12 +79,14 @@ private val TilePalette = listOf(
 
 /**
  * Rounded square of a host, like Termius': the logo of its detected system
- * (on the host color or the system's), or the initial of its name.
+ * (on the host color or the system's), or the initial of its name. With
+ * [logo] off, the desktop's avatar: the initials of the name on the host
+ * color (or one picked by name).
  */
 @Composable
-fun HostTile(label: String, os: String?, color: String? = null, size: Dp = 42.dp) {
-    val badge = osBadge(os)
-    val logo = osLogo(os)
+fun HostTile(label: String, os: String?, color: String? = null, size: Dp = 42.dp, logo: Boolean = true) {
+    val badge = osBadge(os).takeIf { logo }
+    val icon = if (logo) osLogo(os) else null
     val bg = color?.let { runCatching { Color(it.toColorInt()) }.getOrNull() }
         ?: badge?.second
         ?: TilePalette[Math.floorMod(label.lowercase().hashCode(), TilePalette.size)]
@@ -92,14 +94,25 @@ fun HostTile(label: String, os: String?, color: String? = null, size: Dp = 42.dp
         Modifier.size(size).clip(RoundedCornerShape(size / 4.5f)).background(bg),
         contentAlignment = Alignment.Center,
     ) {
-        if (logo != null) {
-            Icon(logo, badge?.first, Modifier.size(size * 0.56f), tint = Color.White)
+        if (icon != null) {
+            Icon(icon, badge?.first, Modifier.size(size * 0.56f), tint = Color.White)
         } else {
             // With a detected system without a logo, its initial; otherwise the name's.
-            val initial = (badge?.first ?: label).trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
-            Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.42f).sp)
+            val initial = if (logo) {
+                (badge?.first ?: label).trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
+            } else {
+                initials(label)
+            }
+            Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * (if (initial.length > 1) 0.36f else 0.42f)).sp)
         }
     }
+}
+
+/** "TS" for "Test server", "W" for "web-1" (the desktop's avatars). */
+fun initials(label: String): String {
+    val words = label.trim().split(' ', '\t').filter { w -> w.any { it.isLetterOrDigit() } }
+    val letters = words.take(2).mapNotNull { w -> w.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() }
+    return letters.joinToString("").ifEmpty { "?" }
 }
 
 @Composable
