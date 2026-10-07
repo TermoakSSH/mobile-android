@@ -243,6 +243,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     }
     val imeOverTerminal = !wide && (copilotOpen || copilotIme)
 
+    // The terminal is dark with both themes: light icons on the status and navigation bars.
+    DarkSystemBars()
     Box(Modifier.fillMaxSize().background(TermBg).statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxSize().then(if (imeOverTerminal) Modifier else Modifier.imePadding())) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
