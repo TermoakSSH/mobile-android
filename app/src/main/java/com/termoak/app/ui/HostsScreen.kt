@@ -109,6 +109,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -172,6 +181,30 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     var runSnippet by remember { mutableStateOf<Snippet?>(null) }
     val grid = rememberLazyGridState()
     val maxPanes = rememberMaxPanes()
+    // Keyboard: Ctrl+F (and Ctrl+Shift+K from anywhere) goes to the search box.
+    val searchFocus = remember { FocusRequester() }
+    fun focusSearch() {
+        scope.launch {
+            grid.scrollToItem(0)
+            withFrameNanos { }
+            runCatching { searchFocus.requestFocus() }
+        }
+    }
+    val searchAsked by KeyShortcuts.hostSearch.collectAsState()
+    LaunchedEffect(searchAsked) {
+        if (searchAsked) {
+            KeyShortcuts.hostSearch.value = false
+            focusSearch()
+        }
+    }
+    UnhandledKeyHandler { e ->
+        if (e.isCtrlPressed && !e.isShiftPressed && e.keyCode == android.view.KeyEvent.KEYCODE_F) {
+            focusSearch()
+            true
+        } else {
+            false
+        }
+    }
     BackHandler(selecting) { selected = emptyList() }
     fun toggle(host: SshHost) {
         selected = if (host.uid in selected) selected - host.uid else selected + host.uid
@@ -297,7 +330,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 if (groupId == null && loggedIn == true && onServer.isNotEmpty()) {
                     full { ServerSessionsNotice(onServer.size) { openServerSessions() } }
                 }
-                full { SearchField(query) { query = it } }
+                full { SearchField(query, searchFocus) { query = it } }
                 if (hosts.isEmpty() && groups.isEmpty()) {
                     full {
                         EmptyState(
@@ -713,10 +746,10 @@ private fun LazyGridScope.full(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SearchField(query: String, onChange: (String) -> Unit) {
+private fun SearchField(query: String, focus: FocusRequester, onChange: (String) -> Unit) {
     TextField(
         query, onChange,
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focus),
         placeholder = { Text(stringResource(R.string.hosts_search)) },
         leadingIcon = { Icon(Icons.Outlined.Search, null) },
         trailingIcon = {
@@ -772,6 +805,12 @@ private fun HostRow(
     Row(
         Modifier.fillMaxWidth()
             .background(if (selected == true) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            // Keyboard: Enter connects (the click); the Menu key or Shift+F10 opens the host's actions.
+            .onKeyEvent { e ->
+                val menu = e.type == KeyEventType.KeyDown && (e.key == Key.Menu || (e.key == Key.F10 && e.isShiftPressed))
+                if (menu) onMore()
+                menu
+            }
             .combinedClickable(onClick = onClick, onLongClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 onLongClick()

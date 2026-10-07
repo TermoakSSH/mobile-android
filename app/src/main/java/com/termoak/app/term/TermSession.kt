@@ -50,6 +50,8 @@ sealed class TermInput {
     data class Text(val text: String, val modifiers: KeyModifiers) : TermInput()
     data class Key(val key: TerminalKey, val modifiers: KeyModifiers) : TermInput()
     data class Paste(val text: String) : TermInput()
+    /** A key of a hardware keyboard, already resolved (each terminal encodes it with its own modes). */
+    data class Stroke(val stroke: KeyStroke) : TermInput()
 }
 
 /** The first, generic connecting step ("Connecting…"), before the real ones. */
@@ -70,6 +72,8 @@ abstract class TermSession(
     /** When the tab was opened (for the Connections list). */
     val openedAt: Long = System.currentTimeMillis()
     val screen = TerminalScreen(80u, 24u, 0u)
+    /** Modes the emulator doesn't expose: mouse reporting and the application keypad. */
+    val modes = ModeTracker()
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     protected val _state = MutableStateFlow<TermState>(InitialConnecting)
@@ -122,12 +126,14 @@ abstract class TermSession(
     open fun reconnect() {
         release()
         screen.reset()
+        modes.reset()
         _state.value = TermState.Connecting(uiText(R.string.term_reconnecting))
         start()
     }
 
     /** Processes terminal output (terminal thread). */
     protected fun output(data: ByteArray) {
+        modes.feed(data)
         for (event in screen.feed(data)) {
             when (event) {
                 is ScreenEvent.Write -> send(event.data)
@@ -168,6 +174,24 @@ abstract class TermSession(
 
     fun paste(text: String) = input(TermInput.Paste(text))
 
+    /** A key of a hardware keyboard (with the key bar's Ctrl and Alt already applied). */
+    fun stroke(stroke: KeyStroke) = input(TermInput.Stroke(stroke))
+
+    /** Takes the key bar's Ctrl and Alt for a key of a hardware keyboard. */
+    fun takeStickyModifiers(): Pair<Boolean, Boolean> {
+        val m = ctrl.value to alt.value
+        ctrl.value = false
+        alt.value = false
+        return m
+    }
+
+    /** The modes that change what keys send, now. */
+    fun keyModes(): KeyModes {
+        // The emulator applies application cursor keys: an arrow tells which mode it's in.
+        val up = runCatching { screen.key(TerminalKey.Up, KeyModifiers(shift = false, alt = false, ctrl = false)) }.getOrNull()
+        return KeyModes(appCursor = up != null && up.size >= 2 && up[1] == 'O'.code.toByte(), appKeypad = modes.appKeypad)
+    }
+
     private fun input(input: TermInput) {
         apply(input)
         onInput?.invoke(input)
@@ -186,6 +210,7 @@ abstract class TermSession(
             }
             is TermInput.Key -> write(screen.key(input.key, input.modifiers))
             is TermInput.Paste -> write(screen.paste(input.text))
+            is TermInput.Stroke -> write(KeyEncoder.encode(input.stroke, keyModes()))
         }
     }
 

@@ -8,6 +8,7 @@ import com.termoak.app.data.Copilot
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ShareNotices
 import com.termoak.app.data.Updates
+import com.termoak.app.term.HardwareKeyboard
 import com.termoak.app.term.Sessions
 import com.termoak.app.term.SnippetRuns
 import com.termoak.ffi.LogLevel
@@ -33,6 +34,8 @@ class TermoakApp : Application() {
     val shareNotices: ShareNotices by lazy { ShareNotices(this, sessions, accounts) }
     /** New versions of the app (APK published on the server). */
     val updates: Updates by lazy { Updates(this, prefs) }
+    /** A hardware keyboard is attached (the terminal then hides the key bar and the on-screen keyboard). */
+    val keyboard: HardwareKeyboard by lazy { HardwareKeyboard(this) }
     /** An invitation link opened from outside (deep link), waiting for the app to show it. */
     val pendingLink = kotlinx.coroutines.flow.MutableStateFlow<com.termoak.app.data.JoinLinkRef?>(null)
 

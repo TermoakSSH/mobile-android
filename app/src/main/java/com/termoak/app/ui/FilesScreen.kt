@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Build
 import android.text.format.Formatter
+import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -104,13 +105,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isAltPressed
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -224,6 +218,16 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
         }
     }
     BackHandler(searching) { searching = false; query = "" }
+    // Keyboard: Alt+↑ / Alt+← up a folder, F5 or Ctrl+R reloads, Ctrl+F searches.
+    UnhandledKeyHandler { e ->
+        when {
+            e.isAltPressed && (e.keyCode == KeyEvent.KEYCODE_DPAD_UP || e.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -> vm.up()
+            e.keyCode == KeyEvent.KEYCODE_F5 || (e.isCtrlPressed && e.keyCode == KeyEvent.KEYCODE_R) -> vm.reload()
+            e.isCtrlPressed && e.keyCode == KeyEvent.KEYCODE_F && ready -> searching = true
+            else -> return@UnhandledKeyHandler false
+        }
+        true
+    }
 
     val pickUpload = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         vm.pickedForUpload(uris)
@@ -333,19 +337,7 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
             }
         },
     ) { padding ->
-        BoxWithConstraints(
-            Modifier.fillMaxSize().padding(padding).imePadding()
-                // Keyboard: Alt+↑ / Alt+← up a folder, F5 or Ctrl+R reloads.
-                .onPreviewKeyEvent { e ->
-                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when {
-                        e.isAltPressed && (e.key == Key.DirectionUp || e.key == Key.DirectionLeft) -> { vm.up(); true }
-                        e.key == Key.F5 || (e.isCtrlPressed && e.key == Key.R) -> { vm.reload(); true }
-                        e.isCtrlPressed && e.key == Key.F -> { searching = true; true }
-                        else -> false
-                    }
-                },
-        ) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding).imePadding()) {
             val wide = maxWidth >= 720.dp
             Row(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {

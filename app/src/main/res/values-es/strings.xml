@@ -1160,4 +1160,42 @@
         <item quantity="many">Ya existen %d archivos</item>
         <item quantity="other">Ya existen %d archivos</item>
     </plurals>
+
+    <!-- Teclado físico y ratón -->
+    <string name="term_copy">Copiar</string>
+    <string name="term_copied">Copiado</string>
+    <string name="kb_shortcuts">Atajos de teclado</string>
+    <string name="kb_intro">Con un teclado físico, las combinaciones con Ctrl y Alt llegan al terminal tal cual; los atajos de la app usan Ctrl+Mayús.</string>
+    <string name="kb_section_terminal">Terminal</string>
+    <string name="kb_section_app">App</string>
+    <string name="kb_section_files">Archivos</string>
+    <string name="kb_section_mouse">Ratón y trackpad</string>
+    <string name="kb_new_tab">Nuevo terminal (elegir un host)</string>
+    <string name="kb_close_tab">Cerrar la pestaña</string>
+    <string name="kb_next_tab">Pestaña siguiente</string>
+    <string name="kb_prev_tab">Pestaña anterior</string>
+    <string name="kb_copy">Copiar la selección (o la pantalla)</string>
+    <string name="kb_paste">Pegar</string>
+    <string name="kb_zoom_in">Texto más grande</string>
+    <string name="kb_zoom_out">Texto más pequeño</string>
+    <string name="kb_zoom_reset">Tamaño de texto por defecto</string>
+    <string name="kb_next_pane">Panel siguiente de la vista dividida</string>
+    <string name="kb_scroll_up">Subir una página en el historial</string>
+    <string name="kb_scroll_down">Bajar una página en el historial</string>
+    <string name="kb_search_hosts">Buscar hosts</string>
+    <string name="kb_vault_search">Buscar en el Vault</string>
+    <string name="kb_back">Atrás, o cerrar un panel</string>
+    <string name="kb_files_up">Carpeta superior</string>
+    <string name="kb_files_refresh">Actualizar</string>
+    <string name="kb_files_search">Buscar en la carpeta</string>
+    <string name="kb_mouse_wheel">Rueda o dos dedos: recorrer el historial (o enviarlo al programa cuando usa el ratón, como vim o tmux)</string>
+    <string name="kb_mouse_select">Arrastrar: seleccionar texto. Clic derecho: menú de copiar y pegar</string>
+    <string name="kb_mouse_shift">Mayús con clic o arrastre: seleccionar aunque el programa use el ratón</string>
+    <string name="key_shift">Mayús</string>
+    <string name="key_page_up">RePág</string>
+    <string name="key_page_down">AvPág</string>
+    <string name="key_insert">Insert</string>
+    <string name="settings_key_bar_keyboard">Barra de teclas con teclado físico</string>
+    <string name="settings_key_bar_keyboard_hint">Mantener la fila de teclas extra (Esc, Ctrl, flechas…) cuando hay un teclado conectado</string>
+    <string name="settings_shortcuts_hint">Para teclados físicos. Ctrl+/ los muestra en cualquier sitio</string>
 </resources>

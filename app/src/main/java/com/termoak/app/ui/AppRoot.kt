@@ -100,6 +100,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.termoak.app.MainActivity
 import com.termoak.app.R
+import com.termoak.app.term.Shortcut
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.JoinLinkRef
 import com.termoak.app.term.ShareNotice
@@ -228,6 +229,20 @@ fun AppRoot(app: TermoakApp) {
     }
 
     CompositionLocalProvider(LocalSnackbar provides snackbar) {
+        // Keyboard shortcuts for the whole app (the terminal adds its own on top).
+        ShortcutHandler { shortcut ->
+            when (shortcut) {
+                Shortcut.SHORTCUTS -> KeyShortcuts.sheet.value = true
+                Shortcut.SEARCH_HOSTS -> {
+                    nav.goTab(Routes.HOSTS)
+                    KeyShortcuts.hostSearch.value = true
+                }
+                else -> return@ShortcutHandler false
+            }
+            true
+        }
+        val shortcutsSheet by KeyShortcuts.sheet.collectAsState()
+        if (shortcutsSheet) KeyboardShortcutsSheet { KeyShortcuts.sheet.value = false }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp
             val showBar = !wide && route in TopLevel

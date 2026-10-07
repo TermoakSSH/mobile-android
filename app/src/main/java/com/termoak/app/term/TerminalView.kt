@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.text.InputType
 import android.util.TypedValue
 import android.view.GestureDetector
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -42,8 +43,14 @@ class TerminalView(context: Context) : View(context) {
 
     /** Font size changed with a pinch (to save it). */
     var onFontSizeChanged: (Float) -> Unit = {}
-    /** Long press: copy/paste menu. */
-    var onLongPress: () -> Unit = {}
+    /** Long press or right click: copy/paste menu, at that point of the view (px). */
+    var onContextMenu: (x: Float, y: Float) -> Unit = { _, _ -> }
+    /** Text was selected with the mouse, or the selection went away. */
+    var onSelectionChanged: (Boolean) -> Unit = {}
+    /** An app shortcut typed here (Ctrl+Shift+…) that nobody took before reaching the view. */
+    var onShortcut: (Shortcut) -> Boolean = { false }
+    /** A hardware keyboard is attached: focusing doesn't open the on-screen keyboard. */
+    var hardwareKeyboard: () -> Boolean = { false }
     /** A finger went down on it (the split view focuses this pane). */
     var onTouched: () -> Unit = {}
     /**
@@ -124,6 +131,7 @@ class TerminalView(context: Context) : View(context) {
 
     private fun resizeToView() {
         if (width == 0 || height == 0 || cellWidth == 0f) return
+        clearSelection()
         val cols = max(2, ((width - paddingLeft - paddingRight) / cellWidth).toInt())
         val rows = max(1, ((height - paddingTop - paddingBottom) / cellHeight).toInt())
         session?.resize(cols, rows)
@@ -180,6 +188,18 @@ class TerminalView(context: Context) : View(context) {
         }
         paint.isUnderlineText = false
         paint.isStrikeThruText = false
+        selectionRange()?.let { (from, to) ->
+            fill.color = snap.cursorColor.toInt()
+            fill.alpha = 0x55
+            val cols = snap.cols.toInt()
+            for (row in from.second..to.second) {
+                val c0 = if (row == from.second) from.first else 0
+                val c1 = if (row == to.second) to.first else cols - 1
+                val y = top + row * cellHeight
+                canvas.drawRect(left + c0 * cellWidth, y, left + (c1 + 1) * cellWidth, y + cellHeight, fill)
+            }
+            fill.alpha = 0xFF
+        }
         snap.cursor?.let { c ->
             val x = left + c.col.toInt() * cellWidth
             val y = top + c.row.toInt() * cellHeight
@@ -247,20 +267,7 @@ class TerminalView(context: Context) : View(context) {
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
             // A tap on a link opens it; otherwise it shows the keyboard.
-            val s = session
-            if (s != null && cellWidth > 0f) {
-                val col = ((e.x - paddingLeft + panX) / fit / cellWidth).toInt().coerceAtLeast(0)
-                val row = ((e.y - paddingTop) / fit / cellHeight).toInt().coerceAtLeast(0)
-                s.screen.linkAt(row.toUInt(), col.toUInt())?.let { url ->
-                    runCatching {
-                        context.startActivity(
-                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                    return true
-                }
-            }
+            if (openLinkAt(e.x, e.y)) return true
             showKeyboard()
             return true
         }
@@ -268,7 +275,7 @@ class TerminalView(context: Context) : View(context) {
         override fun onLongPress(e: MotionEvent) {
             if (!scaling) {
                 performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-                onLongPress()
+                onContextMenu(e.x, e.y)
             }
         }
 
@@ -301,6 +308,12 @@ class TerminalView(context: Context) : View(context) {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // A mouse (or a trackpad's click) stays a mouse until the button goes up.
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) mouseGesture = isMouse(event)
+        if (mouseGesture) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) mouseGesture = false
+            return mouse(event)
+        }
         scale.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             scaling = false
@@ -309,7 +322,18 @@ class TerminalView(context: Context) : View(context) {
         return gestures.onTouchEvent(event) || super.onTouchEvent(event)
     }
 
+    /**
+     * Focuses the terminal and opens the on-screen keyboard, except with a
+     * hardware keyboard attached (then it only takes the focus).
+     */
     fun showKeyboard() {
+        if (readOnly) return
+        requestFocus()
+        if (!hardwareKeyboard()) context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
+    }
+
+    /** The keyboard button: the on-screen keyboard even with a hardware one. */
+    fun showSoftKeyboard() {
         if (readOnly) return
         requestFocus()
         context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
@@ -373,7 +397,10 @@ class TerminalView(context: Context) : View(context) {
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
-                if (event.action == KeyEvent.ACTION_DOWN) onKeyDown(event.keyCode, event)
+                when (event.action) {
+                    KeyEvent.ACTION_DOWN -> onKeyDown(event.keyCode, event)
+                    KeyEvent.ACTION_UP -> taken.remove(event.keyCode)
+                }
                 return true
             }
         }
@@ -388,40 +415,273 @@ class TerminalView(context: Context) : View(context) {
         }
     }
 
+    /** Hardware keyboard: layout, AltGr, dead keys and modifiers (HardwareKeys). */
+    private val keys = HardwareKeys()
+    /** Keys whose press was taken here: their release too (so Esc doesn't also go Back). */
+    private val taken = mutableSetOf<Int>()
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val s = session ?: return super.onKeyDown(keyCode, event)
         if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyDown(keyCode, event)
-        if (event.isCtrlPressed) s.ctrl.value = true
-        if (event.isAltPressed) s.alt.value = true
-        val key: TerminalKey? = when (keyCode) {
-            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> TerminalKey.Enter
-            KeyEvent.KEYCODE_DEL -> TerminalKey.Backspace
-            KeyEvent.KEYCODE_FORWARD_DEL -> TerminalKey.Delete
-            KeyEvent.KEYCODE_TAB -> TerminalKey.Tab
-            KeyEvent.KEYCODE_ESCAPE -> TerminalKey.Escape
-            KeyEvent.KEYCODE_DPAD_UP -> TerminalKey.Up
-            KeyEvent.KEYCODE_DPAD_DOWN -> TerminalKey.Down
-            KeyEvent.KEYCODE_DPAD_LEFT -> TerminalKey.Left
-            KeyEvent.KEYCODE_DPAD_RIGHT -> TerminalKey.Right
-            KeyEvent.KEYCODE_MOVE_HOME -> TerminalKey.Home
-            KeyEvent.KEYCODE_MOVE_END -> TerminalKey.End
-            KeyEvent.KEYCODE_PAGE_UP -> TerminalKey.PageUp
-            KeyEvent.KEYCODE_PAGE_DOWN -> TerminalKey.PageDown
-            KeyEvent.KEYCODE_INSERT -> TerminalKey.Insert
-            in KeyEvent.KEYCODE_F1..KeyEvent.KEYCODE_F12 ->
-                TerminalKey.Function((keyCode - KeyEvent.KEYCODE_F1 + 1).toUByte())
-            else -> null
+        // Ctrl and Alt of the key bar apply to this key too.
+        val (stickyCtrl, stickyAlt) = s.ctrl.value to s.alt.value
+        val press = event.toKeyPress().let { it.copy(ctrl = it.ctrl || stickyCtrl, alt = it.alt || stickyAlt) }
+        val handled = when (val r = keys.press(press, event.layout())) {
+            is KeyResult.Send -> {
+                if (stickyCtrl || stickyAlt) s.takeStickyModifiers()
+                clearSelection()
+                r.strokes.forEach { s.stroke(it) }
+                true
+            }
+            // Shortcuts normally go through the activity first; here when nobody took them.
+            is KeyResult.Action -> {
+                onShortcut(r.shortcut)
+                true
+            }
+            KeyResult.Consumed -> true
+            KeyResult.Unhandled -> false
         }
-        if (key != null) {
-            s.key(key, event.isShiftPressed)
+        if (!handled) return super.onKeyDown(keyCode, event)
+        taken += keyCode
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (taken.remove(keyCode)) return true
+        return super.onKeyUp(keyCode, event)
+    }
+
+    // ----- Mouse and trackpad -----
+
+    /** Cell (column, row) under a point of the view. */
+    private fun cellAt(x: Float, y: Float): Pair<Int, Int> {
+        val cols = session?.screen?.cols()?.toInt() ?: 1
+        val rows = session?.screen?.rows()?.toInt() ?: 1
+        if (cellWidth == 0f || cellHeight == 0f) return 0 to 0
+        val col = ((x - paddingLeft + panX) / fit / cellWidth).toInt().coerceIn(0, cols - 1)
+        val row = ((y - paddingTop) / fit / cellHeight).toInt().coerceIn(0, rows - 1)
+        return col to row
+    }
+
+    /** Opens the link under a point, if there is one. */
+    private fun openLinkAt(x: Float, y: Float): Boolean {
+        val s = session ?: return false
+        val (col, row) = cellAt(x, y)
+        val url = s.screen.linkAt(row.toUInt(), col.toUInt()) ?: return false
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+        return true
+    }
+
+    private fun isMouse(e: MotionEvent): Boolean =
+        e.isFromSource(InputDevice.SOURCE_MOUSE) && (e.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE || e.buttonState != 0)
+
+    /** The touch gesture in progress comes from a mouse. */
+    private var mouseGesture = false
+
+    /** Selection with the mouse: anchor and end cells (column, row) of the visible screen. */
+    private var selAnchor: Pair<Int, Int>? = null
+    private var selEnd: Pair<Int, Int>? = null
+    private var selecting = false
+    private var dragged = false
+    /** Button held down that the remote program is told about. */
+    private var remoteButton: MouseEncoder.Button? = null
+    private var lastCell: Pair<Int, Int>? = null
+    private var wheelRemainder = 0f
+
+    /** First and last selected cells, in reading order. */
+    private fun selectionRange(): Pair<Pair<Int, Int>, Pair<Int, Int>>? {
+        val a = selAnchor ?: return null
+        val b = selEnd ?: return null
+        if (a == b) return null
+        return if (a.second < b.second || (a.second == b.second && a.first <= b.first)) a to b else b to a
+    }
+
+    val hasSelection: Boolean get() = selectionRange() != null
+
+    fun clearSelection() {
+        val had = hasSelection
+        selAnchor = null
+        selEnd = null
+        selecting = false
+        if (had) {
+            onSelectionChanged(false)
+            invalidate()
+        }
+    }
+
+    /** The selected text (lines without trailing spaces), or `null` without a selection. */
+    fun selectedText(): String? {
+        val (from, to) = selectionRange() ?: return null
+        val snap = session?.screen?.snapshot() ?: return null
+        val cols = snap.cols.toInt()
+        val out = StringBuilder()
+        for (row in from.second..to.second) {
+            val cells = Array(cols) { " " }
+            snap.lines.getOrNull(row)?.runs?.forEach { run ->
+                val c = run.col.toInt()
+                if (run.wide) {
+                    if (c < cols) cells[c] = run.text
+                    if (c + 1 < cols) cells[c + 1] = ""
+                } else {
+                    var i = 0
+                    var col = c
+                    while (i < run.text.length && col < cols) {
+                        val next = run.text.offsetByCodePoints(i, 1)
+                        cells[col] = run.text.substring(i, next)
+                        i = next
+                        col++
+                    }
+                }
+            }
+            val c0 = if (row == from.second) from.first else 0
+            val c1 = if (row == to.second) to.first else cols - 1
+            if (row > from.second) out.append('\n')
+            out.append(cells.slice(c0..c1.coerceAtMost(cols - 1)).joinToString("").trimEnd())
+        }
+        return out.toString()
+    }
+
+    /** Scrolls the history a page (Shift+PgUp / Shift+PgDn). */
+    fun scrollPage(up: Boolean) {
+        val s = session ?: return
+        val rows = s.screen.rows().toInt().coerceAtLeast(2)
+        clearSelection()
+        s.screen.scroll(if (up) rows - 1 else -(rows - 1))
+        invalidate()
+    }
+
+    /** The remote program asked for the mouse, and Shift isn't held (Shift: select here anyway). */
+    private fun remoteMouse(e: MotionEvent): Boolean =
+        (session?.modes?.mouse ?: MouseTracking.OFF) != MouseTracking.OFF && e.metaState and KeyEvent.META_SHIFT_ON == 0
+
+    private fun report(button: MouseEncoder.Button, kind: MouseEncoder.Kind, cell: Pair<Int, Int>, e: MotionEvent) {
+        val s = session ?: return
+        val tracking = s.modes.mouse
+        if (!MouseEncoder.wants(tracking, kind, held = remoteButton != null && button != MouseEncoder.Button.NONE)) return
+        MouseEncoder.encode(
+            button, kind, cell.first, cell.second, s.modes.encoding, tracking,
+            shift = false, alt = e.metaState and KeyEvent.META_ALT_ON != 0, ctrl = e.metaState and KeyEvent.META_CTRL_ON != 0,
+        )?.let { s.write(it) }
+    }
+
+    /** Mouse clicks and drags: to the remote program when it asked for the mouse; otherwise select and menu. */
+    private fun mouse(e: MotionEvent): Boolean {
+        val cell = cellAt(e.x, e.y)
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                onTouched()
+                requestFocus()
+                val button = when {
+                    e.buttonState and MotionEvent.BUTTON_SECONDARY != 0 -> MouseEncoder.Button.RIGHT
+                    e.buttonState and MotionEvent.BUTTON_TERTIARY != 0 -> MouseEncoder.Button.MIDDLE
+                    else -> MouseEncoder.Button.LEFT
+                }
+                if (remoteMouse(e)) {
+                    clearSelection()
+                    remoteButton = button
+                    lastCell = cell
+                    report(button, MouseEncoder.Kind.PRESS, cell, e)
+                    return true
+                }
+                when (button) {
+                    MouseEncoder.Button.RIGHT -> onContextMenu(e.x, e.y)
+                    MouseEncoder.Button.LEFT -> {
+                        clearSelection()
+                        selAnchor = cell
+                        selEnd = cell
+                        selecting = true
+                        dragged = false
+                    }
+                    else -> Unit
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val held = remoteButton
+                if (held != null) {
+                    if (cell != lastCell) {
+                        lastCell = cell
+                        report(held, MouseEncoder.Kind.MOTION, cell, e)
+                    }
+                } else if (selecting && cell != selEnd) {
+                    val before = hasSelection
+                    selEnd = cell
+                    dragged = true
+                    if (before != hasSelection) onSelectionChanged(hasSelection)
+                    invalidate()
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                val held = remoteButton
+                if (held != null) {
+                    report(held, MouseEncoder.Kind.RELEASE, cell, e)
+                    remoteButton = null
+                } else if (selecting) {
+                    selecting = false
+                    // A click without dragging: a link opens; otherwise nothing is selected.
+                    if (!dragged) {
+                        clearSelection()
+                        openLinkAt(e.x, e.y)
+                    }
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                remoteButton = null
+                selecting = false
+            }
+        }
+        return true
+    }
+
+    /** Mouse wheel and trackpad scrolling. */
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        val s = session ?: return super.onGenericMotionEvent(event)
+        if (!event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) return super.onGenericMotionEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_SCROLL -> {
+                // Three lines per notch (trackpads give fractions).
+                wheelRemainder += event.getAxisValue(MotionEvent.AXIS_VSCROLL) * 3f
+                val lines = wheelRemainder.toInt()
+                if (lines == 0) return true
+                wheelRemainder -= lines
+                val cell = cellAt(event.x, event.y)
+                when {
+                    remoteMouse(event) -> {
+                        val button = if (lines > 0) MouseEncoder.Button.WHEEL_UP else MouseEncoder.Button.WHEEL_DOWN
+                        repeat(abs(lines)) { report(button, MouseEncoder.Kind.PRESS, cell, event) }
+                    }
+                    // In vim, less, htop...: arrow keys (not typed in other panes).
+                    s.screen.alternateScreen() -> {
+                        val key = TermInput.Key(if (lines > 0) TerminalKey.Up else TerminalKey.Down, NoModifiers)
+                        repeat(abs(lines)) { s.apply(key) }
+                    }
+                    else -> {
+                        clearSelection()
+                        s.screen.scroll(lines)
+                        invalidate()
+                    }
+                }
+                return true
+            }
+        }
+        return super.onGenericMotionEvent(event)
+    }
+
+    /** Programs that follow every movement (`CSI ? 1003 h`) also get the pointer moving without a button. */
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        val s = session
+        if (s != null && event.actionMasked == MotionEvent.ACTION_HOVER_MOVE && s.modes.mouse == MouseTracking.ANY && remoteMouse(event)) {
+            val cell = cellAt(event.x, event.y)
+            if (cell != lastCell) {
+                lastCell = cell
+                report(MouseEncoder.Button.NONE, MouseEncoder.Kind.MOTION, cell, event)
+            }
             return true
         }
-        // Physical keyboard: the character without Ctrl/Alt (those go as modifiers).
-        val unicode = event.getUnicodeChar(event.metaState and (KeyEvent.META_CTRL_MASK or KeyEvent.META_ALT_MASK).inv())
-        if (unicode > 0) {
-            s.text(String(Character.toChars(unicode)))
-            return true
-        }
-        return super.onKeyDown(keyCode, event)
+        return super.onHoverEvent(event)
     }
 }

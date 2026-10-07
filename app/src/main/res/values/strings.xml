@@ -1111,4 +1111,46 @@
         <item quantity="one">%d file already exists</item>
         <item quantity="other">%d files already exist</item>
     </plurals>
+
+    <!-- Hardware keyboard and mouse -->
+    <string name="term_copy">Copy</string>
+    <string name="term_copied">Copied</string>
+    <string name="kb_shortcuts">Keyboard shortcuts</string>
+    <string name="kb_intro">With a hardware keyboard, Ctrl and Alt combinations go to the terminal as they are; the app\'s own shortcuts use Ctrl+Shift.</string>
+    <string name="kb_section_terminal">Terminal</string>
+    <string name="kb_section_app">App</string>
+    <string name="kb_section_files">Files</string>
+    <string name="kb_section_mouse">Mouse and trackpad</string>
+    <string name="kb_new_tab">New terminal (choose a host)</string>
+    <string name="kb_close_tab">Close the tab</string>
+    <string name="kb_next_tab">Next tab</string>
+    <string name="kb_prev_tab">Previous tab</string>
+    <string name="kb_copy">Copy the selection (or the screen)</string>
+    <string name="kb_paste">Paste</string>
+    <string name="kb_zoom_in">Bigger text</string>
+    <string name="kb_zoom_out">Smaller text</string>
+    <string name="kb_zoom_reset">Default text size</string>
+    <string name="kb_next_pane">Next pane of the split view</string>
+    <string name="kb_scroll_up">Scroll the history up a page</string>
+    <string name="kb_scroll_down">Scroll the history down a page</string>
+    <string name="kb_search_hosts">Search hosts</string>
+    <string name="kb_vault_search">Search in the Vault</string>
+    <string name="kb_back">Back, or close a sheet</string>
+    <string name="kb_files_up">Parent folder</string>
+    <string name="kb_files_refresh">Refresh</string>
+    <string name="kb_files_search">Search in the folder</string>
+    <string name="kb_mouse_wheel">Wheel or two fingers: scroll the history (or go to the program, when it uses the mouse, like vim or tmux)</string>
+    <string name="kb_mouse_select">Drag: select text. Right click: copy and paste menu</string>
+    <string name="kb_mouse_shift">Shift with click or drag: select even when the program uses the mouse</string>
+    <string name="key_ctrl" translatable="false">Ctrl</string>
+    <string name="key_alt" translatable="false">Alt</string>
+    <string name="key_tab" translatable="false">Tab</string>
+    <string name="key_esc" translatable="false">Esc</string>
+    <string name="key_shift">Shift</string>
+    <string name="key_page_up">PgUp</string>
+    <string name="key_page_down">PgDn</string>
+    <string name="key_insert">Insert</string>
+    <string name="settings_key_bar_keyboard">Key bar with a hardware keyboard</string>
+    <string name="settings_key_bar_keyboard_hint">Keep the row of extra keys (Esc, Ctrl, arrows…) when a keyboard is attached</string>
+    <string name="settings_shortcuts_hint">For hardware keyboards. Ctrl+/ shows them anywhere</string>
 </resources>

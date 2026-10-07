@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Security
@@ -88,6 +89,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val keepOn by app.prefs.keepScreenOn.collectAsState()
     val vibrate by app.prefs.vibrateOnBell.collectAsState()
     val confirmPaste by app.prefs.confirmMultilinePaste.collectAsState()
+    val keyBar by app.prefs.keyBarWithKeyboard.collectAsState()
     val theme by app.prefs.theme.collectAsState()
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
     val checkUpdates by app.prefs.checkUpdates.collectAsState()
@@ -171,6 +173,12 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             }
             SwitchRow(stringResource(R.string.settings_confirm_paste), stringResource(R.string.settings_confirm_paste_hint), confirmPaste) {
                 app.prefs.setConfirmMultilinePaste(it)
+            }
+            SwitchRow(stringResource(R.string.settings_key_bar_keyboard), stringResource(R.string.settings_key_bar_keyboard_hint), keyBar) {
+                app.prefs.setKeyBarWithKeyboard(it)
+            }
+            Row0(Icons.Outlined.KeyboardCommandKey, stringResource(R.string.kb_shortcuts), stringResource(R.string.settings_shortcuts_hint)) {
+                KeyShortcuts.sheet.value = true
             }
 
             // ----- Appearance -----

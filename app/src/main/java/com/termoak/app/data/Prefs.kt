@@ -12,7 +12,7 @@ enum class ThemeMode { SYSTEM, DARK, LIGHT }
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    private val _fontSize = MutableStateFlow(sp.getFloat("font_size", 13f))
+    private val _fontSize = MutableStateFlow(sp.getFloat("font_size", DEFAULT_FONT))
     val fontSize: StateFlow<Float> = _fontSize
     fun setFontSize(size: Float) {
         val v = size.coerceIn(MIN_FONT, MAX_FONT)
@@ -74,6 +74,14 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("files_sort_desc", false)
         set(v) = sp.edit { putBoolean("files_sort_desc", v) }
 
+    private val _keyBar = MutableStateFlow(sp.getBoolean("key_bar_with_keyboard", false))
+    /** Keep the terminal's key bar (Esc, Ctrl, arrows...) with a hardware keyboard attached. */
+    val keyBarWithKeyboard: StateFlow<Boolean> = _keyBar
+    fun setKeyBarWithKeyboard(on: Boolean) {
+        _keyBar.value = on
+        sp.edit { putBoolean("key_bar_with_keyboard", on) }
+    }
+
     /** The Vault shows only This-device items (the account switcher's "This device only"). */
     var deviceOnlyView: Boolean
         get() = sp.getBoolean("view_device_only", false)
@@ -114,6 +122,7 @@ class Prefs(context: Context) {
     }
 
     companion object {
+        const val DEFAULT_FONT = 13f
         const val MIN_FONT = 8f
         const val MAX_FONT = 24f
     }

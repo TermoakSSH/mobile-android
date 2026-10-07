@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -59,6 +60,8 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.KeyboardCommandKey
+import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PowerSettingsNew
@@ -90,6 +93,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -105,6 +109,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -114,7 +119,11 @@ import com.termoak.app.data.uid
 import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
 import com.termoak.app.asString
+import com.termoak.app.data.Prefs
 import com.termoak.app.term.InitialConnecting
+import com.termoak.app.term.KeyStroke
+import com.termoak.app.term.Shortcut
+import com.termoak.app.term.SpecialKey
 import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.Pending
 import com.termoak.app.term.ServerTerminal
@@ -125,6 +134,7 @@ import com.termoak.ffi.Snippet
 import com.termoak.ffi.TerminalKey
 import com.termoak.ffi.snippetVariables
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val TermBg = Color(0xFF12151D)
 private val BarBg = Color(0xFF1A1F2B)
@@ -144,6 +154,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val fontSize by app.prefs.fontSize.collectAsState()
     val keepOn by app.prefs.keepScreenOn.collectAsState()
     val confirmPaste by app.prefs.confirmMultilinePaste.collectAsState()
+    val hardwareKeyboard by app.keyboard.connected.collectAsState()
+    val keepKeyBar by app.prefs.keyBarWithKeyboard.collectAsState()
     val session = sessions.firstOrNull { it.id == activeId } ?: sessions.lastOrNull()
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     // The terminal views on screen (one, or one per pane): the keyboard goes to the focused one.
@@ -170,6 +182,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val loggedIn by app.accounts.loggedIn.collectAsState()
     val snackbar = LocalSnackbar.current
     val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
     var showShare by remember { mutableStateOf(false) }
     var showParticipants by remember { mutableStateOf(false) }
     val sharable = canShare(session, loggedIn == true, live.isOwner)
@@ -213,6 +226,59 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     fun copyScreen(target: TermSession) {
         clipboard?.setPrimaryClip(ClipData.newPlainText("terminal", target.screen.screenText()))
     }
+    /** Copies the mouse selection of [view] (if any) and clears it. */
+    fun copySelection(view: TerminalView?): Boolean {
+        val text = view?.selectedText()?.takeIf { it.isNotEmpty() } ?: return false
+        clipboard?.setPrimaryClip(ClipData.newPlainText("terminal", text))
+        view.clearSelection()
+        return true
+    }
+
+    // ----- Hardware keyboard shortcuts (Ctrl+Shift+…) -----
+    ShortcutHandler { shortcut ->
+        // The ones that type or read text only while the terminal has the focus (not the copilot's box).
+        val view = focusedView()
+        val typing = views.any { it.isFocused }
+        fun neighbour(step: Int) {
+            val i = sessions.indexOf(session)
+            if (i >= 0 && sessions.size > 1) app.sessions.select(sessions[(i + step + sessions.size) % sessions.size].id)
+        }
+        when (shortcut) {
+            Shortcut.NEW_TAB -> nav.goTab(Routes.HOSTS)
+            Shortcut.CLOSE_TAB -> app.sessions.close(session.id)
+            Shortcut.NEXT_TAB -> neighbour(1)
+            Shortcut.PREV_TAB -> neighbour(-1)
+            Shortcut.ZOOM_IN -> app.prefs.setFontSize(fontSize + 1)
+            Shortcut.ZOOM_OUT -> app.prefs.setFontSize(fontSize - 1)
+            Shortcut.ZOOM_RESET -> app.prefs.setFontSize(Prefs.DEFAULT_FONT)
+            Shortcut.NEXT_PANE -> if (splitShown) {
+                val next = panes[(panes.indexOf(session) + 1) % panes.size]
+                app.sessions.select(next.id)
+                views.firstOrNull { it.session === next }?.requestFocus()
+            }
+            Shortcut.COPY -> {
+                if (!typing) return@ShortcutHandler false
+                if (!copySelection(view)) copyScreen(session)
+                scope.launch { snackbar.showSnackbar(resources.getString(R.string.term_copied)) }
+            }
+            Shortcut.PASTE -> {
+                if (!typing) return@ShortcutHandler false
+                paste(session)
+            }
+            Shortcut.SCROLL_PAGE_UP, Shortcut.SCROLL_PAGE_DOWN -> {
+                if (!typing) return@ShortcutHandler false
+                val up = shortcut == Shortcut.SCROLL_PAGE_UP
+                // Full-screen programs (less, vim...) get Shift+PgUp/PgDn themselves.
+                if (session.screen.alternateScreen()) {
+                    session.stroke(KeyStroke.Special(if (up) SpecialKey.PAGE_UP else SpecialKey.PAGE_DOWN, shift = true))
+                } else {
+                    view?.scrollPage(up)
+                }
+            }
+            Shortcut.SEARCH_HOSTS, Shortcut.SHORTCUTS -> return@ShortcutHandler false
+        }
+        true
+    }
 
     /** A terminal (the whole screen, or a pane of the split view). */
     @Composable
@@ -224,6 +290,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             onPaste = { requestPaste(s, it) },
             pasteClipboard = { paste(s) },
             copyScreen = { copyScreen(s) },
+            copySelection = { v -> copySelection(v) },
             onParticipants = { showParticipants = true },
         )
     }
@@ -310,7 +377,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     IconButton(onClick = { showSnippets = true }) {
                         Icon(Icons.Outlined.Code, stringResource(R.string.section_snippets), tint = KeyFg)
                     }
-                    IconButton(onClick = { focusedView()?.showKeyboard() }) {
+                    IconButton(onClick = { focusedView()?.showSoftKeyboard() }) {
                         Icon(Icons.Outlined.Keyboard, stringResource(R.string.term_keyboard), tint = KeyFg)
                     }
                     Box {
@@ -325,6 +392,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                                 leadingIcon = { Icon(Icons.Outlined.TextIncrease, null) })
                             DropdownMenuItem({ Text(stringResource(R.string.term_font_smaller)) }, { app.prefs.setFontSize(fontSize - 1) },
                                 leadingIcon = { Icon(Icons.Outlined.TextDecrease, null) })
+                            DropdownMenuItem({ Text(stringResource(R.string.kb_shortcuts)) }, { menu = false; KeyShortcuts.sheet.value = true },
+                                leadingIcon = { Icon(Icons.Outlined.KeyboardCommandKey, null) })
                             if (splitShown) {
                                 DropdownMenuItem(
                                     { Text(stringResource(if (split.broadcast) R.string.split_broadcast_stop else R.string.split_broadcast)) },
@@ -407,7 +476,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     }
                 }
                 KeyboardStrip(session, live)
-                if (live.canWrite) ExtraKeys(session)
+                // With a hardware keyboard the key bar goes away (unless the setting keeps it).
+                if (live.canWrite && (!hardwareKeyboard || keepKeyBar)) ExtraKeys(session)
             }
             if (wide && copilotOpen) {
                 VerticalDivider(color = KeyBg)
@@ -522,6 +592,7 @@ private fun TerminalPane(
     onPaste: (String) -> Unit,
     pasteClipboard: () -> Unit,
     copyScreen: () -> Unit,
+    copySelection: (TerminalView?) -> Boolean,
     onParticipants: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -531,6 +602,10 @@ private fun TerminalPane(
     val pending by session.pending.collectAsState()
     val live by session.live.collectAsState()
     var longPressMenu by remember { mutableStateOf(false) }
+    // Where the menu opens (long press or right click), and the view with a mouse selection.
+    var menuAt by remember { mutableStateOf(IntOffset.Zero) }
+    val view = remember { arrayOfNulls<TerminalView>(1) }
+    var hasSelection by remember { mutableStateOf(false) }
     val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it, session.accountId) }.getOrNull() } }
     // Connection steps (like Termius' connection screen).
     val steps = remember(session.id) { androidx.compose.runtime.mutableStateListOf<UiText>() }
@@ -559,7 +634,11 @@ private fun TerminalPane(
                 TerminalView(ctx).apply {
                     setPadding(12, 6, 12, 6)
                     onFontSizeChanged = { app.prefs.setFontSize(it) }
+                    hardwareKeyboard = { app.keyboard.connected.value }
+                    onShortcut = { KeyShortcuts.dispatch(it) }
+                    onSelectionChanged = { hasSelection = it }
                     views += this
+                    view[0] = this
                     if (focused) post { showKeyboard() }
                 }
             },
@@ -567,7 +646,7 @@ private fun TerminalPane(
                 v.session = session
                 v.setFontSize(fontSize)
                 v.onTouched = onFocus
-                v.onLongPress = { onFocus(); longPressMenu = true }
+                v.onContextMenu = { x, y -> onFocus(); menuAt = IntOffset(x.toInt(), y.toInt()); longPressMenu = true }
                 v.onPasteText = onPaste
                 // Watching only: no keyboard (nothing would reach the terminal).
                 v.readOnly = !live.canWrite
@@ -575,11 +654,18 @@ private fun TerminalPane(
             onRelease = { views -= it },
             modifier = Modifier.fillMaxSize(),
         )
-        DropdownMenu(longPressMenu, { longPressMenu = false }) {
-            DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { longPressMenu = false; pasteClipboard() },
-                leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
-            DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { longPressMenu = false; copyScreen() },
-                leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+        // The menu where it was asked for (a zero-size anchor at that point).
+        Box(Modifier.offset { menuAt }) {
+            DropdownMenu(longPressMenu, { longPressMenu = false }) {
+                if (hasSelection) {
+                    DropdownMenuItem({ Text(stringResource(R.string.term_copy)) }, { longPressMenu = false; copySelection(view[0]) },
+                        leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+                }
+                DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { longPressMenu = false; pasteClipboard() },
+                    leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
+                DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { longPressMenu = false; copyScreen() },
+                    leadingIcon = { Icon(Icons.Outlined.SelectAll, null) })
+            }
         }
         val waiting = live.waiting
         val ended = live.ended
