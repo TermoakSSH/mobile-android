@@ -94,7 +94,7 @@ fun VaultScaffold(
 }
 
 @Composable
-private fun VaultTabs(selected: VaultSection, onSelect: (VaultSection) -> Unit) {
+internal fun VaultTabs(selected: VaultSection, onSelect: (VaultSection) -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

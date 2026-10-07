@@ -141,35 +141,7 @@ fun AccountSwitcher(app: TermoakApp, nav: NavHostController, attention: Boolean 
     var open by remember { mutableStateOf(false) }
     val shown = (view as? AccountView.One)?.let { v -> accounts.firstOrNull { it.id == v.id } }
     Box(Modifier.padding(horizontal = 12.dp)) {
-        Row(
-            Modifier.clip(RoundedCornerShape(12.dp)).clickable { open = true }.padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            when {
-                shown != null -> AccountAvatar(shown, 28.dp)
-                view == AccountView.Device -> Icon(Icons.Outlined.PhoneAndroid, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
-                else -> Icon(Icons.AutoMirrored.Outlined.ViewList, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
-            }
-            Column(Modifier.padding(start = 10.dp).weight(1f, fill = false)) {
-                Text(
-                    when {
-                        shown != null -> shown.email
-                        view == AccountView.Device -> stringResource(R.string.accounts_device_only)
-                        else -> stringResource(R.string.accounts_all)
-                    },
-                    style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    when {
-                        shown != null -> accountServer(shown)
-                        view == AccountView.Device -> stringResource(R.string.accounts_device_only_hint)
-                        else -> pluralStringResource(R.plurals.accounts_count, accounts.size, accounts.size)
-                    },
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-                )
-            }
-            Icon(Icons.Outlined.ArrowDropDown, stringResource(R.string.accounts_switch))
-        }
+        AccountSwitcherButton(accounts, view) { open = true }
         DropdownMenu(open, { open = false }) {
             accounts.forEach { a ->
                 DropdownMenuItem(
@@ -226,6 +198,41 @@ fun AccountSwitcher(app: TermoakApp, nav: NavHostController, attention: Boolean 
     }
     // The account shown has to sign in again (or verify its email).
     if (attention) attentionAccount(app)?.let { a -> AccountAttention(app, nav, a) }
+}
+
+/** The switcher's button: the account shown (or "All accounts" / "This device only") and its server. */
+@Composable
+internal fun AccountSwitcherButton(accounts: List<AccountInfo>, view: AccountView, onClick: () -> Unit) {
+    val shown = (view as? AccountView.One)?.let { v -> accounts.firstOrNull { it.id == v.id } }
+    Row(
+        Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        when {
+            shown != null -> AccountAvatar(shown, 28.dp)
+            view == AccountView.Device -> Icon(Icons.Outlined.PhoneAndroid, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+            else -> Icon(Icons.AutoMirrored.Outlined.ViewList, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+        Column(Modifier.padding(start = 10.dp).weight(1f, fill = false)) {
+            Text(
+                when {
+                    shown != null -> shown.email
+                    view == AccountView.Device -> stringResource(R.string.accounts_device_only)
+                    else -> stringResource(R.string.accounts_all)
+                },
+                style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                when {
+                    shown != null -> accountServer(shown)
+                    view == AccountView.Device -> stringResource(R.string.accounts_device_only_hint)
+                    else -> pluralStringResource(R.plurals.accounts_count, accounts.size, accounts.size)
+                },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+            )
+        }
+        Icon(Icons.Outlined.ArrowDropDown, stringResource(R.string.accounts_switch))
+    }
 }
 
 /** The account whose sign-in or email needs attention in the Vault: the one shown, or the only one. */
@@ -288,16 +295,27 @@ fun VaultFilterRow(app: TermoakApp) {
     if (view == AccountView.Device) return
     val shown = remember(vaults, view) { app.accounts.vaultsInView() }
     if (shown.size <= 1) return
-    val several = accounts.size > 1 && view == AccountView.All
+    VaultFilterChips(shown, selected, accounts, several = accounts.size > 1 && view == AccountView.All) { app.accounts.setVaultFilter(it) }
+}
+
+/** The chips of [VaultFilterRow]: All vaults, the vaults [shown] (with their owner when [several] accounts) and This device. */
+@Composable
+internal fun VaultFilterChips(
+    shown: List<VaultInfo>,
+    selected: String?,
+    accounts: List<AccountInfo>,
+    several: Boolean,
+    onSelect: (String?) -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        FilterChip(selected == null, { app.accounts.setVaultFilter(null) }, { Text(stringResource(R.string.vaults_all)) })
+        FilterChip(selected == null, { onSelect(null) }, { Text(stringResource(R.string.vaults_all)) })
         shown.forEach { v ->
             val owner = if (several) accounts.firstOrNull { it.id == v.accountId }?.email?.substringBefore('@') else null
             FilterChip(
-                selected == v.id, { app.accounts.setVaultFilter(if (selected == v.id) null else v.id) },
+                selected == v.id, { onSelect(if (selected == v.id) null else v.id) },
                 { Text(listOfNotNull(vaultName(v), owner).joinToString(" · "), maxLines = 1) },
                 leadingIcon = {
                     Box(Modifier.size(10.dp).clip(CircleShape).background(vaultColor(v)))
@@ -308,7 +326,7 @@ fun VaultFilterRow(app: TermoakApp) {
             )
         }
         FilterChip(
-            selected == DEVICE_VAULT, { app.accounts.setVaultFilter(if (selected == DEVICE_VAULT) null else DEVICE_VAULT) },
+            selected == DEVICE_VAULT, { onSelect(if (selected == DEVICE_VAULT) null else DEVICE_VAULT) },
             { Text(stringResource(R.string.vault_this_device)) },
             leadingIcon = { Icon(Icons.Outlined.PhoneAndroid, null, Modifier.size(FilterChipDefaults.IconSize)) },
         )

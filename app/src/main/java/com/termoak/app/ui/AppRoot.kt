@@ -58,7 +58,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -216,7 +216,10 @@ fun AppRoot(app: TermoakApp) {
     val desktop = rememberDesktopLayout()
 
     if (loggedIn == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        // On the theme's background (the window's is the dark one of the launch): the status bar's icons go by the theme.
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
         return
     }
     val start = remember { if (loggedIn == true || accountList.isNotEmpty() || app.prefs.skippedLogin) Routes.HOSTS else Routes.WELCOME }
@@ -620,7 +623,10 @@ fun NavHostController.goVault(route: String) {
 
 /**
  * Screen with a top bar in the app style. With [large], a big title (main
- * screens) that collapses when scrolling; [header] goes under the bar, pinned.
+ * screens); [header] goes under the bar, pinned. The bar doesn't collapse:
+ * a collapsing large title (LargeTopAppBar) opened every main screen with an
+ * empty row over the title and the Vault's header further down, and moved it
+ * all up on the first scroll.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -639,7 +645,7 @@ fun ScreenScaffold(
         DesktopScaffold(title, subtitle, actions, floatingActionButton, header, content)
         return
     }
-    val scroll = if (large) TopAppBarDefaults.exitUntilCollapsedScrollBehavior() else TopAppBarDefaults.pinnedScrollBehavior()
+    val scroll = TopAppBarDefaults.pinnedScrollBehavior()
     // Flat bars (like Termius): a line under them when the content scrolls beneath.
     val colors = TopAppBarDefaults.topAppBarColors(scrolledContainerColor = MaterialTheme.colorScheme.surface)
     Scaffold(
@@ -649,17 +655,16 @@ fun ScreenScaffold(
             Column {
                 val titleContent: @Composable () -> Unit = {
                     Column {
-                        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = if (large) MaterialTheme.typography.headlineSmall else LocalTextStyle.current,
+                        )
                         if (subtitle != null) {
                             Text(subtitle, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-                if (large) {
-                    LargeTopAppBar(titleContent, navigationIcon = navigationIcon, actions = actions, colors = colors, scrollBehavior = scroll)
-                } else {
-                    TopAppBar(titleContent, navigationIcon = navigationIcon, actions = actions, colors = colors, scrollBehavior = scroll)
-                }
+                TopAppBar(titleContent, navigationIcon = navigationIcon, actions = actions, colors = colors, scrollBehavior = scroll)
                 header?.invoke()
                 if (scroll.state.overlappedFraction > 0.01f) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
