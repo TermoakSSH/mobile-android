@@ -101,6 +101,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        // Robolectric (the screenshot tests of app/src/test/.../ui) needs the app's resources.
+        unitTests.isIncludeAndroidResources = true
+    }
+
     packaging {
         // The Rust .so files are already stripped of debug symbols.
         jniLibs.keepDebugSymbols += "**/libtermoak_ffi.so"
@@ -155,4 +160,8 @@ dependencies {
 
     // JVM unit tests (app/src/test) of the code without Android: keys, paths...
     testImplementation("junit:junit:4.13.2")
+    // Screenshot tests of the layout on the JVM (Robolectric with its native graphics): no device needed.
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

@@ -14,34 +14,20 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LocalContentColor
 import com.termoak.app.term.Paste
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.isImeVisible
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -86,7 +72,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -113,7 +98,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.data.uid
@@ -135,18 +119,18 @@ import com.termoak.app.term.TerminalView
 import com.termoak.ffi.Snippet
 import com.termoak.ffi.TerminalKey
 import com.termoak.ffi.snippetVariables
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val TermBg = Color(0xFF12151D)
 private val BarBg = Color(0xFF1A1F2B)
 private val KeyBg = Color(0xFF252C3B)
 private val KeyFg = Color(0xFFD6DBE4)
+internal val TermScreenBg = TermBg
 internal val TermBarBg = BarBg
 internal val TermKeyBg = KeyBg
 internal val TermKeyFg = KeyFg
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val context = LocalContext.current
@@ -298,22 +282,6 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         )
     }
 
-    // The terminal makes room for its own keyboard (fewer rows). On a phone the
-    // copilot's keyboard goes over it instead: the terminal keeps its size (no
-    // resize sent to the server, nothing reflowed) and only the copilot moves
-    // up; also while that keyboard goes away after closing the copilot, so the
-    // terminal isn't resized twice.
-    val imeVisible = WindowInsets.isImeVisible
-    var copilotIme by remember { mutableStateOf(false) }
-    LaunchedEffect(imeVisible, copilotOpen, wide) {
-        when {
-            imeVisible && copilotOpen && !wide -> copilotIme = true
-            !imeVisible -> copilotIme = false
-            !copilotOpen -> { delay(600); copilotIme = false }
-        }
-    }
-    val imeOverTerminal = !wide && (copilotOpen || copilotIme)
-
     // Files over this terminal's connection (or through the server for a server session).
     val canBrowse = when (session) {
         is LocalTerminal -> state == TermState.Running
@@ -407,30 +375,32 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         )
     }
 
-    // Desktop layout: under the window's tab bar (which keeps clear of the status bar).
-    Box(Modifier.fillMaxSize().background(TermBg).then(if (desktop) Modifier else Modifier.statusBarsPadding()).navigationBarsPadding()) {
-        Row(Modifier.fillMaxSize().then(if (imeOverTerminal) Modifier else Modifier.imePadding())) {
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                if (desktop) {
-                    // ----- Desktop layout: the tabs are on top of the window; the terminal's toolbar -----
-                    DesktopTerminalToolbar(
-                        session, state, title, live, sharable = sharable, canBrowse = canBrowse,
-                        copilotOpen = copilotOpen, splitShown = splitShown, hardwareKeyboard = hardwareKeyboard,
-                        splitButton = { SplitButton() },
-                        onReconnect = { session.reconnect() },
-                        onFiles = { openFiles() },
-                        onCopy = {
-                            if (!copySelection(focusedView())) copyScreen(session)
-                            scope.launch { snackbar.showSnackbar(resources.getString(R.string.term_copied)) }
-                        },
-                        onPaste = { paste(session) },
-                        onCopilot = { toggleCopilot() },
-                        onShare = { showShare = true },
-                        onParticipants = { showParticipants = true },
-                        onSnippets = { showSnippets = true },
-                        onKeyboard = { focusedView()?.showSoftKeyboard() },
-                    ) { dismiss -> MenuEntries(dismiss, inToolbar = true) }
-                } else {
+    TerminalFrame(
+        desktop = desktop,
+        wide = wide,
+        copilotOpen = copilotOpen,
+        onCloseCopilot = { closeCopilot() },
+        header = {
+            if (desktop) {
+                // ----- Desktop layout: the tabs are on top of the window; the terminal's toolbar -----
+                DesktopTerminalToolbar(
+                    session, state, title, live, sharable = sharable, canBrowse = canBrowse,
+                    copilotOpen = copilotOpen, splitShown = splitShown, hardwareKeyboard = hardwareKeyboard,
+                    splitButton = { SplitButton() },
+                    onReconnect = { session.reconnect() },
+                    onFiles = { openFiles() },
+                    onCopy = {
+                        if (!copySelection(focusedView())) copyScreen(session)
+                        scope.launch { snackbar.showSnackbar(resources.getString(R.string.term_copied)) }
+                    },
+                    onPaste = { paste(session) },
+                    onCopilot = { toggleCopilot() },
+                    onShare = { showShare = true },
+                    onParticipants = { showParticipants = true },
+                    onSnippets = { showSnippets = true },
+                    onKeyboard = { focusedView()?.showSoftKeyboard() },
+                ) { dismiss -> MenuEntries(dismiss, inToolbar = true) }
+            } else {
                 // ----- Top bar -----
                 Row(Modifier.fillMaxWidth().background(BarBg).height(52.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
@@ -484,59 +454,35 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Outlined.Add, stringResource(R.string.term_open_another), Modifier.size(18.dp), tint = KeyFg) }
                 }
-                }
+            }
 
-                // ----- Broadcast banner (orange, like the desktop's) -----
-                if (broadcasting) BroadcastBanner(panes.size) { app.sessions.setBroadcast(false) }
-
-                // ----- Terminal(s) -----
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    if (splitShown) {
-                        SplitPanes(
-                            panes, session.id, split.broadcast,
-                            onFocus = { app.sessions.select(it.id) },
-                            onMaximize = { app.sessions.maximize(it.id) },
-                            onRemove = { app.sessions.removePane(it.id) },
-                            onBroadcast = { app.sessions.setBroadcast(!split.broadcast) },
-                        ) { s, focused -> Pane(s, focused) }
-                    } else {
-                        Pane(session, focused = true)
-                    }
-                }
-                KeyboardStrip(session, live)
-                // With a hardware keyboard the key bar goes away (unless the setting keeps it).
-                if (live.canWrite && (!hardwareKeyboard || keepKeyBar)) ExtraKeys(session)
+            // ----- Broadcast banner (orange, like the desktop's) -----
+            if (broadcasting) BroadcastBanner(panes.size) { app.sessions.setBroadcast(false) }
+        },
+        terminal = {
+            if (splitShown) {
+                SplitPanes(
+                    panes, session.id, split.broadcast,
+                    onFocus = { app.sessions.select(it.id) },
+                    onMaximize = { app.sessions.maximize(it.id) },
+                    onRemove = { app.sessions.removePane(it.id) },
+                    onBroadcast = { app.sessions.setBroadcast(!split.broadcast) },
+                ) { s, focused -> Pane(s, focused) }
+            } else {
+                Pane(session, focused = true)
             }
-            if (wide && copilotOpen) {
-                VerticalDivider(color = KeyBg)
-                CopilotPanel(
-                    app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.login()) },
-                    onAiSettings = { nav.navigate(Routes.AI_KEYS) },
-                    modifier = Modifier.width(380.dp),
-                )
-            }
-        }
-        if (!wide) {
-            AnimatedVisibility(copilotOpen, enter = fadeIn(), exit = fadeOut()) {
-                Box(
-                    Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
-                        .clickable(remember { MutableInteractionSource() }, indication = null) { closeCopilot() },
-                )
-            }
-            AnimatedVisibility(
-                copilotOpen,
-                // Above the keyboard, so its box to write in is never under it.
-                Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.85f).fillMaxHeight().imePadding(),
-                enter = slideInHorizontally { it },
-                exit = slideOutHorizontally { it },
-            ) {
-                CopilotPanel(
-                    app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.login()) },
-                    onAiSettings = { nav.navigate(Routes.AI_KEYS) },
-                    modifier = Modifier.fillMaxSize(), swipeToClose = true,
-                )
-            }
-        }
+        },
+        footer = {
+            KeyboardStrip(session, live)
+            // With a hardware keyboard the key bar goes away (unless the setting keeps it).
+            if (live.canWrite && (!hardwareKeyboard || keepKeyBar)) ExtraKeys(session)
+        },
+    ) { modifier, overlay ->
+        CopilotPanel(
+            app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.login()) },
+            onAiSettings = { nav.navigate(Routes.AI_KEYS) },
+            modifier = modifier, swipeToClose = overlay,
+        )
     }
 
     // ----- Dialogs -----
@@ -787,7 +733,8 @@ private fun TerminalPane(
     }
 
     Box(Modifier.fillMaxSize()) {
-        AndroidView(
+        // Clipped: the view fills its whole canvas with the terminal's background.
+        ClippedAndroidView(
             factory = { ctx ->
                 TerminalView(ctx).apply {
                     setPadding(12, 6, 12, 6)
