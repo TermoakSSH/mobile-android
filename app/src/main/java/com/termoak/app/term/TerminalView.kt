@@ -133,6 +133,18 @@ class TerminalView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val s = session ?: return
+        // Only its own place: drawColor fills the whole clip, and the canvas it gets
+        // from Compose isn't clipped to the view (AndroidView doesn't clip).
+        val saved = canvas.save()
+        canvas.clipRect(0, 0, width, height)
+        try {
+            drawScreen(canvas, s)
+        } finally {
+            canvas.restoreToCount(saved)
+        }
+    }
+
+    private fun drawScreen(canvas: Canvas, s: TermSession) {
         val snap = s.screen.snapshot()
         canvas.drawColor(snap.background.toInt())
         val left = paddingLeft.toFloat()

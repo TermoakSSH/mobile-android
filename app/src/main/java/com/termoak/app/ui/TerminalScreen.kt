@@ -94,6 +94,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -582,7 +583,9 @@ private fun TerminalPane(
                 v.readOnly = !live.canWrite
             },
             onRelease = { views -= it },
-            modifier = Modifier.fillMaxSize(),
+            // Compose doesn't clip the views it hosts (their holder sets clipChildren = false):
+            // the terminal's background painted over the bar and the tabs above it.
+            modifier = Modifier.fillMaxSize().clipToBounds(),
         )
         DropdownMenu(longPressMenu, { longPressMenu = false }) {
             DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { longPressMenu = false; pasteClipboard() },
