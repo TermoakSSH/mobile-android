@@ -1217,6 +1217,17 @@
     <string name="tabs_quick_connect">Conexión rápida</string>
     <string name="tabs_move_left">Mover a la izquierda</string>
     <string name="tabs_move_right">Mover a la derecha</string>
+    <plurals name="hosts_desktop_subtitle">
+        <item quantity="one">%d host · toca para conectar</item>
+        <item quantity="many">%d hosts · toca para conectar</item>
+        <item quantity="other">%d hosts · toca para conectar</item>
+    </plurals>
+    <string name="hosts_all">Todos</string>
+    <string name="hosts_favorites">Favoritos</string>
+    <string name="hosts_import">Importar</string>
+    <string name="hosts_group_button">Grupo</string>
+    <string name="hosts_connect_split">Conectar en vista dividida</string>
+    <string name="hosts_select">Seleccionar</string>
     <string name="common_refresh">Actualizar</string>
     <string name="teams_title">Equipos</string>
     <string name="teams_explain">Los equipos a los que perteneces en tus servidores. Comparte con ellos sesiones y bóvedas; crea equipos y gestiona sus miembros en la app de escritorio.</string>

@@ -1171,6 +1171,16 @@
     <string name="tabs_quick_connect">Quick connect</string>
     <string name="tabs_move_left">Move left</string>
     <string name="tabs_move_right">Move right</string>
+    <plurals name="hosts_desktop_subtitle">
+        <item quantity="one">%d host · tap to connect</item>
+        <item quantity="other">%d hosts · tap to connect</item>
+    </plurals>
+    <string name="hosts_all">All</string>
+    <string name="hosts_favorites">Favorites</string>
+    <string name="hosts_import">Import</string>
+    <string name="hosts_group_button">Group</string>
+    <string name="hosts_connect_split">Connect in split view</string>
+    <string name="hosts_select">Select</string>
     <string name="common_refresh">Refresh</string>
     <string name="teams_title">Teams</string>
     <string name="teams_explain">The teams you belong to on your servers. Share sessions and vaults with them; create teams and manage their members in the desktop app.</string>

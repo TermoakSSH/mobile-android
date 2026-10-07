@@ -154,7 +154,15 @@ internal object HostForm {
 }
 
 @Composable
-fun HostEditor(app: TermoakApp, hostId: String?, accountId: String?, onClose: () -> Unit, onConnect: (SshHost) -> Unit) {
+fun HostEditor(
+    app: TermoakApp,
+    hostId: String?,
+    accountId: String?,
+    onClose: () -> Unit,
+    onConnect: (SshHost) -> Unit,
+    /** In a panel beside the hosts (desktop layout): it closes with ✕ instead of going back. */
+    panel: Boolean = false,
+) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
@@ -337,7 +345,10 @@ fun HostEditor(app: TermoakApp, hostId: String?, accountId: String?, onClose: ()
         title = original?.label ?: stringResource(R.string.hosts_new_host),
         subtitle = if (original != null) stringResource(R.string.host_edit_title) else null,
         navigationIcon = {
-            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back)) }
+            IconButton(onClick = onClose) {
+                if (panel) Icon(Icons.Outlined.Close, stringResource(R.string.common_close))
+                else Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back))
+            }
         },
         actions = {
             if (useOnly && original != null) {

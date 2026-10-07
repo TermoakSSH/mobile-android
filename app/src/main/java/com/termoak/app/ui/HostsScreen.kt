@@ -1,6 +1,24 @@
 package com.termoak.app.ui
 
 import android.content.ClipData
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.unit.IntOffset
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -173,7 +191,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     // Multi-select: a long press starts it, a tap adds or removes a host.
     var selected by rememberSaveable { mutableStateOf(listOf<String>()) }
     val selecting = selected.isNotEmpty()
-    var bulkMove by remember { mutableStateOf(false) }
+    // Hosts to move to a group (the selected ones, or one from its menu).
+    var moving by remember { mutableStateOf<List<SshHost>?>(null) }
     var bulkDelete by remember { mutableStateOf(false) }
     var bulkSnippet by remember { mutableStateOf(false) }
     // Move to… / Copy to… (another vault, This device or another account).
@@ -181,6 +200,13 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     var runSnippet by remember { mutableStateOf<Snippet?>(null) }
     val grid = rememberLazyGridState()
     val maxPanes = rememberMaxPanes()
+    // Desktop layout (wide windows): the desktop's Hosts view, with the editor in a panel on the right.
+    val desktopWindow = LocalDesktop.current
+    val desktop = desktopWindow && groupId == null
+    // The host in the editor panel: its id ("new" for a new one) and account.
+    var editing by rememberSaveable { mutableStateOf<Pair<String, String?>?>(null) }
+    // The group chip of the desktop view: "all", "fav", "none" or a group's uid.
+    var chip by rememberSaveable { mutableStateOf(CHIP_ALL) }
     // Keyboard: Ctrl+F (and Ctrl+Shift+K from anywhere) goes to the search box.
     val searchFocus = remember { FocusRequester() }
     fun focusSearch() {
@@ -235,6 +261,24 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         if (onServer) app.sessions.openOnServer(host) else connectHost(app, host)
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
+    /** The host's editor: a panel on the right in the desktop layout, a screen otherwise. */
+    fun edit(host: SshHost?) {
+        if (desktop) editing = (host?.id ?: NEW_HOST) to host?.accountId
+        else nav.navigate(Routes.hostEdit(host?.id, host?.accountId))
+    }
+    /** A new terminal for [host] beside the one on screen (or in the split view already open). */
+    fun connectInSplit(host: SshHost) {
+        (context as? MainActivity)?.askNotificationPermission()
+        val split = app.sessions.split.value
+        val before = app.sessions.active.value?.takeIf { app.sessions.get(it) != null }
+        val base = if (split.on) split.panes else listOfNotNull(before)
+        val opened = connectHost(app, host)
+        if (base.isNotEmpty() && maxPanes >= 2) {
+            app.sessions.setSplit(base.take(minOf(maxPanes, com.termoak.app.term.SplitState.MAX_PANES) - 1) + opened.id)
+            app.sessions.select(opened.id)
+        }
+        nav.showTerminal()
+    }
     /** From the server sessions notice: the first tab (the others, on top); if there's none, Connections. */
     fun openServerSessions() {
         val ids = onServer.map { it.id }.toSet()
@@ -280,6 +324,85 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             settings = HostSettings(), syncMode = if (place.device && accountList.isNotEmpty()) SyncMode.DEVICE_ONLY else null,
             updatedAt = 0L, accountId = place.account, vaultId = place.vault,
         )
+    }
+
+    /**
+     * What can be done with [host]: the sheet of its "⋮" on phones, its
+     * context menu in the desktop layout ([menu], which adds connect in a
+     * split view, move to group and select).
+     */
+    @Composable
+    fun hostActions(host: SshHost, menu: Boolean): List<ItemAction> = buildList {
+        add(ItemAction(Icons.Outlined.Terminal, stringResource(R.string.hosts_connect), 0) { connect(host, false) })
+        if (menu && maxPanes >= 2) {
+            add(ItemAction(Icons.Outlined.GridView, stringResource(R.string.hosts_connect_split), 0) { connectInSplit(host) })
+        }
+        // Server sessions: on the host's account, which has to be signed in.
+        val hostAccount = accountList.firstOrNull { it.id == host.accountId }
+        if (hostAccount?.status == com.termoak.ffi.AccountStatus.ACTIVE) {
+            add(ItemAction(Icons.Outlined.CloudQueue, stringResource(R.string.hosts_connect_on_server), 0) { connect(host, true) })
+        }
+        add(ItemAction(Icons.Outlined.Folder, stringResource(R.string.files_sftp), 0) { nav.openFiles(filesSourceOf(app, host)) })
+        val writable = host.access.canWrite()
+        add(
+            ItemAction(
+                if (writable) Icons.Outlined.Edit else Icons.Outlined.Visibility,
+                stringResource(if (writable) R.string.common_edit else R.string.hosts_view), 1,
+            ) { edit(host) },
+        )
+        if (writable) {
+            add(
+                ItemAction(
+                    if (host.favorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                    stringResource(if (host.favorite) R.string.hosts_favorite_remove else R.string.hosts_favorite_add), 1,
+                ) { save(host.copy(favorite = !host.favorite)) },
+            )
+            val copyLabel = stringResource(R.string.hosts_copy_label, host.label)
+            add(ItemAction(Icons.Outlined.ContentCopy, stringResource(R.string.hosts_duplicate), 1) {
+                save(host.copy(id = "", label = copyLabel, favorite = false))
+            })
+        }
+        add(ItemAction(Icons.Outlined.Link, stringResource(R.string.hosts_copy_address), 1) { copyAddress(host) })
+        if (menu && writable) {
+            add(ItemAction(Icons.Outlined.FolderOpen, stringResource(R.string.bulk_move), 2) { moving = listOf(host) })
+        }
+        if (accountList.isNotEmpty()) {
+            if (writable) {
+                add(ItemAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to), 2) {
+                    transferOf(TransferMode.MOVE, listOf(host))
+                })
+            }
+            if (!host.access.useOnly()) {
+                add(ItemAction(Icons.Outlined.ContentPaste, stringResource(R.string.transfer_copy_to), 2) {
+                    transferOf(TransferMode.COPY, listOf(host))
+                })
+            }
+        }
+        if (menu) add(ItemAction(Icons.Outlined.Checklist, stringResource(R.string.hosts_select), 2) { toggle(host) })
+        if (writable) {
+            add(ItemAction(Icons.Outlined.Delete, stringResource(R.string.common_delete), 3, danger = true) { deleting = host })
+        }
+    }
+
+    /** What can be done with group [g] (its sheet on phones, its menu in the desktop layout). */
+    @Composable
+    fun actionsOfGroup(g: HostGroup): List<ItemAction> = buildList {
+        if (g.access.canWrite()) {
+            add(ItemAction(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.hosts_rename), 0) { editingGroup = g })
+            if (accountList.isNotEmpty()) {
+                add(ItemAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to), 0) {
+                    transfer = TransferRequest(TransferMode.MOVE, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
+                })
+            }
+        }
+        if (accountList.isNotEmpty() && !g.access.useOnly()) {
+            add(ItemAction(Icons.Outlined.ContentPaste, stringResource(R.string.transfer_copy_to), 0) {
+                transfer = TransferRequest(TransferMode.COPY, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
+            })
+        }
+        if (g.access.canWrite()) {
+            add(ItemAction(Icons.Outlined.Delete, stringResource(R.string.hosts_delete_group), 1, danger = true) { deletingGroup = g })
+        }
     }
 
     val group = groups.firstOrNull { it.id == groupId && it.accountId == groupAccount }
@@ -402,52 +525,99 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         }
     }
 
-    if (selecting) {
-        val count = selected.size
+    val count = selected.size
+    // The desktop view: sections per group (or the chip chosen), or the search results.
+    val desktopView = if (desktop) {
+        desktopHostsView(
+            hosts, groups, query, chip, stringResource(R.string.hosts_results), stringResource(R.string.hosts_favorites),
+            stringResource(R.string.host_no_group),
+        )
+    } else null
+    // Multi-select: what can be done with the selected hosts.
+    val selectionActions: @Composable RowScope.() -> Unit = {
+        IconButton(onClick = {
+            val ids = (desktopView?.shown ?: visibleHosts).map { it.uid }
+            selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
+        }) { Icon(Icons.Outlined.SelectAll, stringResource(R.string.bulk_select_all)) }
+        IconButton(onClick = { bulkDelete = true }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
+        Box {
+            var menu by remember { mutableStateOf(false) }
+            IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more)) }
+            DropdownMenu(menu, { menu = false }) {
+                DropdownMenuItem(
+                    { Text(stringResource(R.string.bulk_move)) }, { menu = false; moving = hosts.filter { it.uid in selected } },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null) },
+                )
+                DropdownMenuItem(
+                    { Text(stringResource(R.string.multi_run_snippet)) }, { menu = false; bulkSnippet = true },
+                    leadingIcon = { Icon(Icons.Outlined.Code, null) },
+                )
+                if (accountList.isNotEmpty()) {
+                    val chosen = hosts.filter { it.uid in selected }
+                    if (chosen.all { it.access.canWrite() }) {
+                        DropdownMenuItem(
+                            { Text(stringResource(R.string.transfer_move_to)) }, { menu = false; transferOf(TransferMode.MOVE, chosen) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null) },
+                        )
+                    }
+                    if (chosen.none { it.access.useOnly() }) {
+                        DropdownMenuItem(
+                            { Text(stringResource(R.string.transfer_copy_to)) }, { menu = false; transferOf(TransferMode.COPY, chosen) },
+                            leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) },
+                        )
+                    }
+                }
+            }
+        }
+        Button(onClick = { connectSelected() }, Modifier.padding(end = 8.dp)) {
+            Text(pluralStringResource(R.plurals.bulk_connect, count, count))
+        }
+    }
+
+    if (desktopView != null) {
+        // ----- Desktop layout: header, group chips, host cards and the editor panel -----
+        BackHandler(editing != null && !selecting) { editing = null }
+        DesktopHosts(
+            app, nav, hosts = hosts, groups = groups, view = desktopView, query = query, onQuery = { query = it }, searchFocus = searchFocus,
+            onChip = { chip = it }, grid = grid, loggedIn = loggedIn == true, syncing = syncing,
+            selecting = selecting, selectedCount = count, selectionActions = selectionActions,
+            onClearSelection = { selected = emptyList() },
+            onServerCount = onServer.size, onServerSessions = { openServerSessions() },
+            onNewHost = { edit(null) }, onNewGroup = { newGroup() },
+            countIn = { countIn(it) },
+            groupMenu = { g, dismiss -> MenuItems(actionsOfGroup(g), dismiss) },
+            editor = editing?.let { (id, account) ->
+                @Composable {
+                    key(id, account) {
+                        HostEditor(
+                            app, id.takeIf { it != NEW_HOST }, account, panel = true,
+                            onClose = { editing = null; reload() },
+                            onConnect = { host -> editing = null; reload(); connect(host, false) },
+                        )
+                    }
+                }
+            },
+        ) { host ->
+            val v = vaultOf(host)
+            DesktopHostCard(
+                host, connected = host.uid in connectedHosts,
+                selected = if (selecting) host.uid in selected else null,
+                editing = editing?.let { it.first == host.id && it.second == host.accountId } == true,
+                onClick = { if (selecting) toggle(host) else connect(host, false) },
+                onCtrlClick = { toggle(host) },
+                onTag = { query = it },
+                vault = if (!showVaults) null else if (host.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) },
+                vaultColor = if (host.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
+                account = if (showAccounts) accountList.firstOrNull { it.id == host.accountId } else null,
+            ) { dismiss -> MenuItems(hostActions(host, menu = true), dismiss) }
+        }
+    } else if (selecting) {
         ScreenScaffold(
             title = pluralStringResource(R.plurals.bulk_selected, count, count),
             navigationIcon = {
                 IconButton(onClick = { selected = emptyList() }) { Icon(Icons.Outlined.Close, stringResource(R.string.bulk_clear)) }
             },
-            actions = {
-                IconButton(onClick = {
-                    val ids = visibleHosts.map { it.uid }
-                    selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
-                }) { Icon(Icons.Outlined.SelectAll, stringResource(R.string.bulk_select_all)) }
-                IconButton(onClick = { bulkDelete = true }) { Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete)) }
-                Box {
-                    var menu by remember { mutableStateOf(false) }
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more)) }
-                    DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(
-                            { Text(stringResource(R.string.bulk_move)) }, { menu = false; bulkMove = true },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null) },
-                        )
-                        DropdownMenuItem(
-                            { Text(stringResource(R.string.multi_run_snippet)) }, { menu = false; bulkSnippet = true },
-                            leadingIcon = { Icon(Icons.Outlined.Code, null) },
-                        )
-                        if (accountList.isNotEmpty()) {
-                            val chosen = hosts.filter { it.uid in selected }
-                            if (chosen.all { it.access.canWrite() }) {
-                                DropdownMenuItem(
-                                    { Text(stringResource(R.string.transfer_move_to)) }, { menu = false; transferOf(TransferMode.MOVE, chosen) },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null) },
-                                )
-                            }
-                            if (chosen.none { it.access.useOnly() }) {
-                                DropdownMenuItem(
-                                    { Text(stringResource(R.string.transfer_copy_to)) }, { menu = false; transferOf(TransferMode.COPY, chosen) },
-                                    leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) },
-                                )
-                            }
-                        }
-                    }
-                }
-                Button(onClick = { connectSelected() }, Modifier.padding(end = 8.dp)) {
-                    Text(pluralStringResource(R.plurals.bulk_connect, count, count))
-                }
-            },
+            actions = selectionActions,
             content = body,
         )
     } else if (groupId == null) {
@@ -465,6 +635,13 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             floatingActionButton = fab,
             content = body,
         )
+    }
+    // The window got narrower with the editor panel open: the editor as a screen.
+    LaunchedEffect(desktop, editing) {
+        val (id, account) = editing ?: return@LaunchedEffect
+        if (desktop) return@LaunchedEffect
+        editing = null
+        nav.navigate(Routes.hostEdit(id.takeIf { it != NEW_HOST }, account))
     }
 
     // ----- Sheets and dialogs -----
@@ -524,50 +701,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            SheetAction(Icons.Outlined.Terminal, stringResource(R.string.hosts_connect)) { actionsFor = null; connect(host, false) }
-            // Server sessions: on the host's account, which has to be signed in.
-            val hostAccount = accountList.firstOrNull { it.id == host.accountId }
-            if (hostAccount?.status == com.termoak.ffi.AccountStatus.ACTIVE) {
-                SheetAction(Icons.Outlined.CloudQueue, stringResource(R.string.hosts_connect_on_server)) {
-                    actionsFor = null; connect(host, true)
-                }
-            }
-            SheetAction(Icons.Outlined.Folder, stringResource(R.string.files_sftp)) {
-                actionsFor = null; nav.openFiles(filesSourceOf(app, host))
-            }
-            val writable = host.access.canWrite()
-            SheetAction(if (writable) Icons.Outlined.Edit else Icons.Outlined.Visibility, stringResource(if (writable) R.string.common_edit else R.string.hosts_view)) {
-                actionsFor = null; nav.navigate(Routes.hostEdit(host.id, host.accountId))
-            }
-            if (writable) {
-                SheetAction(
-                    if (host.favorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                    stringResource(if (host.favorite) R.string.hosts_favorite_remove else R.string.hosts_favorite_add),
-                ) { actionsFor = null; save(host.copy(favorite = !host.favorite)) }
-                val copyLabel = stringResource(R.string.hosts_copy_label, host.label)
-                SheetAction(Icons.Outlined.ContentCopy, stringResource(R.string.hosts_duplicate)) {
-                    actionsFor = null; save(host.copy(id = "", label = copyLabel, favorite = false))
-                }
-            }
-            SheetAction(Icons.Outlined.Link, stringResource(R.string.hosts_copy_address)) {
-                actionsFor = null; copyAddress(host)
-            }
-            if (accountList.isNotEmpty()) {
-                if (writable) {
-                    SheetAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to)) {
-                        actionsFor = null; transferOf(TransferMode.MOVE, listOf(host))
-                    }
-                }
-                if (!host.access.useOnly()) {
-                    SheetAction(Icons.Outlined.ContentPaste, stringResource(R.string.transfer_copy_to)) {
-                        actionsFor = null; transferOf(TransferMode.COPY, listOf(host))
-                    }
-                }
-            }
-            if (writable) {
-                SheetAction(Icons.Outlined.Delete, stringResource(R.string.common_delete), danger = true) {
-                    actionsFor = null; deleting = host
-                }
+            hostActions(host, menu = false).forEach { a ->
+                SheetAction(a.icon, a.label, danger = a.danger) { actionsFor = null; a.run() }
             }
             Spacer(Modifier.navigationBarsPadding().height(24.dp))
         }
@@ -575,27 +710,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     groupActions?.let { g ->
         ModalBottomSheet(onDismissRequest = { groupActions = null }) {
             Text(g.name, Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)
-            if (g.access.canWrite()) {
-                SheetAction(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.hosts_rename)) {
-                    groupActions = null; editingGroup = g
-                }
-                if (accountList.isNotEmpty()) {
-                    SheetAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to)) {
-                        groupActions = null
-                        transfer = TransferRequest(TransferMode.MOVE, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
-                    }
-                }
-            }
-            if (accountList.isNotEmpty() && !g.access.useOnly()) {
-                SheetAction(Icons.Outlined.ContentPaste, stringResource(R.string.transfer_copy_to)) {
-                    groupActions = null
-                    transfer = TransferRequest(TransferMode.COPY, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
-                }
-            }
-            if (g.access.canWrite()) {
-                SheetAction(Icons.Outlined.Delete, stringResource(R.string.hosts_delete_group), danger = true) {
-                    groupActions = null; deletingGroup = g
-                }
+            actionsOfGroup(g).forEach { a ->
+                SheetAction(a.icon, a.label, danger = a.danger) { groupActions = null; a.run() }
             }
             if (!g.access.canWrite()) {
                 Text(
@@ -642,24 +758,23 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             }
         }
     }
-    if (bulkMove) {
-        val chosen = hosts.filter { it.uid in selected }
+    moving?.let { chosen ->
         // Groups live in a place: only those of the hosts' own place (all in one).
         val place = chosen.map { it.accountId to it.vaultId }.distinct().singleOrNull()
         if (place == null) {
             LaunchedEffect(Unit) {
-                bulkMove = false
+                moving = null
                 snackbar.showSnackbar(resources.getString(R.string.bulk_move_one_place))
             }
             return
         }
-        MoveToGroupDialog(groups.filter { it.accountId == place.first && it.vaultId == place.second }, chosen.size, onDismiss = { bulkMove = false }) { target ->
-            bulkMove = false
+        MoveToGroupDialog(groups.filter { it.accountId == place.first && it.vaultId == place.second }, chosen.size, onDismiss = { moving = null }) { target ->
+            moving = null
             var failed = 0
             chosen.forEach { h ->
                 runCatching { app.core.saveHost(h.copy(groupId = target), SecretChange.Keep) }.onFailure { failed++ }
             }
-            selected = emptyList()
+            if (chosen.all { it.uid in selected }) selected = emptyList()
             reload()
             app.accounts.sync()
             val name = groups.firstOrNull { it.id == target }?.name ?: resources.getString(R.string.host_no_group)
@@ -975,4 +1090,482 @@ private fun MoveToGroupDialog(groups: List<HostGroup>, count: Int, onDismiss: ()
         confirmButton = { TextButton(onClick = { onMove(target) }) { Text(stringResource(R.string.bulk_move_action)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+/** The id in the editor panel of a host that doesn't exist yet. */
+private const val NEW_HOST = "new"
+
+// The group chips of the desktop layout (otherwise, a group's uid).
+private const val CHIP_ALL = "all"
+private const val CHIP_FAVORITES = "fav"
+private const val CHIP_NO_GROUP = "none"
+
+/**
+ * Something that can be done with a host or a group, for its sheet (phones)
+ * or its menu (desktop layout, with a line between [section]s).
+ */
+class ItemAction(val icon: ImageVector, val label: String, val section: Int, val danger: Boolean = false, val run: () -> Unit)
+
+/** [actions] as the items of a menu. */
+@Composable
+fun MenuItems(actions: List<ItemAction>, dismiss: () -> Unit) {
+    actions.forEachIndexed { i, a ->
+        if (i > 0 && actions[i - 1].section != a.section) HorizontalDivider()
+        val color = if (a.danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+        DropdownMenuItem(
+            { Text(a.label, color = color) }, { dismiss(); a.run() },
+            leadingIcon = { Icon(a.icon, null, tint = if (a.danger) color else MaterialTheme.colorScheme.onSurfaceVariant) },
+        )
+    }
+}
+
+/** A part of the desktop Hosts view: a group (or "No group", or results) and its hosts. */
+private class HostSection(val key: String, val group: HostGroup?, val title: String?, val hosts: List<SshHost>)
+
+/**
+ * What the desktop Hosts view shows: the [sections] for the search or the
+ * chosen [chip] (the one in effect), the groups for the chips (sorted by
+ * their path, "Parent / Child" in [paths]) and the hosts without a group.
+ */
+private class DesktopHostsView(
+    val sections: List<HostSection>,
+    val groups: List<HostGroup>,
+    val paths: Map<String, String>,
+    val loose: List<SshHost>,
+    val chip: String,
+) {
+    /** The hosts on screen, in order (for "Select all"). */
+    val shown: List<SshHost> get() = sections.flatMap { it.hosts }
+}
+
+private fun desktopHostsView(
+    hosts: List<SshHost>,
+    groups: List<HostGroup>,
+    query: String,
+    chip: String,
+    results: String,
+    favorites: String,
+    noGroup: String,
+): DesktopHostsView {
+    val q = query.trim().lowercase()
+    val order = compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() }
+    fun groupOf(h: SshHost): HostGroup? = groups.firstOrNull { it.id == h.groupId && it.accountId == h.accountId }
+    fun parentOf(g: HostGroup): HostGroup? = groups.firstOrNull { it.id == g.parentId && it.accountId == g.accountId }
+    fun pathOf(g: HostGroup): List<HostGroup> = generateSequence(g) { parentOf(it) }.take(16).toList().asReversed()
+    val paths = groups.associate { g -> g.uid to pathOf(g).joinToString(" / ") { it.name } }
+    val sorted = groups.sortedBy { g -> paths[g.uid].orEmpty().lowercase() }
+    val chosenGroup = groups.firstOrNull { it.uid == chip }
+    val current = if (chip == CHIP_FAVORITES || chip == CHIP_NO_GROUP || chosenGroup != null) chip else CHIP_ALL
+    val loose = hosts.filter { groupOf(it) == null }.sortedWith(order)
+    val sections: List<HostSection> = when {
+        q.isNotEmpty() -> listOf(
+            HostSection(
+                "results", null, results,
+                hosts.filter { h ->
+                    listOf(h.label, h.address, h.settings.username ?: "", h.tags.joinToString(" ")).any { it.lowercase().contains(q) }
+                }.sortedWith(order),
+            ),
+        )
+        current == CHIP_FAVORITES -> listOf(HostSection("fav", null, favorites, hosts.filter { it.favorite }.sortedBy { it.label.lowercase() }))
+        current == CHIP_NO_GROUP -> listOf(HostSection("none", null, noGroup, loose))
+        else -> {
+            val shown = if (chosenGroup == null) sorted else sorted.filter { g -> pathOf(g).any { it.uid == chosenGroup.uid } }
+            shown.map { g ->
+                HostSection(
+                    "g" + g.uid, g, paths[g.uid],
+                    hosts.filter { it.groupId == g.id && it.accountId == g.accountId }.sortedWith(order),
+                )
+            }.filter { it.hosts.isNotEmpty() || it.group?.uid == chosenGroup?.uid } +
+                if (chosenGroup == null && loose.isNotEmpty()) listOf(HostSection("none", null, noGroup, loose)) else emptyList()
+        }
+    }
+    return DesktopHostsView(sections, sorted, paths, loose, current)
+}
+
+/**
+ * The Hosts view of the desktop layout (hosts.rs of the desktop app): the
+ * header with the search, Import, Group and New host; the group chips; the
+ * hosts as cards in sections per group; and [editor] in a panel on the
+ * right (over the whole area when the window is narrow).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DesktopHosts(
+    app: TermoakApp,
+    nav: NavHostController,
+    hosts: List<SshHost>,
+    groups: List<HostGroup>,
+    view: DesktopHostsView,
+    query: String,
+    onQuery: (String) -> Unit,
+    searchFocus: FocusRequester,
+    onChip: (String) -> Unit,
+    grid: LazyGridState,
+    loggedIn: Boolean,
+    syncing: Boolean,
+    selecting: Boolean,
+    selectedCount: Int,
+    selectionActions: @Composable RowScope.() -> Unit,
+    onClearSelection: () -> Unit,
+    onServerCount: Int,
+    onServerSessions: () -> Unit,
+    onNewHost: () -> Unit,
+    onNewGroup: () -> Unit,
+    countIn: (HostGroup) -> Int,
+    groupMenu: @Composable (HostGroup, () -> Unit) -> Unit,
+    editor: (@Composable () -> Unit)?,
+    card: @Composable (SshHost) -> Unit,
+) {
+    val searching = query.isNotBlank()
+    val sections = view.sections
+    val sorted = view.groups
+    val current = view.chip
+    val loose = view.loose
+    val attention = attentionAccount(app)
+    val noGroup = stringResource(R.string.host_no_group)
+    fun pathOf(g: HostGroup): String = view.paths[g.uid] ?: g.name
+
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // The editor beside the hosts when both fit; otherwise over them.
+            val editorWidth = 440.dp
+            val editorOver = editor != null && maxWidth - editorWidth < 380.dp
+            Row(Modifier.fillMaxSize()) {
+                if (!editorOver) {
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        // ----- Header (or what to do with the selected hosts) -----
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            val roomy = maxWidth >= 860.dp
+                            val labels = maxWidth >= 560.dp
+                            if (selecting) {
+                                Row(
+                                    Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(start = 12.dp, end = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    IconButton(onClick = onClearSelection) { Icon(Icons.Outlined.Close, stringResource(R.string.bulk_clear)) }
+                                    Text(
+                                        pluralStringResource(R.plurals.bulk_selected, selectedCount, selectedCount),
+                                        Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.titleMedium,
+                                    )
+                                    selectionActions()
+                                }
+                            } else {
+                                Column {
+                                    Row(
+                                        Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(start = 24.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(stringResource(R.string.section_hosts), style = MaterialTheme.typography.titleLarge)
+                                            Text(
+                                                pluralStringResource(R.plurals.hosts_desktop_subtitle, hosts.size, hosts.size),
+                                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        if (roomy) DesktopSearchField(query, searchFocus, onQuery, Modifier.width(280.dp))
+                                        if (loggedIn) {
+                                            IconButton(onClick = { app.accounts.sync() }, enabled = !syncing) {
+                                                if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                                else Icon(Icons.Outlined.Sync, stringResource(R.string.common_sync))
+                                            }
+                                        }
+                                        HeaderButton(Icons.Outlined.FileDownload, stringResource(R.string.hosts_import), labels) {
+                                            nav.navigate(Routes.IMPORT)
+                                        }
+                                        HeaderButton(Icons.Outlined.CreateNewFolder, stringResource(R.string.hosts_group_button), labels, onClick = onNewGroup)
+                                        Button(onClick = onNewHost, contentPadding = PaddingValues(horizontal = 14.dp)) {
+                                            Icon(Icons.Outlined.Add, null, Modifier.size(18.dp))
+                                            if (labels) Text(stringResource(R.string.hosts_new_host), Modifier.padding(start = 6.dp))
+                                        }
+                                    }
+                                    if (!roomy) {
+                                        DesktopSearchField(query, searchFocus, onQuery, Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 8.dp))
+                                    }
+                                }
+                            }
+                        }
+                        // ----- Group chips -----
+                        if (groups.isNotEmpty() || hosts.any { it.favorite }) {
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                GroupChip(stringResource(R.string.hosts_all), hosts.size, current == CHIP_ALL && !searching) { onChip(CHIP_ALL) }
+                                GroupChip(stringResource(R.string.hosts_favorites), hosts.count { it.favorite }, current == CHIP_FAVORITES && !searching) {
+                                    onChip(CHIP_FAVORITES)
+                                }
+                                sorted.forEach { g ->
+                                    GroupChip(pathOf(g), countIn(g), current == g.uid && !searching) { onChip(g.uid) }
+                                }
+                                if (loose.isNotEmpty()) {
+                                    GroupChip(noGroup, loose.size, current == CHIP_NO_GROUP && !searching) { onChip(CHIP_NO_GROUP) }
+                                }
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        // ----- Hosts -----
+                        PullToRefreshBox(
+                            isRefreshing = syncing,
+                            onRefresh = { if (loggedIn) app.accounts.sync() },
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                        ) {
+                            LazyVerticalGrid(
+                                GridCells.Adaptive(minSize = 280.dp),
+                                Modifier.fillMaxSize(),
+                                state = grid,
+                                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 32.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                attention?.let { a -> full { AccountAttention(app, nav, a) } }
+                                full { UpdateBanner() }
+                                if (loggedIn && onServerCount > 0) full { ServerSessionsNotice(onServerCount, onServerSessions) }
+                                if (hosts.isEmpty() && groups.isEmpty()) {
+                                    full {
+                                        EmptyState(
+                                            Icons.Outlined.Dns,
+                                            stringResource(if (syncing) R.string.common_syncing else R.string.hosts_empty_title),
+                                            stringResource(if (loggedIn) R.string.hosts_empty_text_synced else R.string.hosts_empty_text_local),
+                                            Modifier.height(420.dp),
+                                            action = stringResource(R.string.hosts_new_host), onAction = onNewHost,
+                                        )
+                                    }
+                                }
+                                sections.forEach { sec ->
+                                    if (sec.title != null) {
+                                        item(key = "h" + sec.key, span = { GridItemSpan(maxLineSpan) }) {
+                                            DesktopSectionHeader(sec, groupMenu)
+                                        }
+                                    }
+                                    items(sec.hosts, key = { sec.key + "/" + it.uid }) { card(it) }
+                                    if (sec.hosts.isEmpty() && sec.group != null) {
+                                        full {
+                                            Text(
+                                                stringResource(R.string.hosts_group_empty_title), Modifier.padding(vertical = 8.dp),
+                                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                                if (searching && sections.all { it.hosts.isEmpty() }) {
+                                    full {
+                                        EmptyState(
+                                            Icons.Outlined.SearchOff, stringResource(R.string.hosts_no_match, query),
+                                            stringResource(R.string.hosts_no_match_text), Modifier.height(320.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (editor != null) {
+                    if (!editorOver) VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Box(if (editorOver) Modifier.weight(1f).fillMaxHeight() else Modifier.width(editorWidth).fillMaxHeight()) {
+                        // Its own top bar, not the main screens' header.
+                        androidx.compose.runtime.CompositionLocalProvider(LocalDesktop provides false) { editor() }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A button of the desktop header: outlined, with its name when there is room. */
+@Composable
+private fun HeaderButton(icon: ImageVector, text: String, label: Boolean, onClick: () -> Unit) {
+    if (!label) {
+        IconButton(onClick = onClick) { Icon(icon, text) }
+        return
+    }
+    OutlinedButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 12.dp)) {
+        Icon(icon, null, Modifier.size(18.dp))
+        Text(text, Modifier.padding(start = 6.dp), maxLines = 1)
+    }
+}
+
+/** "Production · 4" */
+@Composable
+private fun GroupChip(name: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(selected, onClick, { Text("$name · $count", maxLines = 1) })
+}
+
+/** The title of a section of hosts: its folder, name, how many and the group's menu. */
+@Composable
+private fun DesktopSectionHeader(sec: HostSection, groupMenu: @Composable (HostGroup, () -> Unit) -> Unit) {
+    val g = sec.group
+    val tint = g?.color?.let { runCatching { Color(it.toColorInt()) }.getOrNull() } ?: MaterialTheme.colorScheme.primary
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(if (g == null && sec.key == "none") Icons.Outlined.FolderOff else Icons.Outlined.Folder, null, Modifier.size(20.dp), tint = tint)
+        Text(sec.title.orEmpty(), Modifier.padding(start = 8.dp), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            pluralStringResource(R.plurals.hosts_count, sec.hosts.size, sec.hosts.size), Modifier.padding(start = 8.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (g != null) {
+            Box {
+                var menu by remember { mutableStateOf(false) }
+                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Outlined.MoreHoriz, stringResource(R.string.common_options), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                DropdownMenu(menu, { menu = false }) { groupMenu(g) { menu = false } }
+            }
+        }
+    }
+}
+
+/** The search box of the desktop header (smaller than the phone's). */
+@Composable
+private fun DesktopSearchField(query: String, focus: FocusRequester, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier.height(40.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Search, null, Modifier.size(18.dp), tint = muted)
+        Box(Modifier.weight(1f).padding(start = 8.dp), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) {
+                Text(stringResource(R.string.desktop_search_hosts), color = muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+            }
+            BasicTextField(
+                query, onChange, Modifier.fillMaxWidth().focusRequester(focus), singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            )
+        }
+        if (query.isNotEmpty()) {
+            IconButton(onClick = { onChange("") }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.Close, stringResource(R.string.hosts_search_clear), Modifier.size(16.dp), tint = muted)
+            }
+        }
+    }
+}
+
+/**
+ * A host as a card of the desktop's Hosts view: avatar, name, user@address,
+ * system and tags. Tap connects (selects while selecting), Ctrl+click
+ * selects, right click or a long press opens its menu where it was asked
+ * for (the "⋮" too).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DesktopHostCard(
+    host: SshHost,
+    connected: Boolean,
+    selected: Boolean?,
+    editing: Boolean,
+    onClick: () -> Unit,
+    onCtrlClick: () -> Unit,
+    onTag: (String) -> Unit,
+    vault: String?,
+    vaultColor: Color,
+    account: AccountInfo?,
+    menu: @Composable (dismiss: () -> Unit) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    var menuOpen by remember { mutableStateOf(false) }
+    // Where the menu opens: where it was right-clicked, or at the "⋮" (`null`).
+    var menuAt by remember { mutableStateOf<IntOffset?>(null) }
+    val dismiss = { menuOpen = false }
+    val highlight = selected == true || editing
+    Box {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = if (selected == true) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+            border = BorderStroke(1.dp, if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .mouseActions(
+                        onSecondary = { at -> menuAt = IntOffset(at.x.toInt(), at.y.toInt()); menuOpen = true },
+                        onCtrlClick = onCtrlClick,
+                    )
+                    // Keyboard: Enter connects (the click); the Menu key or Shift+F10 opens the menu.
+                    .onKeyEvent { e ->
+                        val key = e.type == KeyEventType.KeyDown && (e.key == Key.Menu || (e.key == Key.F10 && e.isShiftPressed))
+                        if (key) { menuAt = null; menuOpen = true }
+                        key
+                    }
+                    .combinedClickable(onClick = onClick, onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuAt = null
+                        menuOpen = true
+                    })
+                    .padding(start = 12.dp, top = 12.dp, end = 2.dp, bottom = 12.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box {
+                        if (selected == true) {
+                            Box(
+                                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(Icons.Outlined.Check, stringResource(R.string.bulk_selected_cd), tint = MaterialTheme.colorScheme.onPrimary) }
+                        } else {
+                            HostTile(host.label, host.os, host.color, size = 40.dp, logo = false)
+                        }
+                        if (account != null && selected != true) {
+                            Box(Modifier.align(Alignment.TopStart).offset((-4).dp, (-4).dp)) { AccountAvatar(account, 16.dp) }
+                        }
+                        if (connected) {
+                            Box(
+                                Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp).size(14.dp).clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(2.dp).clip(CircleShape).background(Brand.Green),
+                            )
+                        }
+                    }
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                host.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (host.favorite) {
+                                Icon(Icons.Filled.Star, stringResource(R.string.hosts_favorite), Modifier.padding(start = 4.dp).size(14.dp), tint = Brand.Amber)
+                            }
+                            if (host.access.useOnly()) {
+                                Icon(
+                                    Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.padding(start = 4.dp).size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Text(
+                            hostAddress(host), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { menuAt = null; menuOpen = true }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_options), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        DropdownMenu(menuOpen && menuAt == null, dismiss) { menu(dismiss) }
+                    }
+                }
+                val os = osBadge(host.os)
+                if (os != null || host.tags.isNotEmpty() || vault != null) {
+                    Row(
+                        Modifier.padding(top = 10.dp, end = 10.dp).fillMaxWidth().clipToBounds(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        os?.let { (name, color) ->
+                            Text(
+                                name, Modifier.clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = 0.18f)).padding(horizontal = 5.dp, vertical = 1.dp),
+                                style = MaterialTheme.typography.labelSmall, color = color, maxLines = 1,
+                            )
+                        }
+                        host.osVersion?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        }
+                        vault?.let { VaultChip(it, vaultColor, useOnly = host.access.useOnly()) }
+                        host.tags.take(3).forEach { TagChip(it) { onTag(it) } }
+                        if (host.tags.size > 3) TagChip("+${host.tags.size - 3}", onClick = null)
+                    }
+                }
+            }
+        }
+        menuAt?.let { at -> ContextMenuAt(at, menuOpen, dismiss) { menu(dismiss) } }
+    }
 }
