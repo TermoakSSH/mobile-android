@@ -1171,6 +1171,11 @@
     <string name="tabs_quick_connect">Quick connect</string>
     <string name="tabs_move_left">Move left</string>
     <string name="tabs_move_right">Move right</string>
+    <string name="term_kind_local">Local</string>
+    <string name="term_kind_server">Server</string>
+    <string name="term_kind_shared">Shared</string>
+    <string name="term_files">Files</string>
+    <string name="term_share">Share</string>
     <plurals name="hosts_desktop_subtitle">
         <item quantity="one">%d host · tap to connect</item>
         <item quantity="other">%d hosts · tap to connect</item>

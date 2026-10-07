@@ -1217,6 +1217,11 @@
     <string name="tabs_quick_connect">Conexión rápida</string>
     <string name="tabs_move_left">Mover a la izquierda</string>
     <string name="tabs_move_right">Mover a la derecha</string>
+    <string name="term_kind_local">Local</string>
+    <string name="term_kind_server">Servidor</string>
+    <string name="term_kind_shared">Compartida</string>
+    <string name="term_files">Archivos</string>
+    <string name="term_share">Compartir</string>
     <plurals name="hosts_desktop_subtitle">
         <item quantity="one">%d host · toca para conectar</item>
         <item quantity="many">%d hosts · toca para conectar</item>

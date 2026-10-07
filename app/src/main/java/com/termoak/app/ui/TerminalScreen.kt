@@ -24,6 +24,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -121,6 +122,7 @@ import com.termoak.app.UiText
 import com.termoak.app.asString
 import com.termoak.app.data.Prefs
 import com.termoak.app.term.InitialConnecting
+import com.termoak.app.term.LiveShare
 import com.termoak.app.term.KeyStroke
 import com.termoak.app.term.Shortcut
 import com.termoak.app.term.SpecialKey
@@ -169,6 +171,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     // Window size class (it changes when a foldable folds or unfolds; the sessions stay).
     val maxPanes = rememberMaxPanes()
     val wide = maxPanes >= 2
+    val desktop = LocalDesktop.current
 
     LaunchedEffect(sessions.isEmpty()) { if (sessions.isEmpty()) nav.popBackStack() }
     if (session == null) return
@@ -244,7 +247,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             if (i >= 0 && sessions.size > 1) app.sessions.select(sessions[(i + step + sessions.size) % sessions.size].id)
         }
         when (shortcut) {
-            Shortcut.NEW_TAB -> nav.goTab(Routes.HOSTS)
+            Shortcut.NEW_TAB -> if (desktop) DesktopUi.quickConnect.value = true else nav.goTab(Routes.HOSTS)
             Shortcut.CLOSE_TAB -> app.sessions.close(session.id)
             Shortcut.NEXT_TAB -> neighbour(1)
             Shortcut.PREV_TAB -> neighbour(-1)
@@ -311,9 +314,123 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     }
     val imeOverTerminal = !wide && (copilotOpen || copilotIme)
 
-    Box(Modifier.fillMaxSize().background(TermBg).statusBarsPadding().navigationBarsPadding()) {
+    // Files over this terminal's connection (or through the server for a server session).
+    val canBrowse = when (session) {
+        is LocalTerminal -> state == TermState.Running
+        is ServerTerminal -> live.isOwner && session.hostId != null
+        else -> false
+    }
+    fun openFiles() {
+        filesSourceOf(session, title ?: session.label)?.let { nav.openFiles(it) }
+    }
+    fun toggleCopilot() {
+        if (copilotOpen) {
+            closeCopilot()
+        } else {
+            copilotOpen = true
+            if (!wide) focusedView()?.hideKeyboard()
+        }
+    }
+
+    /** Split view (tablets, unfolded foldables); a maximized pane goes back to the grid. */
+    @Composable
+    fun SplitButton() {
+        if (split.maximized != null && split.on && wide) {
+            IconButton(onClick = { app.sessions.maximize(null) }) {
+                Icon(Icons.Outlined.CloseFullscreen, stringResource(R.string.split_restore), tint = MaterialTheme.colorScheme.primary)
+            }
+        } else if (wide && sessions.size >= 2) {
+            IconButton(onClick = { showSplitPicker = true }) {
+                Icon(
+                    Icons.Outlined.GridView, stringResource(R.string.split_title),
+                    tint = if (splitShown) MaterialTheme.colorScheme.primary else KeyFg,
+                )
+            }
+        }
+    }
+
+    /**
+     * The terminal's menu. [inToolbar]: the desktop layout, whose toolbar
+     * already has paste, copy, files and share.
+     */
+    @Composable
+    fun MenuEntries(dismiss: () -> Unit, inToolbar: Boolean) {
+        if (!inToolbar) {
+            DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { dismiss(); paste(session) },
+                leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
+        }
+        DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { dismiss(); copyScreen(session) },
+            leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+        DropdownMenuItem({ Text(stringResource(R.string.term_font_bigger)) }, { app.prefs.setFontSize(fontSize + 1) },
+            leadingIcon = { Icon(Icons.Outlined.TextIncrease, null) })
+        DropdownMenuItem({ Text(stringResource(R.string.term_font_smaller)) }, { app.prefs.setFontSize(fontSize - 1) },
+            leadingIcon = { Icon(Icons.Outlined.TextDecrease, null) })
+        DropdownMenuItem({ Text(stringResource(R.string.kb_shortcuts)) }, { dismiss(); KeyShortcuts.sheet.value = true },
+            leadingIcon = { Icon(Icons.Outlined.KeyboardCommandKey, null) })
+        if (splitShown) {
+            DropdownMenuItem(
+                { Text(stringResource(if (split.broadcast) R.string.split_broadcast_stop else R.string.split_broadcast)) },
+                { dismiss(); app.sessions.setBroadcast(!split.broadcast) },
+                leadingIcon = { Icon(Icons.Outlined.CellTower, null, tint = if (split.broadcast) Brand.Amber else LocalContentColor.current) },
+            )
+        }
+        if (canBrowse && !inToolbar) {
+            DropdownMenuItem({ Text(stringResource(R.string.files_sftp)) }, {
+                dismiss()
+                openFiles()
+            }, leadingIcon = { Icon(Icons.Outlined.Folder, null) })
+        }
+        HorizontalDivider()
+        if (sharable && !inToolbar) {
+            DropdownMenuItem({ Text(stringResource(R.string.share_action)) }, { dismiss(); showShare = true },
+                leadingIcon = { Icon(Icons.Outlined.PersonAdd, null) })
+        }
+        if (live.participants.size > 1 || !live.isOwner) {
+            DropdownMenuItem({ Text(stringResource(R.string.share_participants)) }, { dismiss(); showParticipants = true },
+                leadingIcon = { Icon(Icons.Outlined.Group, null) })
+        }
+        if (live.ended == null) {
+            DropdownMenuItem({ Text(stringResource(R.string.term_reconnect)) }, { dismiss(); session.reconnect() },
+                leadingIcon = { Icon(Icons.Outlined.Refresh, null) })
+        }
+        if (session is ServerTerminal && live.isOwner) {
+            DropdownMenuItem(
+                { Text(stringResource(R.string.term_terminate_server_session), color = MaterialTheme.colorScheme.error) },
+                { dismiss(); terminating = session },
+                leadingIcon = { Icon(Icons.Outlined.PowerSettingsNew, null, tint = MaterialTheme.colorScheme.error) },
+            )
+        }
+        DropdownMenuItem(
+            { Text(stringResource(if (session.persistent && live.isOwner) R.string.term_close_tab_keep else R.string.common_close)) },
+            { dismiss(); app.sessions.close(session.id) },
+            leadingIcon = { Icon(Icons.Outlined.Close, null) },
+        )
+    }
+
+    // Desktop layout: under the window's tab bar (which keeps clear of the status bar).
+    Box(Modifier.fillMaxSize().background(TermBg).then(if (desktop) Modifier else Modifier.statusBarsPadding()).navigationBarsPadding()) {
         Row(Modifier.fillMaxSize().then(if (imeOverTerminal) Modifier else Modifier.imePadding())) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
+                if (desktop) {
+                    // ----- Desktop layout: the tabs are on top of the window; the terminal's toolbar -----
+                    DesktopTerminalToolbar(
+                        session, state, title, live, sharable = sharable, canBrowse = canBrowse,
+                        copilotOpen = copilotOpen, splitShown = splitShown, hardwareKeyboard = hardwareKeyboard,
+                        splitButton = { SplitButton() },
+                        onReconnect = { session.reconnect() },
+                        onFiles = { openFiles() },
+                        onCopy = {
+                            if (!copySelection(focusedView())) copyScreen(session)
+                            scope.launch { snackbar.showSnackbar(resources.getString(R.string.term_copied)) }
+                        },
+                        onPaste = { paste(session) },
+                        onCopilot = { toggleCopilot() },
+                        onShare = { showShare = true },
+                        onParticipants = { showParticipants = true },
+                        onSnippets = { showSnippets = true },
+                        onKeyboard = { focusedView()?.showSoftKeyboard() },
+                    ) { dismiss -> MenuEntries(dismiss, inToolbar = true) }
+                } else {
                 // ----- Top bar -----
                 Row(Modifier.fillMaxWidth().background(BarBg).height(52.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
@@ -325,50 +442,15 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            when (val s = state) {
-                                is TermState.Connecting -> if (live.waiting != null) stringResource(R.string.share_waiting_short)
-                                else s.message.asString()
-                                TermState.Running -> when {
-                                    !live.isOwner && live.canWrite -> stringResource(R.string.share_you_have_keyboard)
-                                    live.driverLabel() != null -> stringResource(R.string.share_is_typing, live.driverLabel()!!)
-                                    !live.isOwner -> stringResource(R.string.share_view_only)
-                                    live.others.isNotEmpty() -> pluralStringResource(
-                                        R.plurals.share_watching, live.others.size, live.others.size,
-                                    )
-                                    else -> stringResource(
-                                        if (session.persistent) R.string.term_server_session else R.string.term_ssh_from_phone,
-                                    )
-                                }
-                                is TermState.Closed -> stringResource(R.string.term_disconnected)
-                                TermState.Asleep -> stringResource(R.string.term_not_connected)
-                            },
+                            terminalStatus(session, state, live),
                             color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1,
                         )
                     }
                     if (live.others.isNotEmpty() || live.pendingRequests > 0) {
                         ParticipantsChip(live) { showParticipants = true }
                     }
-                    // Split view (tablets, unfolded foldables); a maximized pane goes back to the grid.
-                    if (split.maximized != null && split.on && wide) {
-                        IconButton(onClick = { app.sessions.maximize(null) }) {
-                            Icon(Icons.Outlined.CloseFullscreen, stringResource(R.string.split_restore), tint = MaterialTheme.colorScheme.primary)
-                        }
-                    } else if (wide && sessions.size >= 2) {
-                        IconButton(onClick = { showSplitPicker = true }) {
-                            Icon(
-                                Icons.Outlined.GridView, stringResource(R.string.split_title),
-                                tint = if (splitShown) MaterialTheme.colorScheme.primary else KeyFg,
-                            )
-                        }
-                    }
-                    IconButton(onClick = {
-                        if (copilotOpen) {
-                            closeCopilot()
-                        } else {
-                            copilotOpen = true
-                            if (!wide) focusedView()?.hideKeyboard()
-                        }
-                    }) {
+                    SplitButton()
+                    IconButton(onClick = { toggleCopilot() }) {
                         Icon(
                             Icons.Outlined.AutoAwesome, stringResource(R.string.copilot_title),
                             tint = if (copilotOpen) MaterialTheme.colorScheme.primary else KeyFg,
@@ -383,62 +465,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     Box {
                         var menu by remember { mutableStateOf(false) }
                         IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more), tint = KeyFg) }
-                        DropdownMenu(menu, { menu = false }) {
-                            DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { menu = false; paste(session) },
-                                leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
-                            DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { menu = false; copyScreen(session) },
-                                leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
-                            DropdownMenuItem({ Text(stringResource(R.string.term_font_bigger)) }, { app.prefs.setFontSize(fontSize + 1) },
-                                leadingIcon = { Icon(Icons.Outlined.TextIncrease, null) })
-                            DropdownMenuItem({ Text(stringResource(R.string.term_font_smaller)) }, { app.prefs.setFontSize(fontSize - 1) },
-                                leadingIcon = { Icon(Icons.Outlined.TextDecrease, null) })
-                            DropdownMenuItem({ Text(stringResource(R.string.kb_shortcuts)) }, { menu = false; KeyShortcuts.sheet.value = true },
-                                leadingIcon = { Icon(Icons.Outlined.KeyboardCommandKey, null) })
-                            if (splitShown) {
-                                DropdownMenuItem(
-                                    { Text(stringResource(if (split.broadcast) R.string.split_broadcast_stop else R.string.split_broadcast)) },
-                                    { menu = false; app.sessions.setBroadcast(!split.broadcast) },
-                                    leadingIcon = { Icon(Icons.Outlined.CellTower, null, tint = if (split.broadcast) Brand.Amber else LocalContentColor.current) },
-                                )
-                            }
-                            // Files over this terminal's connection (or through the server for a server session).
-                            val canBrowse = when (session) {
-                                is LocalTerminal -> state == TermState.Running
-                                is ServerTerminal -> live.isOwner && session.hostId != null
-                                else -> false
-                            }
-                            if (canBrowse) {
-                                DropdownMenuItem({ Text(stringResource(R.string.files_sftp)) }, {
-                                    menu = false
-                                    filesSourceOf(session, title ?: session.label)?.let { nav.openFiles(it) }
-                                }, leadingIcon = { Icon(Icons.Outlined.Folder, null) })
-                            }
-                            HorizontalDivider()
-                            if (sharable) {
-                                DropdownMenuItem({ Text(stringResource(R.string.share_action)) }, { menu = false; showShare = true },
-                                    leadingIcon = { Icon(Icons.Outlined.PersonAdd, null) })
-                            }
-                            if (live.participants.size > 1 || !live.isOwner) {
-                                DropdownMenuItem({ Text(stringResource(R.string.share_participants)) }, { menu = false; showParticipants = true },
-                                    leadingIcon = { Icon(Icons.Outlined.Group, null) })
-                            }
-                            if (live.ended == null) {
-                                DropdownMenuItem({ Text(stringResource(R.string.term_reconnect)) }, { menu = false; session.reconnect() },
-                                    leadingIcon = { Icon(Icons.Outlined.Refresh, null) })
-                            }
-                            if (session is ServerTerminal && live.isOwner) {
-                                DropdownMenuItem(
-                                    { Text(stringResource(R.string.term_terminate_server_session), color = MaterialTheme.colorScheme.error) },
-                                    { menu = false; terminating = session },
-                                    leadingIcon = { Icon(Icons.Outlined.PowerSettingsNew, null, tint = MaterialTheme.colorScheme.error) },
-                                )
-                            }
-                            DropdownMenuItem(
-                                { Text(stringResource(if (session.persistent && live.isOwner) R.string.term_close_tab_keep else R.string.common_close)) },
-                                { menu = false; app.sessions.close(session.id) },
-                                leadingIcon = { Icon(Icons.Outlined.Close, null) },
-                            )
-                        }
+                        DropdownMenu(menu, { menu = false }) { MenuEntries({ menu = false }, inToolbar = false) }
                     }
                 }
 
@@ -456,6 +483,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                         Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).clickable { nav.goTab(Routes.HOSTS) },
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Outlined.Add, stringResource(R.string.term_open_another), Modifier.size(18.dp), tint = KeyFg) }
+                }
                 }
 
                 // ----- Broadcast banner (orange, like the desktop's) -----
@@ -571,6 +599,136 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             s.terminate()
             app.sessions.close(s.id)
         }
+    }
+}
+
+/** The second line of the terminal's bar: connecting, who has the keyboard, who watches, or what it is. */
+@Composable
+private fun terminalStatus(session: TermSession, state: TermState, live: LiveShare): String = when (state) {
+    is TermState.Connecting -> if (live.waiting != null) stringResource(R.string.share_waiting_short)
+    else state.message.asString()
+    TermState.Running -> when {
+        !live.isOwner && live.canWrite -> stringResource(R.string.share_you_have_keyboard)
+        live.driverLabel() != null -> stringResource(R.string.share_is_typing, live.driverLabel()!!)
+        !live.isOwner -> stringResource(R.string.share_view_only)
+        live.others.isNotEmpty() -> pluralStringResource(
+            R.plurals.share_watching, live.others.size, live.others.size,
+        )
+        else -> stringResource(
+            if (session.persistent) R.string.term_server_session else R.string.term_ssh_from_phone,
+        )
+    }
+    is TermState.Closed -> stringResource(R.string.term_disconnected)
+    TermState.Asleep -> stringResource(R.string.term_not_connected)
+}
+
+/**
+ * The terminal's toolbar in the desktop layout (the desktop's terminal
+ * header): state and name, Local / Server / Shared, what is going on, and
+ * Files, Copy, Paste, AI and Share with their names when there is room.
+ */
+@Composable
+private fun DesktopTerminalToolbar(
+    session: TermSession,
+    state: TermState,
+    title: String?,
+    live: LiveShare,
+    sharable: Boolean,
+    canBrowse: Boolean,
+    copilotOpen: Boolean,
+    splitShown: Boolean,
+    hardwareKeyboard: Boolean,
+    splitButton: @Composable () -> Unit,
+    onReconnect: () -> Unit,
+    onFiles: () -> Unit,
+    onCopy: () -> Unit,
+    onPaste: () -> Unit,
+    onCopilot: () -> Unit,
+    onShare: () -> Unit,
+    onParticipants: () -> Unit,
+    onSnippets: () -> Unit,
+    onKeyboard: () -> Unit,
+    menuEntries: @Composable (dismiss: () -> Unit) -> Unit,
+) {
+    // A terminal from this device shared through the server.
+    val sharedLocally = (session as? LocalTerminal)?.sharedId?.collectAsState()?.value
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().background(BarBg)) {
+        // Narrow (the copilot open, a small window): icons only, like the desktop's panes.
+        val labels = maxWidth >= 900.dp
+        Row(Modifier.fillMaxWidth().height(44.dp).padding(start = 14.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            StatusDot(stateColor(state), 8.dp)
+            Text(
+                title ?: session.label, Modifier.padding(start = 8.dp).widthIn(max = 260.dp), color = KeyFg,
+                style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            val (kind, kindColor) = when {
+                session is ServerTerminal && !live.isOwner -> stringResource(R.string.term_kind_shared) to Brand.Green
+                session.persistent -> stringResource(R.string.term_kind_server) to ServerKindColor
+                else -> stringResource(R.string.term_kind_local) to Brand.Blue
+            }
+            Pill(kind, kindColor, Modifier.padding(start = 8.dp))
+            if (sharedLocally != null) Pill(stringResource(R.string.term_kind_shared), Brand.Green, Modifier.padding(start = 4.dp))
+            Text(
+                terminalStatus(session, state, live), Modifier.weight(1f).padding(horizontal = 10.dp),
+                color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (live.others.isNotEmpty() || live.pendingRequests > 0) ParticipantsChip(live, onParticipants)
+            if (state is TermState.Closed && live.ended == null) {
+                Button(onClick = onReconnect, Modifier.padding(horizontal = 4.dp).height(32.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
+                    Icon(Icons.Outlined.Refresh, null, Modifier.size(16.dp))
+                    if (labels) Text(stringResource(R.string.term_reconnect), Modifier.padding(start = 6.dp), fontSize = 13.sp)
+                }
+            }
+            splitButton()
+            if (canBrowse) ToolbarButton(Icons.Outlined.Folder, stringResource(R.string.term_files), labels, onClick = onFiles)
+            ToolbarButton(Icons.Outlined.ContentCopy, stringResource(R.string.term_copy), labels && !splitShown, onClick = onCopy)
+            ToolbarButton(Icons.Outlined.ContentPaste, stringResource(R.string.common_paste), labels && !splitShown, enabled = live.canWrite, onClick = onPaste)
+            ToolbarButton(Icons.Outlined.AutoAwesome, stringResource(R.string.section_ai), labels, active = copilotOpen, onClick = onCopilot)
+            if (sharable) ToolbarButton(Icons.Outlined.PersonAdd, stringResource(R.string.term_share), labels, onClick = onShare)
+            IconButton(onClick = onSnippets) {
+                Icon(Icons.Outlined.Code, stringResource(R.string.section_snippets), tint = KeyFg)
+            }
+            // Without a hardware keyboard, the on-screen one.
+            if (!hardwareKeyboard) {
+                IconButton(onClick = onKeyboard) { Icon(Icons.Outlined.Keyboard, stringResource(R.string.term_keyboard), tint = KeyFg) }
+            }
+            Box {
+                var menu by remember { mutableStateOf(false) }
+                IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more), tint = KeyFg) }
+                DropdownMenu(menu, { menu = false }) { menuEntries { menu = false } }
+            }
+        }
+    }
+}
+
+/** Server sessions in the toolbar (the desktop's "info" color). */
+private val ServerKindColor = Color(0xFF2BA6B5)
+
+/** A button of the desktop toolbar: its icon, and its name when [label] (otherwise as a tooltip for accessibility). */
+@Composable
+private fun ToolbarButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    label: Boolean,
+    active: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val color = when {
+        !enabled -> KeyFg.copy(alpha = 0.35f)
+        active -> MaterialTheme.colorScheme.primary
+        else -> KeyFg
+    }
+    if (!label) {
+        IconButton(onClick = onClick, enabled = enabled) { Icon(icon, text, tint = color) }
+        return
+    }
+    TextButton(
+        onClick = onClick, enabled = enabled, contentPadding = PaddingValues(horizontal = 10.dp),
+        modifier = Modifier.height(36.dp),
+    ) {
+        Icon(icon, null, Modifier.size(18.dp), tint = color)
+        Text(text, Modifier.padding(start = 6.dp), color = color, fontSize = 13.sp, maxLines = 1)
     }
 }
 
