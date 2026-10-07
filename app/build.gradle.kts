@@ -152,4 +152,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+
+    // JVM unit tests (app/src/test) of the code without Android: keys, paths...
+    testImplementation("junit:junit:4.13.2")
 }

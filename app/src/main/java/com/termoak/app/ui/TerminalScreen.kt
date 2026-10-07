@@ -56,6 +56,7 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.MoreVert
@@ -114,6 +115,7 @@ import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
 import com.termoak.app.asString
 import com.termoak.app.term.InitialConnecting
+import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.Pending
 import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.TermSession
@@ -330,6 +332,18 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                                     leadingIcon = { Icon(Icons.Outlined.CellTower, null, tint = if (split.broadcast) Brand.Amber else LocalContentColor.current) },
                                 )
                             }
+                            // Files over this terminal's connection (or through the server for a server session).
+                            val canBrowse = when (session) {
+                                is LocalTerminal -> state == TermState.Running
+                                is ServerTerminal -> live.isOwner && session.hostId != null
+                                else -> false
+                            }
+                            if (canBrowse) {
+                                DropdownMenuItem({ Text(stringResource(R.string.files_sftp)) }, {
+                                    menu = false
+                                    filesSourceOf(session, title ?: session.label)?.let { nav.openFiles(it) }
+                                }, leadingIcon = { Icon(Icons.Outlined.Folder, null) })
+                            }
                             HorizontalDivider()
                             if (sharable) {
                                 DropdownMenuItem({ Text(stringResource(R.string.share_action)) }, { menu = false; showShare = true },
@@ -428,30 +442,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     }
 
     // ----- Dialogs -----
-    when (val p = pending) {
-        is Pending.HostKey -> AlertDialog(
-            onDismissRequest = {},
-            title = { Text(stringResource(R.string.term_trust_title, p.host)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.term_trust_text))
-                    Surface(
-                        Modifier.padding(top = 12.dp).fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = RoundedCornerShape(8.dp),
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(p.keyType, style = MaterialTheme.typography.labelMedium)
-                            Text(p.fingerprint, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { p.answer(true) }) { Text(stringResource(R.string.term_trust_connect)) } },
-            dismissButton = { TextButton(onClick = { p.answer(false) }) { Text(stringResource(R.string.common_cancel)) } },
-        )
-        is Pending.Credentials -> CredentialsDialog(p)
-        null -> Unit
-    }
+    pending?.let { PendingDialog(it) }
     pasteAsk?.let { (target, text) ->
         PasteConfirmDialog(
             text, onDismiss = { pasteAsk = null },
@@ -772,6 +763,34 @@ private fun Key(label: String, modifier: Modifier, active: Boolean = false, smal
             label, color = if (active) Color.White else KeyFg,
             fontFamily = FontFamily.Monospace, fontSize = if (small) 12.sp else 15.sp,
         )
+    }
+}
+
+/** What connecting asks: trust the host's key, or a password / passphrase / answers. */
+@Composable
+internal fun PendingDialog(p: Pending) {
+    when (p) {
+        is Pending.HostKey -> AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.term_trust_title, p.host)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.term_trust_text))
+                    Surface(
+                        Modifier.padding(top = 12.dp).fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(p.keyType, style = MaterialTheme.typography.labelMedium)
+                            Text(p.fingerprint, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { p.answer(true) }) { Text(stringResource(R.string.term_trust_connect)) } },
+            dismissButton = { TextButton(onClick = { p.answer(false) }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+        is Pending.Credentials -> CredentialsDialog(p)
     }
 }
 

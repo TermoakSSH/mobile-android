@@ -132,6 +132,8 @@ object Routes {
     const val ACCOUNTS = "accounts"
     const val VAULTS = "vaults"
     const val VAULT = "vault/{account}/{id}"
+    /** Remote files (SFTP) of a host or a terminal: `id` of a [com.termoak.app.files.FileSources] entry. */
+    const val FILES = "files/{id}"
     /** Joining a shared session with an invitation link. */
     const val JOIN = "join?server={server}&token={token}"
 
@@ -143,6 +145,7 @@ object Routes {
         listOfNotNull(mode?.let { "mode=$it" }, server?.let { "server=${Uri.encode(it)}" }, email?.let { "email=${Uri.encode(it)}" })
             .joinToString("&").let { if (it.isEmpty()) "login" else "login?$it" }
     fun join(link: JoinLinkRef) = "join?server=${Uri.encode(link.server)}&token=${Uri.encode(link.token)}"
+    fun files(sourceId: String) = "files/$sourceId"
     fun keys(action: String? = null) = if (action == null) "keys" else "keys?action=$action"
 }
 
@@ -161,12 +164,12 @@ private val VaultRoutes = setOf(Routes.HOSTS, Routes.GROUP, Routes.KEYS, Routes.
 private val TopLevel = VaultRoutes + setOf(Routes.CONNECTIONS, Routes.AI, Routes.SETTINGS)
 
 /** Screens without any app navigation (not even the rail on tablets). */
-private val Immersive = setOf(Routes.TERMINAL, Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
+private val Immersive = setOf(Routes.TERMINAL, Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN, Routes.FILES)
 
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
     Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.LOGIN, Routes.JOIN,
-    Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT,
+    Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES,
 )
 
 private fun tabOf(route: String?): Tab? = when (route) {
@@ -233,7 +236,7 @@ fun AppRoot(app: TermoakApp) {
             val showRail = wide && route != null && route !in Immersive
             // Open terminals at hand (except on Connections, which lists them).
             val showTerminals = route != Routes.TERMINAL && route != Routes.WELCOME && route != Routes.VERIFY_EMAIL &&
-                route != Routes.CONNECTIONS
+                route != Routes.CONNECTIONS && route != Routes.FILES
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbar) },
                 // The terminal handles its own insets; the rest leaves room for the gesture bar.
@@ -376,6 +379,7 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.KNOWN_HOSTS) { KnownHostsScreen(app, nav) }
                         composable(Routes.FORWARDS) { ForwardsScreen(app, nav) }
                         composable(Routes.IMPORT) { ImportScreen(app) { nav.popBackStack() } }
+                        composable(Routes.FILES) { e -> FilesScreen(app, nav, e.arguments?.getString("id").orEmpty()) }
                         composable(
                             Routes.JOIN,
                             arguments = listOf(

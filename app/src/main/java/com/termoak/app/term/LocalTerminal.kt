@@ -10,6 +10,7 @@ import com.termoak.ffi.AuthRequest
 import com.termoak.ffi.SharedTerminal
 import com.termoak.ffi.SharedTerminalEvent
 import com.termoak.ffi.SharedTerminalListener
+import com.termoak.ffi.SshSession
 import com.termoak.ffi.TerminalHandle
 import com.termoak.ffi.TerminalListener
 import com.termoak.ffi.TerminalStatus
@@ -81,6 +82,12 @@ class LocalTerminal(
         runCatching { s.setListener(ShareListener(s)) }
         return _sharedId.value
     }
+
+    /**
+     * A new reference to this terminal's SSH connection (to browse its files
+     * without connecting again), while connected. Whoever takes it closes it.
+     */
+    fun connection(): SshSession? = handle?.takeIf { _state.value == TermState.Running }?.session()
 
     /** The relay share, once [shareOrThrow] made it. */
     val sharedTerminal: SharedTerminal? get() = shared

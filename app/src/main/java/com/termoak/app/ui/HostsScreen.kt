@@ -499,6 +499,9 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                     actionsFor = null; connect(host, true)
                 }
             }
+            SheetAction(Icons.Outlined.Folder, stringResource(R.string.files_sftp)) {
+                actionsFor = null; nav.openFiles(filesSourceOf(app, host))
+            }
             val writable = host.access.canWrite()
             SheetAction(if (writable) Icons.Outlined.Edit else Icons.Outlined.Visibility, stringResource(if (writable) R.string.common_edit else R.string.hosts_view)) {
                 actionsFor = null; nav.navigate(Routes.hostEdit(host.id, host.accountId))
@@ -680,11 +683,13 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
  * Connects to [host] from the phone, or through its server when it is in a
  * Strict vault where you are Use only (its secrets never leave the server).
  */
-fun connectHost(app: TermoakApp, host: SshHost): TermSession {
-    val strict = host.access.useOnly() && host.accountId != null &&
+fun connectHost(app: TermoakApp, host: SshHost): TermSession =
+    if (isStrictUseOnly(app, host)) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
+
+/** [host] is in a Strict vault where you are Use only: connections and files go through the server. */
+fun isStrictUseOnly(app: TermoakApp, host: SshHost): Boolean =
+    host.access.useOnly() && host.accountId != null &&
         app.accounts.vaults.value.any { it.id == host.vaultId && it.accountId == host.accountId && it.strict }
-    return if (strict) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
-}
 
 /** Title of the hosts of one place in "All accounts": This device, or an account. */
 @Composable

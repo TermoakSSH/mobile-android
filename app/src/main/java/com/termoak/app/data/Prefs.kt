@@ -2,6 +2,7 @@ package com.termoak.app.data
 
 import android.content.Context
 import androidx.core.content.edit
+import com.termoak.app.files.FileSort
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -57,6 +58,21 @@ class Prefs(context: Context) {
         _confirmPaste.value = on
         sp.edit { putBoolean("confirm_multiline_paste", on) }
     }
+
+    /** The file browser shows hidden files (`.name`). */
+    var filesShowHidden: Boolean
+        get() = sp.getBoolean("files_hidden", false)
+        set(v) = sp.edit { putBoolean("files_hidden", v) }
+
+    /** How the file browser orders folders. */
+    var filesSort: FileSort
+        get() = runCatching { FileSort.valueOf(sp.getString("files_sort", null) ?: "") }
+            .getOrDefault(FileSort.NAME)
+        set(v) = sp.edit { putString("files_sort", v.name) }
+
+    var filesSortDescending: Boolean
+        get() = sp.getBoolean("files_sort_desc", false)
+        set(v) = sp.edit { putBoolean("files_sort_desc", v) }
 
     /** The Vault shows only This-device items (the account switcher's "This device only"). */
     var deviceOnlyView: Boolean
