@@ -31,14 +31,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
@@ -46,7 +41,6 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.MenuOpen
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -55,7 +49,6 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Menu
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.ViewSidebar
@@ -67,7 +60,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -86,24 +78,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -117,20 +103,16 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import com.termoak.app.BuildConfig
@@ -141,20 +123,16 @@ import com.termoak.app.data.QuickTarget
 import com.termoak.app.data.WideLayout
 import com.termoak.app.data.displayName
 import com.termoak.app.data.isTelnet
-import com.termoak.app.data.uid
 import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.TabOrder
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
-import com.termoak.app.userMessage
 import com.termoak.ffi.HostSettings
 import com.termoak.ffi.SecretChange
 import com.termoak.ffi.SshHost
 import com.termoak.ffi.SyncMode
-import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -761,126 +739,6 @@ internal fun duplicateOf(app: TermoakApp, s: TermSession): (() -> Unit)? {
 }
 
 // ----- Quick connect -----
-
-/**
- * The "+" of the tab bar (and Ctrl+Shift+T): find a host and open it in a
- * new tab, or type an address (`user@host:port`, `telnet://host:23`) to
- * connect to it (the desktop's host picker).
- */
-@Composable
-fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHost) -> Unit) {
-    val resources = LocalResources.current
-    val snackbar = LocalSnackbar.current
-    val scope = rememberCoroutineScope()
-    val hosts = remember {
-        runCatching { app.core.listHosts(app.accounts.filter()) }.getOrDefault(emptyList())
-            .sortedWith(compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() })
-    }
-    var query by remember { mutableStateOf("") }
-    // The row Enter opens (↑ and ↓ move it, as on iOS).
-    var highlight by remember { mutableIntStateOf(0) }
-    val listState = rememberLazyListState()
-    val focus = remember { FocusRequester() }
-    val q = query.trim().lowercase()
-    val shown = if (q.isEmpty()) hosts else hosts.filter { h ->
-        listOf(h.label, h.address, h.settings.username ?: "", h.tags.joinToString(" ")).any { it.lowercase().contains(q) }
-    }
-    // An address typed when no saved host matches the search.
-    val target = if (shown.isEmpty()) QuickTarget.parse(query) else null
-    fun connectTo(t: QuickTarget) {
-        try {
-            onConnect(quickConnectHost(app, hosts, t))
-        } catch (e: TermoakException) {
-            scope.launch { snackbar.showSnackbar(e.userMessage(resources, R.string.error_save_failed)) }
-        }
-    }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    LaunchedEffect(query) { highlight = 0 }
-    LaunchedEffect(highlight) { if (shown.isNotEmpty()) listState.animateScrollToItem(highlight.coerceIn(0, shown.lastIndex)) }
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            Modifier.widthIn(max = 560.dp).fillMaxWidth().heightIn(max = 560.dp),
-            shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer,
-        ) {
-            Column(Modifier.padding(vertical = 12.dp)) {
-                Text(
-                    stringResource(R.string.tabs_quick_connect), Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                OutlinedTextField(
-                    query, { query = it },
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focus)
-                        .onPreviewKeyEvent { e ->
-                            if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            when (e.key) {
-                                Key.DirectionDown -> { if (shown.isNotEmpty()) highlight = (highlight + 1).coerceAtMost(shown.lastIndex); true }
-                                Key.DirectionUp -> { highlight = (highlight - 1).coerceAtLeast(0); true }
-                                Key.Escape -> { onDismiss(); true }
-                                Key.Enter, Key.NumPadEnter -> {
-                                    if (target != null) connectTo(target) else shown.getOrNull(highlight)?.let(onConnect)
-                                    true
-                                }
-                                else -> false
-                            }
-                        },
-                    placeholder = { Text(stringResource(R.string.quick_connect_placeholder)) },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
-                    keyboardActions = KeyboardActions(onGo = {
-                        if (target != null) connectTo(target) else shown.getOrNull(highlight)?.let(onConnect)
-                    }),
-                )
-                if (target != null) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 8.dp).clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer).clickable { connectTo(target) }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Outlined.Bolt, null, tint = MaterialTheme.colorScheme.primary)
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(
-                                stringResource(R.string.quick_connect_to, target.display()), style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                stringResource(if (target.telnet) R.string.quick_connect_detail_telnet else R.string.quick_connect_detail),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                } else if (shown.isEmpty()) {
-                    Text(
-                        if (hosts.isEmpty()) stringResource(R.string.hosts_empty_title) else stringResource(R.string.hosts_no_match, query.trim()),
-                        Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                LazyColumn(state = listState) {
-                    itemsIndexed(shown, key = { _, h -> h.uid }) { i, h ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .background(if (i == highlight) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                                .clickable { onConnect(h) }.padding(horizontal = 20.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            HostTile(h, size = 34.dp, twoInitials = true)
-                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(h.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(
-                                    hostAddress(h), style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            if (h.isTelnet) TelnetBadge(Modifier.padding(start = 8.dp))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 /**
  * The host for an address typed in quick connect: the saved one with that

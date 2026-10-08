@@ -94,7 +94,6 @@ import com.termoak.app.data.alias
 import com.termoak.app.data.displayEmail
 import com.termoak.app.data.displayName
 import com.termoak.app.data.initial
-import com.termoak.app.data.serverHost
 import com.termoak.app.userMessage
 import com.termoak.ffi.AccountInfo
 import com.termoak.ffi.AccountStatus

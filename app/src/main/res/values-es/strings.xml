@@ -1920,4 +1920,12 @@
     <string name="host_status_check">Comprobar el estado</string>
     <string name="settings_host_status">Comprobar el estado de los hosts</string>
     <string name="settings_host_status_hint">Un punto junto a cada host en pantalla: verde con el tiempo que tardó la conexión, rojo cuando no responde. Se comprueba desde este móvil, a través de su proxy, como mucho una vez por minuto (no los hosts tras saltos ni en vaults Strict).</string>
+    <string name="palette_cmd_home">Mostrar Inicio</string>
+    <string name="palette_cmd_toggle_theme">Cambiar entre oscuro y claro</string>
+    <string name="palette_go_to">Ir a %1$s</string>
+    <string name="palette_kind_command">Acción</string>
+    <string name="palette_kind_session">Sesión en el servidor</string>
+    <string name="palette_kind_tab">Pestaña abierta</string>
+    <string name="palette_no_matches">No hay coincidencias</string>
+    <string name="palette_placeholder">Hosts, pestañas, sesiones, snippets, acciones o usuario@host</string>
 </resources>

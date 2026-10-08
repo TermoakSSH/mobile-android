@@ -155,7 +155,6 @@ import com.termoak.app.term.TerminalThemes
 import com.termoak.app.term.TerminalView
 import com.termoak.app.userMessage
 import com.termoak.ffi.Snippet
-import com.termoak.ffi.TerminalKey
 import com.termoak.ffi.snippetVariables
 import kotlinx.coroutines.launch
 

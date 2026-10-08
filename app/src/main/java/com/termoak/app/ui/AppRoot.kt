@@ -276,7 +276,7 @@ fun AppRoot(app: TermoakApp) {
                 }
                 // Desktop layout, on Home: a new tab, or to the terminal tabs.
                 // A new tab: quick connect (also on phones, with a hardware keyboard).
-                Shortcut.NEW_TAB -> DesktopUi.quickConnect.value = true
+                Shortcut.NEW_TAB, Shortcut.PALETTE -> DesktopUi.quickConnect.value = true
                 Shortcut.NEXT_TAB, Shortcut.PREV_TAB -> {
                     val list = app.sessions.list.value
                     if (!desktop || list.isEmpty() || route == Routes.TERMINAL) return@ShortcutHandler false
@@ -289,10 +289,16 @@ fun AppRoot(app: TermoakApp) {
             }
             true
         }
+        // Ctrl+K where nothing takes it (not in a terminal: there it's the shell's): the command palette.
+        UnhandledKeyHandler { e ->
+            val k = e.keyCode == android.view.KeyEvent.KEYCODE_K && e.isCtrlPressed && !e.isShiftPressed && !e.isAltPressed && !e.isMetaPressed
+            if (k) DesktopUi.quickConnect.value = true
+            k
+        }
         val quickConnecting by DesktopUi.quickConnect.collectAsState()
         if (quickConnecting) {
             val activity = LocalActivity.current
-            QuickConnectDialog(app, onDismiss = { DesktopUi.quickConnect.value = false }) { host ->
+            CommandPaletteDialog(app, nav, onDismiss = { DesktopUi.quickConnect.value = false }) { host ->
                 DesktopUi.quickConnect.value = false
                 (activity as? MainActivity)?.askNotificationPermission()
                 quickConnect(app, nav, host)

@@ -221,6 +221,11 @@ class Prefs(context: Context) {
         get() = RecentHosts(sp.getString("recent_hosts", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty())
         set(v) = sp.edit { putString("recent_hosts", v.keys.joinToString("\n")) }
 
+    /** Keys of the command palette's entries chosen last (paletteRemember). */
+    var paletteRecent: List<String>
+        get() = sp.getString("palette_recent", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty()
+        set(v) = sp.edit { putString("palette_recent", v.joinToString("\n")) }
+
     private val _hostStatus = MutableStateFlow(sp.getBoolean("host_status_checks", false))
     /** Status dots on the hosts lists (probeHosts), off by default like the desktop's "Check host status". */
     val hostStatusChecks: StateFlow<Boolean> = _hostStatus

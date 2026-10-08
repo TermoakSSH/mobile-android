@@ -62,7 +62,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -77,7 +76,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
@@ -97,7 +95,6 @@ import com.termoak.app.data.RiskReason
 import com.termoak.app.data.Turn
 import com.termoak.app.data.decide
 import com.termoak.app.data.displayName
-import com.termoak.app.data.isTelnet
 import com.termoak.app.data.parseConversation
 import com.termoak.app.data.stripContext
 import com.termoak.app.data.toolSummary
@@ -105,7 +102,6 @@ import com.termoak.app.userMessage
 import com.termoak.ffi.AiApproval
 import com.termoak.ffi.AiPermissionMode
 import com.termoak.ffi.AiTask
-import com.termoak.ffi.AiTaskRequest
 import com.termoak.ffi.AiTaskStatus
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.delay

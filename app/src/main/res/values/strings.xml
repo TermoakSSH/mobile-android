@@ -1852,4 +1852,12 @@
     <string name="host_status_check">Check status</string>
     <string name="settings_host_status">Check host status</string>
     <string name="settings_host_status_hint">A dot next to each host on screen: green with the time a connection took, red when it doesn\'t answer. Checked from this phone, through its proxy, at most once a minute (not hosts behind jump hosts or in Strict vaults).</string>
+    <string name="palette_cmd_home">Show Home</string>
+    <string name="palette_cmd_toggle_theme">Switch between dark and light</string>
+    <string name="palette_go_to">Go to %1$s</string>
+    <string name="palette_kind_command">Action</string>
+    <string name="palette_kind_session">Session on the server</string>
+    <string name="palette_kind_tab">Open tab</string>
+    <string name="palette_no_matches">Nothing matches</string>
+    <string name="palette_placeholder">Hosts, tabs, sessions, snippets, actions or user@host</string>
 </resources>
