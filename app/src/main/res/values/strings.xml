@@ -843,7 +843,11 @@
     <string name="login_failed">Couldn\'t sign in</string>
     <string name="signup_failed">Couldn\'t create the account</string>
     <string name="signup_create">Create account</string>
-    <string name="login_registration_closed">This server doesn\'t accept new accounts: ask whoever runs it for an invitation.</string>
+    <string name="signup_create_invite">Create an account with an invitation</string>
+    <string name="signup_invite">Invitation code</string>
+    <string name="signup_password_rules">Use at least 8 characters.</string>
+    <string name="login_server_no_vaults">This server has no vaults yet: everything syncs to your account.</string>
+    <string name="login_registration_closed">This server only accepts new accounts with an invitation: ask whoever runs it for a code.</string>
     <string name="login_forgot_password">Forgot your password?</string>
     <string name="login_no_account_create">No account yet? Create one</string>
     <string name="signup_accept_terms">I have read and accept the terms of use and the privacy policy</string>

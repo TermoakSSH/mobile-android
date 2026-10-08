@@ -194,7 +194,7 @@ fun VerifyEmailScreen(app: TermoakApp, onDone: () -> Unit, onDifferentEmail: () 
                     label = { Text(stringResource(R.string.verify_totp)) }, singleLine = true,
                     leadingIcon = { Icon(Icons.Outlined.Pin, null) },
                     supportingText = { Text(stringResource(R.string.login_code_hint)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Go),
+                    keyboardOptions = TwoFactorKeyboard,
                     keyboardActions = KeyboardActions(onGo = { verify() }),
                 )
             }

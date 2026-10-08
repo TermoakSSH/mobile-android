@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.ConfirmationNumber
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
@@ -61,6 +62,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -91,6 +93,8 @@ data class ServerDetails(
     val environment: String?,
     val termsUrl: String?,
     val privacyUrl: String?,
+    /** The server has vaults (`features.vaults`); without them everything syncs to the account. */
+    val vaults: Boolean = true,
 ) {
     val insecure get() = url.startsWith("http://")
 
@@ -107,10 +111,14 @@ data class ServerDetails(
                 environment = str("environment"),
                 termsUrl = str("terms_url"),
                 privacyUrl = str("privacy_url"),
+                vaults = v.optJSONObject("features")?.optBoolean("vaults", false) ?: false,
             )
         }
     }
 }
+
+/** The shortest password the servers accept (as on iOS and the web). */
+private const val MIN_PASSWORD = 8
 
 /** Steps of "Add account". */
 private enum class Step { CHOICE, CUSTOM, SIGN_IN, SIGN_UP }
@@ -161,9 +169,12 @@ fun LoginScreen(
     var code by remember { mutableStateOf("") }
     var needsCode by remember { mutableStateOf(false) }
     var acceptTerms by rememberSaveable { mutableStateOf(false) }
+    var invite by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val official = serverUrl == officialServer
+    // A server with closed registration still takes new accounts with an invitation code.
+    val needsInvite = !official && details?.url == serverUrl && details?.registrationOpen == false
 
     fun choice(): ServerChoice = if (official) ServerChoice.Official else ServerChoice.Custom(serverUrl)
 
@@ -237,12 +248,17 @@ fun LoginScreen(
 
     fun signUp() {
         val terms = details?.termsUrl != null
-        if (busy || email.isBlank() || name.isBlank() || password.isEmpty() || (terms && !acceptTerms)) return
+        if (busy || email.isBlank() || name.isBlank() || password.length < MIN_PASSWORD || (terms && !acceptTerms) ||
+            (needsInvite && invite.isBlank())
+        ) return
         busy = true
         error = null
         scope.launch {
             try {
-                val info = app.accounts.signUp(choice(), email, name, password, null, acceptTerms = terms && acceptTerms)
+                val info = app.accounts.signUp(
+                    choice(), email, name, password, invite.trim().takeIf { needsInvite && it.isNotEmpty() },
+                    acceptTerms = terms && acceptTerms,
+                )
                 finished(info.status)
             } catch (e: TermoakException) {
                 error = e.userMessage(resources, R.string.signup_failed)
@@ -333,11 +349,10 @@ fun LoginScreen(
                         Button(onClick = { step = Step.SIGN_IN }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                             Text(stringResource(R.string.common_sign_in))
                         }
-                        if (d.registrationOpen) {
-                            OutlinedButton(onClick = { step = Step.SIGN_UP }, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(R.string.signup_create))
-                            }
-                        } else {
+                        OutlinedButton(onClick = { error = null; step = Step.SIGN_UP }, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(if (d.registrationOpen) R.string.signup_create else R.string.signup_create_invite))
+                        }
+                        if (!d.registrationOpen) {
                             Text(
                                 stringResource(R.string.login_registration_closed), Modifier.fillMaxWidth(),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -357,7 +372,7 @@ fun LoginScreen(
                             label = { Text(stringResource(R.string.login_code)) }, singleLine = true,
                             leadingIcon = { Icon(Icons.Outlined.Pin, null) },
                             supportingText = { Text(stringResource(R.string.login_code_hint)) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Go),
+                            keyboardOptions = TwoFactorKeyboard,
                             keyboardActions = KeyboardActions(onGo = { signIn() }),
                         )
                     }
@@ -374,9 +389,9 @@ fun LoginScreen(
                         TextButton(onClick = { openUrl(context, "$serverUrl/forgot-password") }, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.login_forgot_password))
                         }
-                        if (official || details?.registrationOpen == true) {
+                        if (official || details?.url == serverUrl) {
                             TextButton(onClick = { error = null; step = Step.SIGN_UP }, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(R.string.login_no_account_create))
+                                Text(stringResource(if (needsInvite) R.string.signup_create_invite else R.string.login_no_account_create))
                             }
                         }
                     }
@@ -390,7 +405,23 @@ fun LoginScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     )
                     EmailField(email) { email = it }
-                    PasswordField(password, showPassword, { password = it }, { showPassword = !showPassword }, ImeAction.Done) { signUp() }
+                    PasswordField(
+                        password, showPassword, { password = it }, { showPassword = !showPassword },
+                        if (needsInvite) ImeAction.Next else ImeAction.Done,
+                        supporting = stringResource(R.string.signup_password_rules),
+                    ) { signUp() }
+                    if (needsInvite) {
+                        OutlinedTextField(
+                            invite, { invite = it.trim() }, Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.signup_invite)) }, singleLine = true,
+                            leadingIcon = { Icon(Icons.Outlined.ConfirmationNumber, null) },
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false,
+                                keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done,
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { signUp() }),
+                        )
+                    }
                     val terms = details?.termsUrl
                     if (terms != null) {
                         Row(
@@ -410,7 +441,8 @@ fun LoginScreen(
                     error?.let { MessageBox(it, isError = true) }
                     Button(
                         onClick = { signUp() },
-                        enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.isNotEmpty() && (terms == null || acceptTerms),
+                        enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.length >= MIN_PASSWORD &&
+                            (terms == null || acceptTerms) && (!needsInvite || invite.isNotBlank()),
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                     ) {
                         if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -455,11 +487,13 @@ private fun PasswordField(
     onChange: (String) -> Unit,
     onToggle: () -> Unit,
     imeAction: ImeAction,
+    supporting: String? = null,
     onIme: () -> Unit,
 ) {
     OutlinedTextField(
         password, onChange, Modifier.fillMaxWidth(),
         label = { Text(stringResource(R.string.common_password)) }, singleLine = true,
+        supportingText = supporting?.let { { Text(it) } },
         leadingIcon = { Icon(Icons.Outlined.Lock, null) },
         trailingIcon = {
             IconButton(onClick = onToggle) {
@@ -492,6 +526,12 @@ private fun ServerCard(d: ServerDetails) {
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (!d.vaults) {
+                Text(
+                    stringResource(R.string.login_server_no_vaults),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             d.environment?.let { EnvironmentBanner(it) }
             if (d.insecure) MessageBox(stringResource(R.string.login_insecure), isError = true)
         }
@@ -531,3 +571,14 @@ fun openUrl(context: Context, url: String) {
         // No browser.
     }
 }
+
+/**
+ * The keyboard of the two-step verification field: a text keyboard, since it takes the
+ * authenticator's six digits or a recovery code (`xxxx-xxxx`, letters and digits).
+ */
+internal val TwoFactorKeyboard = KeyboardOptions(
+    capitalization = KeyboardCapitalization.None,
+    autoCorrectEnabled = false,
+    keyboardType = KeyboardType.Ascii,
+    imeAction = ImeAction.Go,
+)

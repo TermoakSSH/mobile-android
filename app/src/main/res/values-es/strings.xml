@@ -875,7 +875,11 @@
     <string name="login_failed">No se pudo iniciar sesión</string>
     <string name="signup_failed">No se pudo crear la cuenta</string>
     <string name="signup_create">Crear cuenta</string>
-    <string name="login_registration_closed">Este servidor no admite cuentas nuevas: pide una invitación a quien lo administra.</string>
+    <string name="signup_create_invite">Crear una cuenta con invitación</string>
+    <string name="signup_invite">Código de invitación</string>
+    <string name="signup_password_rules">Usa al menos 8 caracteres.</string>
+    <string name="login_server_no_vaults">Este servidor aún no tiene vaults: todo se sincroniza con tu cuenta.</string>
+    <string name="login_registration_closed">Este servidor solo admite cuentas nuevas con invitación: pide un código a quien lo administra.</string>
     <string name="login_forgot_password">¿Has olvidado tu contraseña?</string>
     <string name="login_no_account_create">¿Aún no tienes cuenta? Crea una</string>
     <string name="signup_accept_terms">He leído y acepto las condiciones de uso y la política de privacidad</string>
