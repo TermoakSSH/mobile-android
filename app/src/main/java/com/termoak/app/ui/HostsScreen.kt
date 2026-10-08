@@ -59,6 +59,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
@@ -265,9 +266,9 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     fun inSharedVault(h: SshHost): Boolean = vaultOf(h)?.let { it.kind != VaultKind.PERSONAL } == true
     LaunchedEffect(syncError) { syncError?.let { snackbar.showSnackbar(it.resolve(resources)) } }
 
-    fun connect(host: SshHost, onServer: Boolean) {
+    fun connect(host: SshHost, onServer: Boolean, record: Boolean? = null) {
         (context as? MainActivity)?.askNotificationPermission()
-        if (onServer) app.sessions.openOnServer(host) else connectHost(app, host)
+        if (onServer) app.sessions.openOnServer(host, record) else connectHost(app, host)
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
     /** The host's editor: a panel on the right in the desktop layout, a screen otherwise. */
@@ -367,6 +368,10 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         // Telnet hosts: no server sessions or SFTP.
         if (hostAccount?.status == com.termoak.ffi.AccountStatus.ACTIVE && !host.isTelnet) {
             add(ItemAction(Icons.Outlined.CloudQueue, stringResource(R.string.hosts_connect_on_server), 0) { connect(host, true) })
+            // Recorded on the server, for its activity and download (the host's setting may already record every session).
+            if (host.settings.recordSessions != true) {
+                add(ItemAction(Icons.Outlined.FiberManualRecord, stringResource(R.string.hosts_connect_on_server_recorded), 0) { connect(host, true, record = true) })
+            }
         }
         if (!host.isTelnet) {
             add(ItemAction(Icons.Outlined.Folder, stringResource(R.string.files_sftp), 0) { nav.openFiles(filesSourceOf(app, host)) })

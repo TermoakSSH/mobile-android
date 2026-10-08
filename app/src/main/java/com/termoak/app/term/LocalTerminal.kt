@@ -152,6 +152,9 @@ class LocalTerminal(
      * A new reference to this terminal's SSH connection (to browse its files
      * without connecting again), while connected. Whoever takes it closes it.
      */
+    /** The recording of this terminal (an asciicast `.cast` file the engine writes), when its host records sessions. */
+    fun recordingPath(): String? = handle?.let { runCatching { it.recordingPath() }.getOrNull() }
+
     fun connection(): SshSession? = handle?.takeIf { _state.value == TermState.Running && !telnet }?.session()
 
     /** The relay share, once [shareOrThrow] made it. */

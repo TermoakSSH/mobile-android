@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Files of the SFTP browser handed to other apps (open with, share): FileProvider in the manifest. -->
+<!-- Files of the SFTP browser and session recordings handed to other apps (open with, share): FileProvider in the manifest. -->
 <paths>
     <cache-path name="sftp" path="sftp/" />
+    <cache-path name="recordings" path="recordings/" />
 </paths>

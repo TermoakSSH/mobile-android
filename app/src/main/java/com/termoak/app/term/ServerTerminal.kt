@@ -42,6 +42,8 @@ class ServerTerminal(
     owner: Boolean = true,
     private val link: LinkJoin? = null,
     accountId: String? = null,
+    /** A new session is recorded on the server (`null`: as the host says). */
+    private val record: Boolean? = null,
 ) : TermSession(label, hostId, accountId), ServerTerminalListener {
     @Volatile var sessionId: String? = sessionId
         private set
@@ -73,12 +75,12 @@ class ServerTerminal(
                     link == null && accountId != null -> {
                         val acc = core.account(accountId)
                         val id = sessionId
-                            ?: acc.openServerSession(hostId!!, screen.cols(), screen.rows(), label, null).id
+                            ?: acc.openServerSession(hostId!!, screen.cols(), screen.rows(), label, record).id
                         acc.attachServerSession(id, this@ServerTerminal)
                     }
                     link == null -> {
                         val id = sessionId
-                            ?: core.openServerSession(hostId!!, screen.cols(), screen.rows(), label, null).id
+                            ?: core.openServerSession(hostId!!, screen.cols(), screen.rows(), label, record).id
                         core.attachServerSession(id, this@ServerTerminal)
                     }
                     link.asAccount -> core.joinLink(link.token, this@ServerTerminal)

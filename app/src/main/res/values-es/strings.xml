@@ -142,6 +142,7 @@
     <string name="hosts_no_match">Ningún host coincide con «%1$s».</string>
     <string name="hosts_connect">Conectar</string>
     <string name="hosts_connect_on_server">Sesión persistente en el servidor</string>
+    <string name="hosts_connect_on_server_recorded">Sesión persistente en el servidor, grabando</string>
     <string name="hosts_favorite_remove">Quitar de favoritos</string>
     <string name="hosts_favorite_add">Añadir a favoritos</string>
     <string name="hosts_duplicate">Duplicar</string>
@@ -1607,4 +1608,8 @@
     <string name="ai_delete_text">Su conversación y resultados se borran del servidor. No se puede deshacer.</string>
     <string name="ai_task_actions">Acciones de la tarea</string>
     <string name="ai_task_mode_changed">Permisos cambiados</string>
+    <string name="term_share_recording">Compartir la grabación</string>
+    <string name="recording_share_failed">Ninguna app puede recibir la grabación</string>
+    <string name="sessions_recording_download">Descargar la grabación</string>
+    <string name="sessions_recording_download_failed">No se pudo descargar la grabación</string>
 </resources>

@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Group
@@ -477,6 +478,16 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         if (activityId != null) {
             DropdownMenuItem({ Text(stringResource(R.string.activity_menu)) }, { dismiss(); activityOf = activityId },
                 leadingIcon = { Icon(Icons.Outlined.History, null) })
+        }
+        // A terminal of the phone that is recorded (its host records sessions): the .cast so far, to share or save.
+        val recording = (session as? LocalTerminal)?.recordingPath()
+        if (recording != null) {
+            DropdownMenuItem({ Text(stringResource(R.string.term_share_recording)) }, {
+                dismiss()
+                if (!Recordings.shareCopy(context, recording, session.label)) {
+                    scope.launch { snackbar.showSnackbar(resources.getString(R.string.recording_share_failed)) }
+                }
+            }, leadingIcon = { Icon(Icons.Outlined.FiberManualRecord, null) })
         }
         HorizontalDivider()
         if (sharable && !inToolbar) {

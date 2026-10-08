@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.LinkOff
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -100,6 +103,9 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     var activity by remember { mutableStateOf<Pair<String, String>?>(null) }
     // One of your server sessions being shared (invitations), as on iOS.
     var sharing by remember { mutableStateOf<ServerSession?>(null) }
+    // A recording being downloaded (session id), to share or save it.
+    var downloading by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
     // Hosts of every account (and This device), by account and id.
     val hosts = remember { runCatching { app.core.listHosts(ItemFilter()) }.getOrDefault(emptyList()).associateBy { it.accountId to it.id } }
     val sessionAccount = remember(lists) {
@@ -124,6 +130,25 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     }
     LaunchedEffect(loggedIn) { reload() }
     LaunchedEffect(Unit) { app.accounts.changes.collect { if (it == "session" || it == "lagged") reload() } }
+
+    val currentAccount = remember(lists) { runCatching { app.core.currentAccount()?.id }.getOrNull() }
+    /** Downloads a recording (`.cast`, asciicast) and hands it to another app to share or save it. */
+    fun downloadRecording(id: String, title: String) {
+        if (downloading != null) return
+        downloading = id
+        scope.launch {
+            val file = java.io.File(Recordings.folder(context), Recordings.fileName(title, id))
+            try {
+                app.core.downloadRecording(id, file.path, null)
+                if (!Recordings.share(context, file)) snackbar.showSnackbar(resources.getString(R.string.recording_share_failed))
+            } catch (e: TermoakException) {
+                file.parentFile?.deleteRecursively()
+                snackbar.showSnackbar(e.userMessage(resources, R.string.sessions_recording_download_failed))
+            } finally {
+                downloading = null
+            }
+        }
+    }
 
     fun openTab(s: TermSession) {
         app.sessions.select(s.id)
@@ -235,11 +260,24 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                             },
                             trailingContent = if (r.recording) {
                                 {
-                                    IconButton(onClick = { activity = r.id to title }) {
-                                        Icon(
-                                            Icons.Outlined.Timeline, stringResource(R.string.activity_open), Modifier.size(20.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        // The .cast file (asciicast), of the sessions of the current account (the engine downloads those).
+                                        if (downloading == r.id) {
+                                            CircularProgressIndicator(Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp)
+                                        } else if (sessionAccount[r.id] == currentAccount) {
+                                            IconButton(onClick = { downloadRecording(r.id, title) }, enabled = downloading == null) {
+                                                Icon(
+                                                    Icons.Outlined.FileDownload, stringResource(R.string.sessions_recording_download), Modifier.size(20.dp),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+                                        IconButton(onClick = { activity = r.id to title }) {
+                                            Icon(
+                                                Icons.Outlined.Timeline, stringResource(R.string.activity_open), Modifier.size(20.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             } else null,

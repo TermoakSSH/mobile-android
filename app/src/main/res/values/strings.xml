@@ -143,6 +143,7 @@
     <string name="hosts_no_match">No host matches “%1$s”.</string>
     <string name="hosts_connect">Connect</string>
     <string name="hosts_connect_on_server">Persistent session on the server</string>
+    <string name="hosts_connect_on_server_recorded">Persistent session on the server, recorded</string>
     <string name="hosts_favorite_remove">Remove from favorites</string>
     <string name="hosts_favorite_add">Add to favorites</string>
     <string name="hosts_duplicate">Duplicate</string>
@@ -1558,4 +1559,8 @@
     <string name="ai_delete_text">Its conversation and results are deleted from the server. This can\'t be undone.</string>
     <string name="ai_task_actions">Task actions</string>
     <string name="ai_task_mode_changed">Permissions changed</string>
+    <string name="term_share_recording">Share recording</string>
+    <string name="recording_share_failed">No app can receive the recording</string>
+    <string name="sessions_recording_download">Download recording</string>
+    <string name="sessions_recording_download_failed">Could not download the recording</string>
 </resources>

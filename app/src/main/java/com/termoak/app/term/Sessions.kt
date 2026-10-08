@@ -159,9 +159,9 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
         it is LocalTerminal && it.hostId == hostId && it.accountId == accountId && it.state.value !is TermState.Closed
     }
 
-    /** New (persistent) session on the server of the host's account. */
-    fun openOnServer(host: SshHost): TermSession =
-        add(ServerTerminal(core, host.label, host.id, null, accountId = host.accountId))
+    /** New (persistent) session on the server of the host's account ([record]: recorded there; `null`: as the host says). */
+    fun openOnServer(host: SshHost, record: Boolean? = null): TermSession =
+        add(ServerTerminal(core, host.label, host.id, null, accountId = host.accountId, record = record))
 
     /**
      * Attaches to a session that already lives on a server ([owner]: yours,
