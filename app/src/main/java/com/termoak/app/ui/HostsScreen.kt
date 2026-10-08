@@ -307,16 +307,35 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             nav.goTab(Routes.CONNECTIONS)
         }
     }
+    /** A terminal for each of [chosen] ([split]: side by side, as many as fit, on a wide screen). */
+    fun connectAll(chosen: List<SshHost>, split: Boolean) {
+        if (chosen.isEmpty()) return
+        (context as? MainActivity)?.askNotificationPermission()
+        val opened = chosen.map { connectHost(app, it) }
+        if (split && maxPanes >= 2 && opened.size >= 2) app.sessions.setSplit(opened.take(maxPanes).map { it.id })
+        app.sessions.select(opened.first().id)
+        nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
+    }
     /** Connect N: a terminal for each selected host (side by side on a wide screen). */
     fun connectSelected() {
         val chosen = hosts.filter { it.uid in selected }
         if (chosen.isEmpty()) return
-        (context as? MainActivity)?.askNotificationPermission()
-        val opened = chosen.map { connectHost(app, it) }
-        if (maxPanes >= 2 && opened.size >= 2) app.sessions.setSplit(opened.take(maxPanes).map { it.id })
-        app.sessions.select(opened.first().id)
+        connectAll(chosen, split = true)
         selected = emptyList()
-        nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
+    }
+    /** The hosts of a group and of the groups inside it, in list order. */
+    fun hostsIn(g: HostGroup): List<SshHost> {
+        val ids = mutableSetOf(g.id)
+        val pending = ArrayDeque(listOf(g))
+        while (pending.isNotEmpty()) {
+            val next = pending.removeLast()
+            groups.filter { it.parentId == next.id && it.accountId == g.accountId && it.id !in ids }.forEach {
+                ids += it.id
+                pending += it
+            }
+        }
+        return hosts.filter { it.accountId == g.accountId && it.groupId in ids }
+            .sortedWith(compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() })
     }
     /** Connects to an address typed in the search (a saved host with it, or a new one). */
     fun quickConnectTo(target: QuickTarget) {
@@ -422,6 +441,16 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     /** What can be done with group [g] (its sheet on phones, its menu in the desktop layout). */
     @Composable
     fun actionsOfGroup(g: HostGroup): List<ItemAction> = buildList {
+        // A tab to each host inside (and in its subgroups); side by side on a wide screen.
+        val inside = hostsIn(g)
+        if (inside.isNotEmpty()) {
+            add(ItemAction(Icons.Outlined.Terminal, pluralStringResource(R.plurals.hosts_group_connect_all, inside.size, inside.size), 0) {
+                connectAll(inside, split = false)
+            })
+            if (maxPanes >= 2 && inside.size >= 2) {
+                add(ItemAction(Icons.Outlined.GridView, stringResource(R.string.hosts_group_split_all), 0) { connectAll(inside, split = true) })
+            }
+        }
         if (g.access.canWrite()) {
             add(ItemAction(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.hosts_rename), 0) { editingGroup = g })
             if (accountList.isNotEmpty()) {

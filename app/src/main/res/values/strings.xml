@@ -797,6 +797,11 @@
         <item quantity="one">Connect %d</item>
         <item quantity="other">Connect %d</item>
     </plurals>
+    <plurals name="hosts_group_connect_all">
+        <item quantity="one">Connect to all (%d tab)</item>
+        <item quantity="other">Connect to all (%d tabs)</item>
+    </plurals>
+    <string name="hosts_group_split_all">Open all in split view</string>
     <string name="bulk_move">Move to group</string>
     <string name="bulk_move_action">Move</string>
     <plurals name="bulk_move_title">
@@ -1563,4 +1568,18 @@
     <string name="recording_share_failed">No app can receive the recording</string>
     <string name="sessions_recording_download">Download recording</string>
     <string name="sessions_recording_download_failed">Could not download the recording</string>
+    <string name="vault_activity">Activity</string>
+    <string name="vault_activity_empty">Nothing has happened in this vault yet.</string>
+    <string name="vault_activity_more">Load more</string>
+    <string name="vault_activity_failed">Could not load the activity</string>
+    <string name="vault_audit_secret_reveal">Secret revealed</string>
+    <string name="vault_audit_secret_use">Credentials used from a device</string>
+    <string name="vault_audit_session_open">Server session opened</string>
+    <string name="vault_audit_vault_create">Vault created</string>
+    <string name="vault_audit_vault_delete">Vault deleted</string>
+    <string name="vault_audit_member_add">Member added</string>
+    <string name="vault_audit_member_removed">Member removed</string>
+    <string name="vault_audit_role_changed">Role changed</string>
+    <string name="vault_audit_transfer">Items moved or copied</string>
+    <string name="vault_audit_update">Vault changed</string>
 </resources>

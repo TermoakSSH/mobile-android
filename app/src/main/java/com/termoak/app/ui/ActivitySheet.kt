@@ -145,7 +145,7 @@ private fun PeriodRow(p: AuthorPeriod) {
 }
 
 @Composable
-private fun Muted(text: String, modifier: Modifier = Modifier) =
+internal fun Muted(text: String, modifier: Modifier = Modifier) =
     Text(text, modifier, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
 /** `mm:ss`, or `h:mm:ss` from an hour on. */

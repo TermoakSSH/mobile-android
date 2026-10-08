@@ -818,6 +818,12 @@
         <item quantity="many">Conectar %d</item>
         <item quantity="other">Conectar %d</item>
     </plurals>
+    <plurals name="hosts_group_connect_all">
+        <item quantity="one">Conectar a todos (%d pestaña)</item>
+        <item quantity="many">Conectar a todos (%d pestañas)</item>
+        <item quantity="other">Conectar a todos (%d pestañas)</item>
+    </plurals>
+    <string name="hosts_group_split_all">Abrir todos en vista dividida</string>
     <string name="bulk_move">Mover al grupo</string>
     <string name="bulk_move_action">Mover</string>
     <plurals name="bulk_move_title">
@@ -1612,4 +1618,18 @@
     <string name="recording_share_failed">Ninguna app puede recibir la grabación</string>
     <string name="sessions_recording_download">Descargar la grabación</string>
     <string name="sessions_recording_download_failed">No se pudo descargar la grabación</string>
+    <string name="vault_activity">Actividad</string>
+    <string name="vault_activity_empty">Aún no ha pasado nada en este vault.</string>
+    <string name="vault_activity_more">Cargar más</string>
+    <string name="vault_activity_failed">No se pudo cargar la actividad</string>
+    <string name="vault_audit_secret_reveal">Secreto mostrado</string>
+    <string name="vault_audit_secret_use">Credenciales usadas desde un dispositivo</string>
+    <string name="vault_audit_session_open">Sesión en el servidor abierta</string>
+    <string name="vault_audit_vault_create">Vault creado</string>
+    <string name="vault_audit_vault_delete">Vault eliminado</string>
+    <string name="vault_audit_member_add">Miembro añadido</string>
+    <string name="vault_audit_member_removed">Miembro quitado</string>
+    <string name="vault_audit_role_changed">Rol cambiado</string>
+    <string name="vault_audit_transfer">Elementos movidos o copiados</string>
+    <string name="vault_audit_update">Vault modificado</string>
 </resources>

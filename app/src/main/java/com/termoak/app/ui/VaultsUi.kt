@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Business
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Key
@@ -473,6 +475,7 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
     var deleting by remember { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
     var iconMenu by remember { mutableStateOf(false) }
+    var auditOpen by remember { mutableStateOf(false) }
     val handle = remember(accountId) { app.accounts.handle(accountId) }
 
     suspend fun loadMembers() {
@@ -607,6 +610,16 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                         }
                     }
                 }
+                if (manager && handle != null) {
+                    // What happened in it (the server's audit log).
+                    ListItem(
+                        modifier = Modifier.clickable { auditOpen = true },
+                        headlineContent = { Text(stringResource(R.string.vault_activity)) },
+                        leadingContent = { Icon(Icons.Outlined.History, null) },
+                        trailingContent = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
+                }
 
                 Spacer(Modifier.height(16.dp))
                 if (!manager) {
@@ -658,6 +671,9 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
             },
             dismissButton = { TextButton(onClick = { renaming = false }) { Text(stringResource(R.string.common_cancel)) } },
         )
+    }
+    if (auditOpen && handle != null) {
+        VaultActivitySheet(handle, vaultId, vaultName(vault), members.orEmpty()) { auditOpen = false }
     }
     if (adding) {
         AddMemberDialog(app, accountId, onDismiss = { adding = false }) { target, role ->
