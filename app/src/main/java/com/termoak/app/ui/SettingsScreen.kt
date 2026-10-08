@@ -117,6 +117,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val terminalTheme by app.prefs.terminalTheme.collectAsState()
     val aiFixChip by app.prefs.aiFixChip.collectAsState()
     val hideEmails by app.prefs.hideEmails.collectAsState()
+    val hostStatus by app.prefs.hostStatusChecks.collectAsState()
     val lockOn by app.appLock.enabled.collectAsState()
     val lockDelay by app.appLock.delay.collectAsState()
     var choosingLockDelay by remember { mutableStateOf(false) }
@@ -193,6 +194,10 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             }
             Row0(Icons.Outlined.Code, stringResource(R.string.section_snippets), stringResource(R.string.settings_snippets_hint)) {
                 nav.goTab(Routes.SNIPPETS)
+            }
+            // Status dots on the hosts lists (off by default, like the desktop's).
+            SwitchRow(stringResource(R.string.settings_host_status), stringResource(R.string.settings_host_status_hint), hostStatus) {
+                app.prefs.setHostStatusChecks(it)
             }
 
             // ----- Terminal -----

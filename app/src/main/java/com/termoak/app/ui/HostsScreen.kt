@@ -71,6 +71,7 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SearchOff
@@ -378,6 +379,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         )
     }
 
+    val statusChecks by app.prefs.hostStatusChecks.collectAsState()
+    val statusOff by app.prefs.hostStatusOff.collectAsState()
     /**
      * What can be done with [host]: the sheet of its "⋮" on phones, its
      * context menu in the desktop layout ([menu], which adds connect in a
@@ -428,6 +431,16 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             })
         }
         add(ItemAction(Icons.Outlined.Link, stringResource(R.string.hosts_copy_address), 1) { copyAddress(host) })
+        // Its status check, with the setting on (behind jump hosts or in a Strict vault the engine skips it anyway).
+        if (statusChecks) {
+            val checked = host.id !in statusOff
+            add(
+                ItemAction(Icons.Outlined.NetworkCheck, stringResource(if (checked) R.string.host_status_dont_check else R.string.host_status_check), 1) {
+                    app.prefs.setHostStatusOff(com.termoak.app.data.HostStatusPlan.toggled(statusOff, host.id))
+                    com.termoak.app.data.HostStatusStore.forget(host)
+                },
+            )
+        }
         if (menu && writable) {
             add(ItemAction(Icons.Outlined.FolderOpen, stringResource(R.string.bulk_move), 2) { moving = listOf(host) })
         }
@@ -628,6 +641,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             stringResource(R.string.host_no_group),
         )
     } else null
+    // The status dots of the hosts on screen (only with the setting on).
+    HostStatusChecks(app, desktopView?.sections?.flatMap { it.hosts } ?: visibleHosts)
     // Multi-select: what can be done with the selected hosts.
     val selectionActions: @Composable RowScope.() -> Unit = {
         IconButton(onClick = {
@@ -1082,6 +1097,8 @@ private fun HostRow(
                     host.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                // Reachable or not (Settings → Check host status).
+                HostStatusDot(host, latency = true, modifier = Modifier.padding(start = 6.dp))
                 if (host.favorite) {
                     Spacer(Modifier.width(6.dp))
                     Icon(Icons.Filled.Star, stringResource(R.string.hosts_favorite), Modifier.size(14.dp), tint = Brand.Amber)
@@ -1674,6 +1691,7 @@ private fun DesktopHostCard(
                                 host.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
+                            HostStatusDot(host, latency = true, modifier = Modifier.padding(start = 6.dp))
                             if (host.favorite) {
                                 Icon(Icons.Filled.Star, stringResource(R.string.hosts_favorite), Modifier.padding(start = 4.dp).size(14.dp), tint = Brand.Amber)
                             }

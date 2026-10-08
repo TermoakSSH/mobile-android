@@ -221,6 +221,22 @@ class Prefs(context: Context) {
         get() = RecentHosts(sp.getString("recent_hosts", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty())
         set(v) = sp.edit { putString("recent_hosts", v.keys.joinToString("\n")) }
 
+    private val _hostStatus = MutableStateFlow(sp.getBoolean("host_status_checks", false))
+    /** Status dots on the hosts lists (probeHosts), off by default like the desktop's "Check host status". */
+    val hostStatusChecks: StateFlow<Boolean> = _hostStatus
+    fun setHostStatusChecks(on: Boolean) {
+        _hostStatus.value = on
+        sp.edit { putBoolean("host_status_checks", on) }
+    }
+
+    private val _hostStatusOff = MutableStateFlow(sp.getString("host_status_off", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty())
+    /** Hosts (ids, as probeHosts takes them) whose status is never checked. */
+    val hostStatusOff: StateFlow<List<String>> = _hostStatusOff
+    fun setHostStatusOff(ids: List<String>) {
+        _hostStatusOff.value = ids
+        sp.edit { putString("host_status_off", ids.joinToString("\n")) }
+    }
+
     private val _hideEmails = MutableStateFlow(sp.getBoolean("hide_emails", false))
     /** Settings → Privacy: the emails of your accounts (and of other people) are masked (a•••@e•••.com). */
     val hideEmails: StateFlow<Boolean> = _hideEmails

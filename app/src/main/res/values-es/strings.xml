@@ -1914,4 +1914,10 @@
         <item quantity="many">%d secretos de elementos de solo uso no se han incluido</item>
         <item quantity="other">%d secretos de elementos de solo uso no se han incluido</item>
     </plurals>
+    <string name="host_status_up">Accesible, %1$s</string>
+    <string name="host_status_down">No accesible</string>
+    <string name="host_status_dont_check">No comprobar el estado</string>
+    <string name="host_status_check">Comprobar el estado</string>
+    <string name="settings_host_status">Comprobar el estado de los hosts</string>
+    <string name="settings_host_status_hint">Un punto junto a cada host en pantalla: verde con el tiempo que tardó la conexión, rojo cuando no responde. Se comprueba desde este móvil, a través de su proxy, como mucho una vez por minuto (no los hosts tras saltos ni en vaults Strict).</string>
 </resources>

@@ -1846,4 +1846,10 @@
         <item quantity="one">%d secret of Use-only items wasn\'t included</item>
         <item quantity="other">%d secrets of Use-only items weren\'t included</item>
     </plurals>
+    <string name="host_status_up">Reachable, %1$s</string>
+    <string name="host_status_down">Not reachable</string>
+    <string name="host_status_dont_check">Don\'t check status</string>
+    <string name="host_status_check">Check status</string>
+    <string name="settings_host_status">Check host status</string>
+    <string name="settings_host_status_hint">A dot next to each host on screen: green with the time a connection took, red when it doesn\'t answer. Checked from this phone, through its proxy, at most once a minute (not hosts behind jump hosts or in Strict vaults).</string>
 </resources>
