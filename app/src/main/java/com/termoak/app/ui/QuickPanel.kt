@@ -437,6 +437,7 @@ private fun AppearanceTab(app: TermoakApp) {
             }
         }
         TerminalFontPicker(app)
+        TerminalThemePicker(app)
     }
 }
 

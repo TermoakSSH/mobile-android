@@ -52,6 +52,8 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PersonAdd
@@ -100,6 +102,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -141,8 +148,10 @@ import com.termoak.app.term.SpecialKey
 import com.termoak.app.term.SplitState
 import com.termoak.app.term.SuggestionMode
 import com.termoak.app.term.TermSession
+import com.termoak.app.term.TermChrome
 import com.termoak.app.term.TermState
 import com.termoak.app.term.TerminalFont
+import com.termoak.app.term.TerminalThemes
 import com.termoak.app.term.TerminalView
 import com.termoak.app.userMessage
 import com.termoak.ffi.Snippet
@@ -150,14 +159,15 @@ import com.termoak.ffi.TerminalKey
 import com.termoak.ffi.snippetVariables
 import kotlinx.coroutines.launch
 
-private val TermBg = Color(0xFF12151D)
-private val BarBg = Color(0xFF1A1F2B)
-private val KeyBg = Color(0xFF252C3B)
-private val KeyFg = Color(0xFFD6DBE4)
-internal val TermScreenBg = TermBg
-internal val TermBarBg = BarBg
-internal val TermKeyBg = KeyBg
-internal val TermKeyFg = KeyFg
+// The terminal's chrome takes the colours of the theme of the terminal in view.
+private val TermBg: Color get() = Color(TermChromeState.current.screen)
+private val BarBg: Color get() = Color(TermChromeState.current.bar)
+private val KeyBg: Color get() = Color(TermChromeState.current.key)
+private val KeyFg: Color get() = Color(TermChromeState.current.text)
+internal val TermScreenBg: Color get() = TermBg
+internal val TermBarBg: Color get() = BarBg
+internal val TermKeyBg: Color get() = KeyBg
+internal val TermKeyFg: Color get() = KeyFg
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -175,7 +185,10 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val keyLayout by app.prefs.keyboardLayout.collectAsState()
     val suggestionMode by app.prefs.commandSuggestions.collectAsState()
     val terminalFont by app.prefs.terminalFont.collectAsState()
+    val appTheme by app.prefs.terminalTheme.collectAsState()
     val session = sessions.firstOrNull { it.id == activeId } ?: sessions.lastOrNull()
+    // Find in the terminal in view and its scrollback (Ctrl+Shift+F, the menu).
+    var findOpen by remember { mutableStateOf(false) }
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     // The terminal views on screen (one, or one per pane): the keyboard goes to the focused one.
     val views = remember { mutableListOf<TerminalView>() }
@@ -194,6 +207,9 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
 
     LaunchedEffect(sessions.isEmpty()) { if (sessions.isEmpty()) nav.popBackStack() }
     if (session == null) return
+    // The bars and keys take the colours of the theme of the terminal in view.
+    val activeTheme = remember(session.id, appTheme) { themeFor(app, session, appTheme) }
+    LaunchedEffect(activeTheme) { TermChromeState.current = TermChrome.of(TerminalThemes.byId(activeTheme)) }
     // A sleeping tab attaches when opened.
     LaunchedEffect(session.id) { app.sessions.wake(session.id) }
 
@@ -280,6 +296,9 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             gestureMode = gestureMode,
             suggestionMode = suggestionMode,
             font = terminalFont,
+            appTheme = appTheme,
+            findOpen = findOpen && focused,
+            onCloseFind = { findOpen = false; focusedView()?.requestFocus() },
             views = views,
             onFocus = { if (s.id != app.sessions.active.value) app.sessions.select(s.id) },
             onPaste = { requestPaste(s, it) },
@@ -382,7 +401,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             Shortcut.COPILOT -> toggleCopilot()
             Shortcut.SNIPPETS -> showSnippets = true
             Shortcut.RECONNECT -> if (live.ended == null) session.reconnect()
-            Shortcut.SEARCH_HOSTS, Shortcut.SHORTCUTS, Shortcut.NEW_HOST -> return@ShortcutHandler false
+            Shortcut.FIND -> findOpen = true
+            Shortcut.SEARCH_HOSTS, Shortcut.SHORTCUTS, Shortcut.NEW_HOST, Shortcut.PALETTE -> return@ShortcutHandler false
         }
         true
     }
@@ -442,6 +462,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         }
         DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { dismiss(); copyScreen(session) },
             leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+        DropdownMenuItem({ Text(stringResource(R.string.term_find)) }, { dismiss(); findOpen = true },
+            leadingIcon = { Icon(Icons.Outlined.Search, null) })
         DropdownMenuItem({ Text(stringResource(R.string.term_clear)) }, { dismiss(); session.clear() },
             leadingIcon = { Icon(Icons.Outlined.ClearAll, null) })
         DropdownMenuItem({ Text(stringResource(R.string.term_font_bigger)) }, { app.prefs.setFontSize(fontSize + 1) },
@@ -984,6 +1006,9 @@ private fun TerminalPane(
     gestureMode: GestureMode,
     suggestionMode: SuggestionMode,
     font: TerminalFont,
+    appTheme: String,
+    findOpen: Boolean,
+    onCloseFind: () -> Unit,
     views: MutableList<TerminalView>,
     onFocus: () -> Unit,
     onPaste: (String) -> Unit,
@@ -1004,6 +1029,8 @@ private fun TerminalPane(
     val view = remember { arrayOfNulls<TerminalView>(1) }
     var hasSelection by remember { mutableStateOf(false) }
     val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it, session.accountId) }.getOrNull() } }
+    // This terminal's colours: its host's theme (with its groups'), or the app's.
+    val themeId = remember(session.id, appTheme) { themeFor(app, session, appTheme) }
     val suggestions by session.suggestions.collectAsState()
     val awaitingEcho by session.awaitingEcho.collectAsState()
     // Next to the cursor: the rest dimmed and a list to pick from (only the focused pane).
@@ -1045,6 +1072,7 @@ private fun TerminalPane(
                 }
             },
             update = { v ->
+                session.setTheme(themeId)
                 v.session = session
                 v.setTypeface(font.typeface(v.context))
                 v.setFontSize(fontSize)
@@ -1136,6 +1164,7 @@ private fun TerminalPane(
             }
         }
         RequestBanners(session, live, Modifier.align(Alignment.TopCenter), onParticipants)
+        if (findOpen) FindBar(session, onCloseFind, Modifier.align(Alignment.TopEnd))
         // "With a button" and the button on: so you know what one finger does.
         val cursorByButton by session.cursorByButton.collectAsState()
         if (gestureMode == GestureMode.BUTTON && cursorByButton && live.canWrite) {
@@ -1448,4 +1477,127 @@ private fun PasteConfirmDialog(text: String, onDismiss: () -> Unit, onPaste: (do
         confirmButton = { TextButton(onClick = { onPaste(dontAsk) }) { Text(stringResource(R.string.common_paste)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+/**
+ * Find in the terminal and its scrollback (the engine's search, like the
+ * desktop's): literal text or a regular expression, with or without case;
+ * Enter goes to older matches and Shift+Enter to newer ones, "3 of 12"
+ * counting from the newest; the view scrolls to the current one and the
+ * matches on screen are painted. Esc closes it.
+ */
+@Composable
+private fun FindBar(session: TermSession, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    var query by rememberSaveable(session.id) { mutableStateOf("") }
+    var caseSensitive by rememberSaveable(session.id) { mutableStateOf(false) }
+    var regex by rememberSaveable(session.id) { mutableStateOf(false) }
+    var status by remember(session.id) { mutableStateOf<com.termoak.ffi.FindStatus?>(null) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    fun redraw() = session.onScreenChanged()
+    LaunchedEffect(session.id, query, caseSensitive, regex) {
+        status = if (query.isEmpty()) {
+            runCatching { session.screen.clearFind() }
+            null
+        } else {
+            runCatching { session.screen.find(query, caseSensitive, regex) }.getOrNull()
+        }
+        redraw()
+    }
+    // New output may add matches: the count again, a few times a second at most.
+    LaunchedEffect(session.id, query.isEmpty()) {
+        if (query.isEmpty()) return@LaunchedEffect
+        var seen = session.outputSerial
+        while (true) {
+            kotlinx.coroutines.delay(400)
+            if (session.outputSerial != seen) {
+                seen = session.outputSerial
+                status = runCatching { session.screen.findStatus() }.getOrNull() ?: status
+            }
+        }
+    }
+    DisposableEffect(session.id) {
+        onDispose {
+            runCatching { session.screen.clearFind() }
+            session.onScreenChanged()
+        }
+    }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    fun step(older: Boolean) {
+        if (query.isEmpty()) return
+        status = runCatching { session.screen.findStep(older) }.getOrNull() ?: status
+        redraw()
+    }
+    Surface(
+        modifier.padding(8.dp).widthIn(max = 520.dp), color = BarBg, contentColor = KeyFg,
+        shape = RoundedCornerShape(12.dp), shadowElevation = 6.dp,
+    ) {
+        Row(Modifier.padding(start = 10.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Search, null, Modifier.size(18.dp), tint = KeyFg.copy(alpha = 0.6f))
+            androidx.compose.foundation.text.BasicTextField(
+                query, { query = it },
+                Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 12.dp).focusRequester(focus)
+                    .onPreviewKeyEvent { e ->
+                        if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (e.key) {
+                            androidx.compose.ui.input.key.Key.Enter, androidx.compose.ui.input.key.Key.NumPadEnter -> {
+                                step(older = !e.isShiftPressed)
+                                true
+                            }
+                            androidx.compose.ui.input.key.Key.Escape -> {
+                                onClose()
+                                true
+                            }
+                            else -> false
+                        }
+                    },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = KeyFg, fontFamily = FontFamily.Monospace),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    autoCorrectEnabled = false, imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { step(older = true) }),
+                decorationBox = { inner ->
+                    Box {
+                        if (query.isEmpty()) Text(stringResource(R.string.term_find_hint), color = KeyFg.copy(alpha = 0.45f), style = MaterialTheme.typography.bodyMedium)
+                        inner()
+                    }
+                },
+            )
+            val st = status
+            val label = when {
+                st == null -> ""
+                st.invalid -> stringResource(R.string.term_find_invalid)
+                st.count == 0u -> stringResource(R.string.term_find_none)
+                else -> stringResource(R.string.term_find_count, (st.ordinal ?: 0u).toInt(), st.count.toInt(), if (st.capped) "+" else "")
+            }
+            Text(
+                label, color = if (st?.invalid == true) Brand.Red else KeyFg.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelMedium, maxLines = 1,
+            )
+            FindToggle("Aa", stringResource(R.string.term_find_case), caseSensitive) { caseSensitive = it }
+            FindToggle(".*", stringResource(R.string.term_find_regex), regex) { regex = it }
+            IconButton(onClick = { step(older = true) }, enabled = (st?.count ?: 0u) > 0u) {
+                Icon(Icons.Outlined.KeyboardArrowUp, stringResource(R.string.term_find_older), tint = KeyFg)
+            }
+            IconButton(onClick = { step(older = false) }, enabled = (st?.count ?: 0u) > 0u) {
+                Icon(Icons.Outlined.KeyboardArrowDown, stringResource(R.string.term_find_newer), tint = KeyFg)
+            }
+            IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, stringResource(R.string.common_close), tint = KeyFg) }
+        }
+    }
+}
+
+/** "Aa" (case) and ".*" (regular expression) of the find bar. */
+@Composable
+private fun FindToggle(text: String, description: String, on: Boolean, onChange: (Boolean) -> Unit) {
+    Box(
+        Modifier.padding(start = 4.dp).size(32.dp, 28.dp).clip(RoundedCornerShape(6.dp))
+            .background(if (on) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent)
+            .toggleable(on, role = Role.Checkbox, onValueChange = onChange)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = if (on) MaterialTheme.colorScheme.primary else KeyFg.copy(alpha = 0.7f), fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+    }
 }

@@ -77,8 +77,29 @@ abstract class TermSession(
     /** When the tab was opened (for the Connections list). */
     val openedAt: Long = System.currentTimeMillis()
     val screen = TerminalScreen(80u, 24u, 0u)
-    /** Modes the emulator doesn't expose: mouse reporting and the application keypad. */
-    val modes = ModeTracker()
+
+    /** The colour theme in use (an id of [TerminalThemes]; `null`: the emulator's default until one is set). */
+    @Volatile var themeId: String? = null
+        private set
+
+    /** Uses the theme [id] (the host's, or the app's): only this terminal's colours change. */
+    fun setTheme(id: String) {
+        if (themeId == id) return
+        themeId = id
+        runCatching { screen.setTheme(id) }
+        onScreenChanged()
+    }
+
+    /** Grows with every piece of output (find refreshes its count when it changed). */
+    @Volatile var outputSerial = 0L
+        private set
+    /**
+     * Lines that went into the scrollback since the terminal opened, so a
+     * selection follows its text as new output pushes it up; `-1` once the
+     * scrollback is full (lines then leave it at the top: it can't be told).
+     */
+    @Volatile var historyShift = 0L
+        private set
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     protected val _state = MutableStateFlow<TermState>(InitialConnecting)
@@ -165,7 +186,6 @@ abstract class TermSession(
     open fun reconnect() {
         release()
         screen.reset()
-        modes.reset()
         forgetLine()
         _state.value = TermState.Connecting(uiText(R.string.term_reconnecting))
         start()
@@ -173,7 +193,7 @@ abstract class TermSession(
 
     /** Processes terminal output (terminal thread). */
     protected fun output(data: ByteArray) {
-        modes.feed(data)
+        val before = screen.historySize()
         for (event in screen.feed(data)) {
             when (event) {
                 is ScreenEvent.Write -> send(event.data)
@@ -183,6 +203,9 @@ abstract class TermSession(
                 is ScreenEvent.Bell -> onBell()
             }
         }
+        val after = screen.historySize()
+        if (historyShift >= 0) historyShift = if (after > before || after < SCROLLBACK) historyShift + (after.toLong() - before.toLong()).coerceAtLeast(0) else -1
+        outputSerial++
         if (_awaitingEcho.value) _awaitingEcho.value = false
         if (suggestAfterEcho) {
             suggestAfterEcho = false
@@ -373,11 +396,10 @@ abstract class TermSession(
         return m
     }
 
-    /** The modes that change what keys send, now. */
+    /** The modes that change what keys send, now (the emulator's). */
     fun keyModes(): KeyModes {
-        // The emulator applies application cursor keys: an arrow tells which mode it's in.
-        val up = runCatching { screen.key(TerminalKey.Up, KeyModifiers(shift = false, alt = false, ctrl = false)) }.getOrNull()
-        return KeyModes(appCursor = up != null && up.size >= 2 && up[1] == 'O'.code.toByte(), appKeypad = modes.appKeypad)
+        val m = screen.modes()
+        return KeyModes(appCursor = m.appCursor, appKeypad = m.appKeypad)
     }
 
     private fun input(input: TermInput) {
@@ -407,9 +429,7 @@ abstract class TermSession(
      * is not run line by line until Enter is pressed.
      */
     val bracketedPaste: Boolean
-        get() = runCatching { screen.paste("x") }.getOrNull()?.let { b ->
-            b.size > 6 && b[0] == 0x1b.toByte() && String(b, 1, 5, Charsets.US_ASCII) == "[200~"
-        } ?: false
+        get() = runCatching { screen.modes().bracketedPaste }.getOrDefault(false)
 
     open fun resize(cols: Int, rows: Int) {
         if (cols.toUInt() == screen.cols() && rows.toUInt() == screen.rows()) return
@@ -434,5 +454,10 @@ abstract class TermSession(
         scope.cancel()
         screen.close()
         line.close()
+    }
+
+    private companion object {
+        /** The emulator's scrollback (TerminalScreen with 0: 10,000 lines). */
+        const val SCROLLBACK = 10_000u
     }
 }

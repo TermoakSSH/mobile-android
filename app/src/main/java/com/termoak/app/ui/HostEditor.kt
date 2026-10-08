@@ -816,11 +816,12 @@ fun HostEditor(
                             imeAction = ImeAction.Done, onIme = { save(false) },
                         )
                         FormDivider()
+                        // Same as the app, a dark or light one (what the desktop's editor saves), or one of the themes.
                         val themes = listOf<Pair<String?, String>>(
                             null to stringResource(R.string.editor_theme_follow),
-                            "dark" to stringResource(R.string.settings_theme_dark),
-                            "light" to stringResource(R.string.settings_theme_light),
-                        )
+                            "dark" to stringResource(R.string.editor_theme_dark),
+                            "light" to stringResource(R.string.editor_theme_light),
+                        ) + com.termoak.app.term.TerminalThemes.all.map { it.id to it.name }
                         FormPicker(
                             stringResource(R.string.editor_theme),
                             themes.firstOrNull { it.first == theme }?.second ?: theme.orEmpty(),

@@ -773,7 +773,7 @@
     <string name="editor_term_hint">Empty uses xterm-256color.</string>
     <string name="editor_theme">Terminal theme</string>
     <string name="editor_theme_follow">Same as the app</string>
-    <string name="editor_theme_note">The terminal theme is used by Termoak for desktop; on Android the terminal is always dark for now.</string>
+    <string name="editor_theme_note">Dark or Light keep the app\'s terminal theme when it is of that kind, otherwise Termoak or Termoak Light. Termoak for desktop and iOS read it the same way.</string>
     <string name="editor_record">Record the sessions</string>
     <string name="editor_record_hint">Saves each session in asciinema format</string>
     <string name="editor_delete">Delete host</string>
@@ -1626,4 +1626,18 @@
         <item quantity="one">Upload %d file to…</item>
         <item quantity="other">Upload %d files to…</item>
     </plurals>
+    <string name="kb_find">Find in the terminal</string>
+    <string name="kb_palette">Command palette</string>
+    <string name="term_find">Find…</string>
+    <string name="term_find_hint">Find in the terminal</string>
+    <string name="term_find_count">%1$d of %2$d%3$s</string>
+    <string name="term_find_none">No results</string>
+    <string name="term_find_invalid">Invalid pattern</string>
+    <string name="term_find_case">Match case</string>
+    <string name="term_find_regex">Regular expression</string>
+    <string name="term_find_older">Older match</string>
+    <string name="term_find_newer">Newer match</string>
+    <string name="settings_terminal_theme">Theme</string>
+    <string name="editor_theme_dark">A dark theme</string>
+    <string name="editor_theme_light">A light theme</string>
 </resources>

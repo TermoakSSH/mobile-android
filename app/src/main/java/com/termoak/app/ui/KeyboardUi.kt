@@ -80,7 +80,7 @@ object KeyShortcuts {
     val once = setOf(
         Shortcut.NEW_TAB, Shortcut.CLOSE_TAB, Shortcut.COPY, Shortcut.PASTE, Shortcut.SEARCH_HOSTS, Shortcut.SHORTCUTS,
         Shortcut.ADD_PANE, Shortcut.FOCUS_MODE, Shortcut.BROADCAST, Shortcut.HOME, Shortcut.SETTINGS, Shortcut.COPILOT,
-        Shortcut.NEW_HOST, Shortcut.SNIPPETS, Shortcut.RECONNECT,
+        Shortcut.NEW_HOST, Shortcut.SNIPPETS, Shortcut.RECONNECT, Shortcut.FIND, Shortcut.PALETTE,
     )
 }
 
@@ -145,6 +145,7 @@ private val Groups = listOf(
             Help(R.string.copilot_title, ctrlShift(KeyEvent.KEYCODE_I)),
             Help(R.string.section_snippets, ctrlShift(KeyEvent.KEYCODE_S)),
             Help(R.string.term_reconnect, ctrlShift(KeyEvent.KEYCODE_R)),
+            Help(R.string.kb_find, ctrlShift(KeyEvent.KEYCODE_F)),
             Help(R.string.kb_scroll_up, Combo(KeyEvent.KEYCODE_PAGE_UP, shift = true)),
             Help(R.string.kb_scroll_down, Combo(KeyEvent.KEYCODE_PAGE_DOWN, shift = true)),
         ),
@@ -152,6 +153,7 @@ private val Groups = listOf(
     HelpGroup(
         R.string.kb_section_app,
         listOf(
+            Help(R.string.kb_palette, ctrlShift(KeyEvent.KEYCODE_P), Combo(KeyEvent.KEYCODE_K, ctrl = true)),
             Help(R.string.kb_search_hosts, ctrlShift(KeyEvent.KEYCODE_K)),
             Help(R.string.kb_home, ctrlShift(KeyEvent.KEYCODE_H)),
             Help(R.string.section_settings, Combo(KeyEvent.KEYCODE_COMMA, ctrl = true)),

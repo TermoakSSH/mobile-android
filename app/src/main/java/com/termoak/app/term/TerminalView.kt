@@ -26,7 +26,10 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import androidx.core.graphics.withTranslation
 import com.termoak.ffi.KeyModifiers
+import com.termoak.ffi.MouseMode
 import com.termoak.ffi.ScreenCursorShape
+import com.termoak.ffi.ScreenPoint
+import com.termoak.ffi.ScreenRange
 import com.termoak.ffi.TerminalKey
 import kotlin.math.abs
 import kotlin.math.floor
@@ -39,6 +42,24 @@ import kotlin.math.max
  * receive the keys as they are.
  */
 private val NoModifiers = KeyModifiers(shift = false, alt = false, ctrl = false)
+
+/**
+ * A cell of the grid, screen and scrollback (the engine's `ScreenPoint`):
+ * [line] 0 is the top of the screen when scrolled to the bottom, negative
+ * lines are the scrollback. A selection made of these stays on its text
+ * while the view scrolls.
+ */
+private data class GridPos(val col: Int, val line: Int) : Comparable<GridPos> {
+    override fun compareTo(other: GridPos): Int = compareValuesBy(this, other, { it.line }, { it.col })
+    fun point() = ScreenPoint(line, col.coerceAtLeast(0).toUInt())
+}
+
+private fun ScreenPoint.pos() = GridPos(col.toInt(), line)
+
+/** Cursor blink: half a period (ms). */
+private const val BLINK_MS = 530L
+/** The current find match, over the text (amber). */
+private const val FIND_CURRENT = 0x99E5A50A.toInt()
 
 @SuppressLint("ViewConstructor")
 class TerminalView(context: Context) : View(context) {
@@ -134,8 +155,14 @@ class TerminalView(context: Context) : View(context) {
     /** The terminal doesn't fit the view's width (a guest following a wider owner). */
     private fun tooWide(): Boolean = widths().let { (need, avail) -> need > avail && avail > 0f }
 
+    /** Last output or input (ms, uptime): the cursor is shown solid right after it, then blinks. */
+    @Volatile private var activityAt = 0L
+
     /** Redraw request this view leaves on its session (only it removes it: another pane may show the same one later). */
-    private val redraw: () -> Unit = { postInvalidateOnAnimation() }
+    private val redraw: () -> Unit = {
+        activityAt = SystemClock.uptimeMillis()
+        postInvalidateOnAnimation()
+    }
 
     var session: TermSession? = null
         set(value) {
@@ -209,7 +236,9 @@ class TerminalView(context: Context) : View(context) {
     }
 
     private fun drawScreen(canvas: Canvas, s: TermSession) {
+        followOutput(s)
         val snap = s.screen.snapshot()
+        lastOffset = snap.displayOffset.toInt()
         canvas.drawColor(snap.background.toInt())
         val left = paddingLeft.toFloat()
         val top = paddingTop.toFloat()
@@ -256,18 +285,28 @@ class TerminalView(context: Context) : View(context) {
         }
         paint.isUnderlineText = false
         paint.isStrikeThruText = false
+        val selection = selectionColor(s)
+        // Find matches on screen (the current one in amber).
+        for (h in snap.highlights) {
+            fill.color = if (h.current) FIND_CURRENT else selection
+            val x = left + h.col.toInt() * cellWidth
+            val y = top + h.row.toInt() * cellHeight
+            canvas.drawRect(x, y, x + h.cells.toInt() * cellWidth, y + cellHeight, fill)
+        }
         selectionRange()?.let { (from, to) ->
-            fill.color = snap.cursorColor.toInt()
-            fill.alpha = 0x55
+            fill.color = selection
             val cols = snap.cols.toInt()
-            for (row in from.second..to.second) {
-                val c0 = if (row == from.second) from.first else 0
-                val c1 = if (row == to.second) to.first else cols - 1
-                val y = top + row * cellHeight
+            val rows = snap.rows.toInt()
+            val off = lastOffset
+            // Only the lines on screen (a selection can go far into the scrollback).
+            for (line in maxOf(from.line, -off)..minOf(to.line, rows - 1 - off)) {
+                val c0 = if (line == from.line) from.col else 0
+                val c1 = if (line == to.line) to.col else cols - 1
+                val y = top + (line + off) * cellHeight
                 canvas.drawRect(left + c0 * cellWidth, y, left + (c1 + 1) * cellWidth, y + cellHeight, fill)
             }
-            fill.alpha = 0xFF
         }
+        fill.alpha = 0xFF
         // The keyboard's text being composed, at the cursor (over the cell), underlined.
         val composing = preedit
         if (composing != null && snap.displayOffset == 0u) {
@@ -307,7 +346,7 @@ class TerminalView(context: Context) : View(context) {
                 paint.alpha = 0xFF
             }
         }
-        snap.cursor?.let { c ->
+        snap.cursor?.takeIf { cursorVisible(it.blinking) }?.let { c ->
             val x = left + c.col.toInt() * cellWidth
             val y = top + c.row.toInt() * cellHeight
             fill.color = snap.cursorColor.toInt()
@@ -337,6 +376,32 @@ class TerminalView(context: Context) : View(context) {
             canvas.drawRect(width - 3 * density, 0f, width.toFloat(), 24 * density, fill)
             fill.alpha = 0xFF
         }
+    }
+
+    /**
+     * The cursor of a program that asked for a blinking one (DECSCUSR,
+     * `CSI ? 12 h`) blinks while this view has the focus, solid right after
+     * any output or typing.
+     */
+    private fun cursorVisible(blinking: Boolean): Boolean {
+        if (!blinking || !hasFocus()) return true
+        val t = SystemClock.uptimeMillis() - activityAt
+        postInvalidateDelayed(BLINK_MS - t % BLINK_MS)
+        return (t / BLINK_MS) % 2 == 0L
+    }
+
+    private var selectionTheme: String? = "?"
+    private var selectionArgb = 0x553FB27F
+
+    /** The theme's selection colour (also for find matches), see-through. */
+    private fun selectionColor(s: TermSession): Int {
+        if (selectionTheme != s.themeId) {
+            selectionTheme = s.themeId
+            val c = runCatching { s.screen.colors().selection.toInt() }.getOrDefault(0x3FB27F)
+            // An opaque colour would hide the text: some transparency.
+            selectionArgb = if ((c ushr 24) == 0xFF || (c ushr 24) == 0) (c and 0xFFFFFF) or 0x80000000.toInt() else c
+        }
+        return selectionArgb
     }
 
     // ----- Touch: keyboard, scrolling and zoom -----
@@ -420,10 +485,9 @@ class TerminalView(context: Context) : View(context) {
             scrollRemainder += dy
             val lines = (scrollRemainder / cellHeight).toInt()
             if (lines != 0) {
-                // The selection is of the visible screen: it goes when the screen scrolls.
-                clearSelection()
                 scrollRemainder -= lines * cellHeight
                 if (s.screen.alternateScreen()) {
+                    clearSelection()
                     // In vim, less, htop...: arrow keys.
                     // Only here: scrolling isn't typing, it isn't broadcast to other panes.
                     // (The cursor gestures' arrows are: they are typing.)
@@ -769,9 +833,14 @@ class TerminalView(context: Context) : View(context) {
     /** The touch gesture in progress comes from a mouse. */
     private var mouseGesture = false
 
-    /** Selection with the mouse: anchor and end cells (column, row) of the visible screen. */
-    private var selAnchor: Pair<Int, Int>? = null
-    private var selEnd: Pair<Int, Int>? = null
+    /** The selection (mouse or finger): anchor and end cells of the grid (screen and scrollback). */
+    private var selAnchor: GridPos? = null
+    private var selEnd: GridPos? = null
+    /** Display offset of the last frame (to place grid lines on screen). */
+    private var lastOffset = 0
+    /** The session's output and scrollback growth when the selection was last placed. */
+    private var selSerial = 0L
+    private var selShift = 0L
     private var selecting = false
     private var dragged = false
     /** Button held down that the remote program is told about. */
@@ -780,12 +849,45 @@ class TerminalView(context: Context) : View(context) {
     private var wheelRemainder = 0f
 
     /** First and last selected cells, in reading order. */
-    private fun selectionRange(): Pair<Pair<Int, Int>, Pair<Int, Int>>? {
+    private fun selectionRange(): Pair<GridPos, GridPos>? {
         val a = selAnchor ?: return null
         val b = selEnd ?: return null
         // A click without dragging selects nothing; a finger can select a single cell.
         if (a == b && !touchSelection) return null
-        return if (a.second < b.second || (a.second == b.second && a.first <= b.first)) a to b else b to a
+        return if (a <= b) a to b else b to a
+    }
+
+    /** The grid cell under a point of the view (with the current scroll). */
+    private fun gridAt(x: Float, y: Float): GridPos {
+        val (col, row) = cellAt(x, y)
+        return session?.let { runCatching { it.screen.pointAt(row.toUInt(), col.toUInt()).pos() }.getOrNull() } ?: GridPos(col, row - lastOffset)
+    }
+
+    /** Marks where the session's output was when the selection was placed. */
+    private fun anchorSelection() {
+        val s = session ?: return
+        selSerial = s.outputSerial
+        selShift = s.historyShift
+    }
+
+    /**
+     * New output pushes the text up: the selection goes with it. Once the
+     * scrollback is full that can't be followed, and the selection goes.
+     */
+    private fun followOutput(s: TermSession) {
+        if (selAnchor == null || s.outputSerial == selSerial) return
+        val shift = s.historyShift
+        if (shift >= 0 && selShift >= 0) {
+            val d = (shift - selShift).toInt()
+            if (d != 0) {
+                selAnchor = selAnchor?.let { it.copy(line = it.line - d) }
+                selEnd = selEnd?.let { it.copy(line = it.line - d) }
+            }
+            selSerial = s.outputSerial
+            selShift = shift
+        } else if (hasSelection) {
+            post { clearSelection() }
+        }
     }
 
     val hasSelection: Boolean get() = selectionRange() != null
@@ -803,39 +905,14 @@ class TerminalView(context: Context) : View(context) {
         }
     }
 
-    /** The selected text (lines without trailing spaces), or `null` without a selection. */
+    /** The selected text (wrapped lines joined, without trailing spaces), or `null` without a selection. */
     fun selectedText(): String? {
         val (from, to) = selectionRange() ?: return null
-        val snap = session?.screen?.snapshot() ?: return null
-        val cols = snap.cols.toInt()
-        val out = StringBuilder()
-        for (row in from.second..to.second) {
-            val cells = Array(cols) { " " }
-            snap.lines.getOrNull(row)?.runs?.forEach { run ->
-                val c = run.col.toInt()
-                if (run.wide) {
-                    if (c < cols) cells[c] = run.text
-                    if (c + 1 < cols) cells[c + 1] = ""
-                } else {
-                    var i = 0
-                    var col = c
-                    while (i < run.text.length && col < cols) {
-                        val next = run.text.offsetByCodePoints(i, 1)
-                        cells[col] = run.text.substring(i, next)
-                        i = next
-                        col++
-                    }
-                }
-            }
-            val c0 = if (row == from.second) from.first else 0
-            val c1 = if (row == to.second) to.first else cols - 1
-            if (row > from.second) out.append('\n')
-            out.append(cells.slice(c0..c1.coerceAtMost(cols - 1)).joinToString("").trimEnd())
-        }
-        return out.toString()
+        val s = session ?: return null
+        return runCatching { s.screen.textRange(from.point(), to.point(), false) }.getOrNull()
     }
 
-    // ----- Selection by touch (the visible screen) -----
+    // ----- Selection by touch (screen and scrollback) -----
 
     /** The selection was made with a finger: it has handles. */
     private var touchSelection = false
@@ -850,56 +927,67 @@ class TerminalView(context: Context) : View(context) {
     private fun handleTick(): Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) HapticFeedbackConstants.TEXT_HANDLE_MOVE else HapticFeedbackConstants.CLOCK_TICK
 
-    private fun rowCells(row: Int): Array<String>? {
-        val snap = session?.screen?.snapshot() ?: return null
-        return Suggestions.cells(snap.lines.getOrNull(row), snap.cols.toInt())
-    }
-
-    private fun setTouchSelection(from: Pair<Int, Int>, to: Pair<Int, Int>) {
+    private fun setTouchSelection(from: GridPos, to: GridPos) {
         val before = hasSelection
         selAnchor = from
         selEnd = to
         selecting = false
         touchSelection = true
+        anchorSelection()
         if (before != hasSelection || hasSelection) onSelectionChanged(hasSelection)
         performHapticFeedback(handleTick())
         invalidate()
     }
 
-    /** Selects the word at [cell] (double tap, holding). Whether there was one. */
+    private fun setTouchSelection(r: ScreenRange) = setTouchSelection(r.start.pos(), r.end.pos())
+
+    /** The grid point of a cell (column, row) on screen. */
+    private fun pointOf(cell: Pair<Int, Int>): ScreenPoint? =
+        session?.let { runCatching { it.screen.pointAt(cell.second.toUInt(), cell.first.toUInt()) }.getOrNull() }
+
+    /** Selects the word at [cell] (double tap, holding), across wrapped lines. Whether there was one. */
     fun selectWordAt(cell: Pair<Int, Int>): Boolean {
-        val cells = rowCells(cell.second) ?: return false
-        val word = TextSelection.wordAt(cells, cell.first) ?: return false
-        setTouchSelection(word.first to cell.second, word.last to cell.second)
+        val s = session ?: return false
+        val p = pointOf(cell) ?: return false
+        val word = runCatching { s.screen.wordAt(p) }.getOrNull() ?: return false
+        setTouchSelection(word)
         return true
     }
 
-    /** Selects the line at [cell] (triple tap). */
+    /** Selects the line at [cell] (triple tap), wrapped lines joined. */
     fun selectLineAt(cell: Pair<Int, Int>): Boolean {
-        val cells = rowCells(cell.second) ?: return false
-        val line = TextSelection.lineAt(cells) ?: return false
-        setTouchSelection(line.first to cell.second, line.last to cell.second)
+        val s = session ?: return false
+        val p = pointOf(cell) ?: return false
+        val line = runCatching { s.screen.lineAt(p) }.getOrNull()?.takeIf { it.text.isNotBlank() } ?: return false
+        setTouchSelection(line)
         return true
     }
 
     /** "Select" in the menu: the word at that point of the view (px). */
     fun selectWordAtPoint(x: Float, y: Float): Boolean = selectWordAt(cellAt(x, y))
 
-    /** "Select all": the whole visible screen. */
+    /** "Select all": the whole terminal, scrollback included. */
     fun selectAll() {
         val s = session ?: return
-        val (from, to) = TextSelection.all(s.screen.cols().toInt(), s.screen.rows().toInt())
-        setTouchSelection(from, to)
+        val history = runCatching { s.screen.historySize().toInt() }.getOrDefault(0)
+        setTouchSelection(GridPos(0, -history), GridPos(s.screen.cols().toInt() - 1, s.screen.rows().toInt() - 1))
     }
 
-    /** Where the handles go (view px): under the start of the first cell and the end of the last one. */
-    private fun handlePoints(): Pair<PointF, PointF>? {
+    /**
+     * Where the handles go (view px): under the start of the first cell and
+     * the end of the last one; `null` for an end that is off screen.
+     */
+    private fun handlePoints(): Pair<PointF?, PointF?>? {
         val (from, to) = selectionRange() ?: return null
+        val rows = session?.screen?.rows()?.toInt() ?: return null
         val left = paddingLeft.toFloat()
         val top = paddingTop.toFloat()
         fun x(col: Int) = left + col * cellWidth * fit - panX
-        fun y(row: Int) = top + (row + 1) * cellHeight * fit
-        return PointF(x(from.first), y(from.second)) to PointF(x(to.first + 1), y(to.second))
+        fun at(col: Int, line: Int): PointF? {
+            val row = line + lastOffset
+            return if (row in 0 until rows) PointF(x(col), top + (row + 1) * cellHeight * fit) else null
+        }
+        return at(from.col, from.line) to at(to.col + 1, to.line)
     }
 
     private fun drawHandles(canvas: Canvas, color: Int) {
@@ -907,6 +995,7 @@ class TerminalView(context: Context) : View(context) {
         handlePaint.color = color
         val r = 9 * density
         for ((p, isStart) in listOf(start to true, end to false)) {
+            if (p == null) continue
             // A drop hanging from the text's corner, leaning outwards.
             val cx = if (isStart) p.x - r * 0.7f else p.x + r * 0.7f
             val cy = p.y + r
@@ -921,7 +1010,7 @@ class TerminalView(context: Context) : View(context) {
         val (start, end) = handlePoints() ?: return 0
         val reach = 28 * density
         val r = 9 * density
-        fun near(p: PointF, dx: Float) = hypot(x - (p.x + dx), y - (p.y + r)) <= reach
+        fun near(p: PointF?, dx: Float) = p != null && hypot(x - (p.x + dx), y - (p.y + r)) <= reach
         return when {
             near(end, r * 0.7f) -> 2
             near(start, -r * 0.7f) -> 1
@@ -951,7 +1040,18 @@ class TerminalView(context: Context) : View(context) {
             MotionEvent.ACTION_MOVE -> {
                 if (handle == 0) return false
                 // Above the finger, so the text being selected can be seen.
-                val next = cellAt(e.x, e.y - 24 * density)
+                val y = e.y - 24 * density
+                // At the top or the bottom edge: the view scrolls through the scrollback.
+                val s = session
+                if (s != null && !s.screen.alternateScreen()) {
+                    val edge = cellHeight * fit
+                    when {
+                        y < paddingTop + edge / 2 -> s.screen.scroll(1)
+                        e.y > height - paddingBottom - edge / 2 -> s.screen.scroll(-1)
+                    }
+                    lastOffset = runCatching { s.screen.snapshot().displayOffset.toInt() }.getOrDefault(lastOffset)
+                }
+                val next = gridAt(e.x, y)
                 if (next != selEnd) {
                     selEnd = next
                     performHapticFeedback(handleTick())
@@ -972,12 +1072,12 @@ class TerminalView(context: Context) : View(context) {
     /** A tap as a left click when the remote program asked for the mouse. Whether it was sent. */
     private fun clickRemote(cell: Pair<Int, Int>): Boolean {
         val s = session ?: return false
-        if (readOnly || tooWide() || s.modes.mouse == MouseTracking.OFF) return false
-        val tracking = s.modes.mouse
+        val modes = s.screen.modes()
+        if (readOnly || tooWide() || modes.mouseMode == MouseMode.OFF) return false
         for (kind in listOf(MouseEncoder.Kind.PRESS, MouseEncoder.Kind.RELEASE)) {
-            if (!MouseEncoder.wants(tracking, kind, held = kind == MouseEncoder.Kind.RELEASE)) continue
+            if (!MouseEncoder.wants(modes.mouseMode, kind, held = kind == MouseEncoder.Kind.RELEASE)) continue
             MouseEncoder.encode(
-                MouseEncoder.Button.LEFT, kind, cell.first, cell.second, s.modes.encoding, tracking,
+                MouseEncoder.Button.LEFT, kind, cell.first, cell.second, modes.mouseEncoding,
                 shift = false, alt = false, ctrl = false,
             )?.let { s.write(it) }
         }
@@ -988,21 +1088,22 @@ class TerminalView(context: Context) : View(context) {
     fun scrollPage(up: Boolean) {
         val s = session ?: return
         val rows = s.screen.rows().toInt().coerceAtLeast(2)
-        clearSelection()
         s.screen.scroll(if (up) rows - 1 else -(rows - 1))
         invalidate()
     }
 
     /** The remote program asked for the mouse, and Shift isn't held (Shift: select here anyway). */
     private fun remoteMouse(e: MotionEvent): Boolean =
-        (session?.modes?.mouse ?: MouseTracking.OFF) != MouseTracking.OFF && e.metaState and KeyEvent.META_SHIFT_ON == 0
+        mouseMode() != MouseMode.OFF && e.metaState and KeyEvent.META_SHIFT_ON == 0
+
+    private fun mouseMode(): MouseMode = session?.let { runCatching { it.screen.modes().mouseMode }.getOrNull() } ?: MouseMode.OFF
 
     private fun report(button: MouseEncoder.Button, kind: MouseEncoder.Kind, cell: Pair<Int, Int>, e: MotionEvent) {
         val s = session ?: return
-        val tracking = s.modes.mouse
-        if (!MouseEncoder.wants(tracking, kind, held = remoteButton != null && button != MouseEncoder.Button.NONE)) return
+        val modes = s.screen.modes()
+        if (!MouseEncoder.wants(modes.mouseMode, kind, held = remoteButton != null && button != MouseEncoder.Button.NONE)) return
         MouseEncoder.encode(
-            button, kind, cell.first, cell.second, s.modes.encoding, tracking,
+            button, kind, cell.first, cell.second, modes.mouseEncoding,
             shift = false, alt = e.metaState and KeyEvent.META_ALT_ON != 0, ctrl = e.metaState and KeyEvent.META_CTRL_ON != 0,
         )?.let { s.write(it) }
     }
@@ -1030,8 +1131,10 @@ class TerminalView(context: Context) : View(context) {
                     MouseEncoder.Button.RIGHT -> onContextMenu(e.x, e.y)
                     MouseEncoder.Button.LEFT -> {
                         clearSelection()
-                        selAnchor = cell
-                        selEnd = cell
+                        val at = gridAt(e.x, e.y)
+                        selAnchor = at
+                        selEnd = at
+                        anchorSelection()
                         selecting = true
                         dragged = false
                         touchSelection = false
@@ -1046,9 +1149,9 @@ class TerminalView(context: Context) : View(context) {
                         lastCell = cell
                         report(held, MouseEncoder.Kind.MOTION, cell, e)
                     }
-                } else if (selecting && cell != selEnd) {
+                } else if (selecting && gridAt(e.x, e.y) != selEnd) {
                     val before = hasSelection
-                    selEnd = cell
+                    selEnd = gridAt(e.x, e.y)
                     dragged = true
                     if (before != hasSelection) onSelectionChanged(hasSelection)
                     invalidate()
@@ -1095,11 +1198,11 @@ class TerminalView(context: Context) : View(context) {
                     }
                     // In vim, less, htop...: arrow keys (not typed in other panes).
                     s.screen.alternateScreen() -> {
+                        clearSelection()
                         val key = TermInput.Key(if (lines > 0) TerminalKey.Up else TerminalKey.Down, NoModifiers)
                         repeat(abs(lines)) { s.apply(key) }
                     }
                     else -> {
-                        clearSelection()
                         s.screen.scroll(lines)
                         invalidate()
                     }
@@ -1113,7 +1216,7 @@ class TerminalView(context: Context) : View(context) {
     /** Programs that follow every movement (`CSI ? 1003 h`) also get the pointer moving without a button. */
     override fun onHoverEvent(event: MotionEvent): Boolean {
         val s = session
-        if (s != null && event.actionMasked == MotionEvent.ACTION_HOVER_MOVE && s.modes.mouse == MouseTracking.ANY && remoteMouse(event)) {
+        if (s != null && event.actionMasked == MotionEvent.ACTION_HOVER_MOVE && mouseMode() == MouseMode.MOTION && remoteMouse(event)) {
             val cell = cellAt(event.x, event.y)
             if (cell != lastCell) {
                 lastCell = cell

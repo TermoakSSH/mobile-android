@@ -119,6 +119,14 @@ class Prefs(context: Context) {
         sp.edit { putString("terminal_font", font.id) }
     }
 
+    private val _terminalTheme = MutableStateFlow(sp.getString("terminal_theme", null) ?: com.termoak.app.term.TerminalThemes.DEFAULT)
+    /** The terminals' colour theme (Settings → Terminal → Theme; an id of the engine's list, as on the desktop and iOS). */
+    val terminalTheme: StateFlow<String> = _terminalTheme
+    fun setTerminalTheme(id: String) {
+        _terminalTheme.value = id
+        sp.edit { putString("terminal_theme", id) }
+    }
+
     private val _suggestions = MutableStateFlow(SuggestionMode.of(sp.getString("command_suggestions", null)))
     /** Where command suggestions show while typing (Settings → Terminal; the iOS app's setting). */
     val commandSuggestions: StateFlow<SuggestionMode> = _suggestions

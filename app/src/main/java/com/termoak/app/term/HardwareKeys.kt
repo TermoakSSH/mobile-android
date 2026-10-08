@@ -89,6 +89,10 @@ enum class Shortcut {
     SNIPPETS,
     /** Ctrl+Shift+R: reconnect. */
     RECONNECT,
+    /** Ctrl+Shift+F: find in the terminal and its scrollback. */
+    FIND,
+    /** Ctrl+Shift+P (and Ctrl+K outside the terminal): the command palette. */
+    PALETTE,
     ;
 
     /** With Ctrl+Alt: when nothing on screen takes it, the key goes to the terminal as it is. */
@@ -245,6 +249,8 @@ class HardwareKeys {
                     KeyEvent.KEYCODE_N -> Shortcut.NEW_HOST
                     KeyEvent.KEYCODE_S -> Shortcut.SNIPPETS
                     KeyEvent.KEYCODE_R -> Shortcut.RECONNECT
+                    KeyEvent.KEYCODE_F -> Shortcut.FIND
+                    KeyEvent.KEYCODE_P -> Shortcut.PALETTE
                     KeyEvent.KEYCODE_PAGE_UP -> Shortcut.MOVE_TAB_LEFT
                     KeyEvent.KEYCODE_PAGE_DOWN -> Shortcut.MOVE_TAB_RIGHT
                     KeyEvent.KEYCODE_TAB -> Shortcut.PREV_TAB

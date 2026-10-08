@@ -253,7 +253,6 @@ class ServerTerminal(
             is ServerTerminalEvent.Resync -> {
                 // The full history comes next.
                 screen.reset()
-                modes.reset()
                 onScreenChanged()
             }
             is ServerTerminalEvent.Status -> applyState(event.state)

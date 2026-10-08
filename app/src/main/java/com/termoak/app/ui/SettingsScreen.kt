@@ -114,6 +114,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val suggestionMode by app.prefs.commandSuggestions.collectAsState()
     var choosingSuggestions by remember { mutableStateOf(false) }
     val terminalFont by app.prefs.terminalFont.collectAsState()
+    val terminalTheme by app.prefs.terminalTheme.collectAsState()
     val lockOn by app.appLock.enabled.collectAsState()
     val lockDelay by app.appLock.delay.collectAsState()
     var choosingLockDelay by remember { mutableStateOf(false) }
@@ -207,6 +208,11 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                     Modifier.padding(top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.bodyLarge,
                 )
                 TerminalFontPicker(app)
+                Text(
+                    stringResource(R.string.settings_terminal_theme) + " · " + (com.termoak.app.term.TerminalThemes.byId(terminalTheme)?.name ?: ""),
+                    Modifier.padding(top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.bodyLarge,
+                )
+                TerminalThemePicker(app)
             }
             Row0(Icons.Outlined.Keyboard, stringResource(R.string.settings_keyboard_keys), stringResource(R.string.settings_keyboard_keys_hint)) {
                 nav.navigate(Routes.KEYBOARD)

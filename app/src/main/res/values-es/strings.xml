@@ -792,7 +792,7 @@
     <string name="editor_term_hint">Vacío usa xterm-256color.</string>
     <string name="editor_theme">Tema del terminal</string>
     <string name="editor_theme_follow">El de la aplicación</string>
-    <string name="editor_theme_note">El tema del terminal lo usa Termoak para escritorio; en Android el terminal es siempre oscuro por ahora.</string>
+    <string name="editor_theme_note">Un tema oscuro o claro mantiene el tema del terminal de la app si es de ese tipo; si no, usa Termoak o Termoak Light. Termoak para escritorio e iOS lo leen igual.</string>
     <string name="editor_record">Grabar las sesiones</string>
     <string name="editor_record_hint">Guarda cada sesión en formato asciinema</string>
     <string name="editor_delete">Eliminar host</string>
@@ -1680,4 +1680,18 @@
         <item quantity="many">Subir %d archivos a…</item>
         <item quantity="other">Subir %d archivos a…</item>
     </plurals>
+    <string name="kb_find">Buscar en el terminal</string>
+    <string name="kb_palette">Paleta de comandos</string>
+    <string name="term_find">Buscar…</string>
+    <string name="term_find_hint">Buscar en el terminal</string>
+    <string name="term_find_count">%1$d de %2$d%3$s</string>
+    <string name="term_find_none">Sin resultados</string>
+    <string name="term_find_invalid">Patrón no válido</string>
+    <string name="term_find_case">Distinguir mayúsculas</string>
+    <string name="term_find_regex">Expresión regular</string>
+    <string name="term_find_older">Coincidencia anterior</string>
+    <string name="term_find_newer">Coincidencia siguiente</string>
+    <string name="settings_terminal_theme">Tema</string>
+    <string name="editor_theme_dark">Un tema oscuro</string>
+    <string name="editor_theme_light">Un tema claro</string>
 </resources>
