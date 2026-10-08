@@ -55,6 +55,22 @@ What it does:
   live notice in the tab).
 - **Settings**: account, 2FA, font size, keep screen on, theme, and checking
   for APK updates.
+- **Since 0.6.1** (on core 0.6.1's shared logic, at parity with the iOS
+  app): the 15 terminal themes (also per host), find in the scrollback,
+  selection beyond the screen; the AI in the terminal (Explain/Fix on a
+  failed command, `# request` → command with the AI key or Ctrl+Enter, never
+  run by itself), the copilot's removable context chips with secrets hidden
+  on the device; typed AI (approvals with edits or a reason, plans, several
+  hosts, runbooks, provider/model/effort); import from Termoak, CSV,
+  Termius, PuTTY, MobaXterm, SecureCRT, ZOC and ssh_config, and export;
+  host status dots (opt-in); a command palette (Ctrl+K, Ctrl+Shift+P);
+  account names and "Hide email addresses"; changed host keys asked with
+  both fingerprints; files: real cancel, several at once, folders as .zip,
+  photos, and files shared from other apps.
+- **Push**: wired per account and off by default. Build with
+  `-PtermoakPush=true` once a Firebase project and its
+  `google-services.json` exist; the Firebase messaging service then hands
+  its token to `Accounts.pushTokenChanged`.
 - **Updates**: on startup, at most once a day (Settings → "Check for
   updates"), the app asks the server it is signed in to, or termoak.com,
   for the latest Android release (`GET /api/v1/downloads`). A newer version

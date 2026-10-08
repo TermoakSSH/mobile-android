@@ -223,7 +223,8 @@ fun ImportScreen(app: TermoakApp, onDone: () -> Unit) {
         sshReport = null
         scope.launch { reread() }
     }
-    LaunchedEffect(place, groupName) { if (data != null) reread() }
+    // Another target: its duplicates (and an ssh_config's preview also follows the group).
+    LaunchedEffect(place, if (ssh) groupName else null) { if (data != null) reread() }
 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
