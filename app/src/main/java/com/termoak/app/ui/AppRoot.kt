@@ -142,6 +142,7 @@ object Routes {
     const val KNOWN_HOSTS = "known-hosts"
     const val FORWARDS = "forwards"
     const val IMPORT = "import"
+    const val EXPORT = "export"
     /** Add account (or sign in again): `mode` [LoginMode], prefilled `server` and `email`. */
     const val LOGIN = "login?mode={mode}&server={server}&email={email}&invite={invite}"
     const val VERIFY_EMAIL = "verify-email"
@@ -196,12 +197,12 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
-    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
+    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES,
 )
 
 private fun tabOf(route: String?): Tab? = when (route) {
-    in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT -> Tab.VAULT
+    in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES -> Tab.AI
     Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
@@ -477,6 +478,7 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.KNOWN_HOSTS) { KnownHostsScreen(app, nav) }
                         composable(Routes.FORWARDS) { ForwardsScreen(app, nav) }
                         composable(Routes.IMPORT) { ImportScreen(app) { nav.popBackStack() } }
+                        composable(Routes.EXPORT) { ExportScreen(app) { nav.popBackStack() } }
                         composable(Routes.FILES) { e -> FilesScreen(app, nav, e.arguments?.getString("id").orEmpty()) }
                         composable(
                             Routes.JOIN,

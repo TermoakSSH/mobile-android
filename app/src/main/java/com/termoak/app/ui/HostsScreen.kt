@@ -61,6 +61,7 @@ import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -753,8 +754,11 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 creating = false; nav.goVault(Routes.keys(KeysAction.GENERATE))
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            SheetAction(Icons.Outlined.Description, stringResource(R.string.import_title), stringResource(R.string.hosts_import_config_hint)) {
+            SheetAction(Icons.Outlined.Description, stringResource(R.string.import_hosts_title), stringResource(R.string.hosts_import_config_hint)) {
                 creating = false; nav.navigate(Routes.IMPORT)
+            }
+            SheetAction(Icons.Outlined.FileUpload, stringResource(R.string.export_title), stringResource(R.string.export_hint)) {
+                creating = false; nav.navigate(Routes.EXPORT)
             }
             SheetAction(Icons.Outlined.FileDownload, stringResource(R.string.keys_import_title)) {
                 creating = false; nav.goVault(Routes.keys(KeysAction.IMPORT))
@@ -1410,6 +1414,9 @@ private fun DesktopHosts(
                                         }
                                         HeaderButton(Icons.Outlined.FileDownload, stringResource(R.string.hosts_import), labels) {
                                             nav.navigate(Routes.IMPORT)
+                                        }
+                                        HeaderButton(Icons.Outlined.FileUpload, stringResource(R.string.hosts_export), labels) {
+                                            nav.navigate(Routes.EXPORT)
                                         }
                                         HeaderButton(Icons.Outlined.CreateNewFolder, stringResource(R.string.hosts_group_button), labels, onClick = onNewGroup)
                                         Button(onClick = onNewHost, contentPadding = PaddingValues(horizontal = 14.dp)) {

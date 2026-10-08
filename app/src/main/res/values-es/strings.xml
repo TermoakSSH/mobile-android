@@ -482,7 +482,7 @@
     <string name="hosts_copy_address">Copiar dirección</string>
     <string name="hosts_address_copied">Dirección copiada</string>
     <string name="hosts_new_key">Nueva clave</string>
-    <string name="hosts_import_config_hint">Hosts de un fichero de configuración de OpenSSH</string>
+    <string name="hosts_import_config_hint">Termoak, CSV, Termius, PuTTY, MobaXterm, SecureCRT, ZOC o configuración de OpenSSH</string>
     <string name="hosts_search_clear">Borrar la búsqueda</string>
     <string name="hosts_favorite">Favorito</string>
     <string name="hosts_no_match_text">La búsqueda mira nombres, direcciones, usuarios y etiquetas.</string>
@@ -523,16 +523,8 @@
     <string name="tunnels_adhoc_start">Iniciar</string>
     <string name="tunnels_adhoc_stop">Detener</string>
     <string name="tunnels_adhoc_unnamed">Túnel</string>
-    <string name="import_title">Importar configuración SSH</string>
-    <string name="import_intro">Crea un host por cada «Host» de un fichero de configuración de OpenSSH (~/.ssh/config), con su usuario, puerto, saltos (ProxyJump) y túneles. Los hosts que ya existen con el mismo nombre se saltan, y las claves (IdentityFile) solo se encuentran si su ruta existe en este teléfono.</string>
     <string name="import_choose_file">Elegir un fichero</string>
-    <string name="import_config">Configuración</string>
     <string name="import_config_placeholder">Host web\n  HostName 203.0.113.10\n  User deploy</string>
-    <string name="import_group">Grupo (opcional)</string>
-    <string name="import_group_placeholder">p. ej. «Importados»</string>
-    <string name="import_device_only_hint">No sincronizar los hosts y claves importados</string>
-    <string name="import_preview">Vista previa</string>
-    <string name="import_run">Importar</string>
     <string name="import_failed">No se pudo importar</string>
     <string name="import_read_failed">No se pudo leer el fichero</string>
     <string name="import_nothing">No hay hosts nuevos que importar.</string>
@@ -1365,7 +1357,7 @@
     <string name="hosts_all">Todos</string>
     <string name="hosts_favorites">Favoritos</string>
     <string name="hosts_import">Importar</string>
-    <string name="hosts_import_ssh_config">Importar ssh_config</string>
+    <string name="hosts_import_ssh_config">Importar hosts</string>
     <string name="hosts_group_button">Grupo</string>
     <string name="hosts_connect_split">Conectar en vista dividida</string>
     <string name="hosts_select">Seleccionar</string>
@@ -1799,4 +1791,127 @@
     <string name="accounts_alias">Nombre en este dispositivo</string>
     <string name="accounts_alias_placeholder">Trabajo, Personal…</string>
     <string name="accounts_alias_hint">Se muestra en lugar de %1$s solo en este dispositivo (no se sincroniza). Déjalo vacío para mostrar el correo.</string>
+    <string name="import_hosts_title">Importar hosts</string>
+    <string name="import_from">Importar desde %1$s</string>
+    <string name="import_done_title">Importación terminada</string>
+    <string name="import_formats">Termoak (JSON), CSV, Termius (CSV o JSON), PuTTY (una exportación .reg de sus sesiones), MobaXterm (.ini o .mxtsessions), SecureCRT (exportación XML o el .ini de una sesión), ZOC y configuración de OpenSSH (~/.ssh/config). El formato se detecta solo.</string>
+    <string name="import_paste">O pégalo</string>
+    <string name="import_paste_hint">Un ssh_config, un CSV o un JSON de Termoak pegado aquí se lee como un archivo.</string>
+    <string name="import_next">Siguiente</string>
+    <string name="import_choose_other">Elegir otro archivo</string>
+    <string name="import_target">Importar en</string>
+    <string name="import_target_hint">Los hosts van a este vault (o solo a este dispositivo), dentro del grupo elegido; un grupo nuevo se crea arriba del todo. Los hosts que ya están con la misma dirección, puerto y usuario son duplicados.</string>
+    <string name="import_group_label">Grupo</string>
+    <string name="import_group_none">Ninguno</string>
+    <string name="import_group_new">Grupo nuevo…</string>
+    <string name="import_group_name">Nombre del grupo nuevo</string>
+    <string name="import_secrets_locked">Este archivo tiene contraseñas y claves privadas cifradas con una frase de paso. Escríbela para importarlas también; sin ella, solo se importa el resto.</string>
+    <string name="import_secrets_unlocked">Contraseñas y claves privadas desbloqueadas: también se importarán</string>
+    <string name="import_passphrase">Frase de paso</string>
+    <string name="import_unlock">Desbloquear</string>
+    <string name="import_wrong_passphrase">Frase de paso incorrecta</string>
+    <string name="import_columns">Columnas</string>
+    <string name="import_has_header">La primera fila tiene los nombres de las columnas</string>
+    <string name="import_column_none">(ninguna)</string>
+    <string name="import_needs_address">Elige qué columna tiene la dirección de los hosts.</string>
+    <string name="import_duplicates">Duplicados</string>
+    <string name="import_dup_skip">Omitir</string>
+    <string name="import_dup_update">Actualizar</string>
+    <string name="import_dup_copy">Crear una copia</string>
+    <string name="import_file_hosts">Hosts del archivo</string>
+    <string name="import_status_new">Nuevo</string>
+    <string name="import_status_unchecked">No se importa</string>
+    <string name="import_status_dup_skip">Ya existe como «%1$s»: se omite</string>
+    <string name="import_status_dup_update">Actualiza «%1$s»</string>
+    <string name="import_status_dup_copy">Copia de «%1$s»</string>
+    <string name="import_status_repeat">Repetido en el archivo: se omite</string>
+    <string name="import_status_repeat_copy">Repetido en el archivo: otra copia</string>
+    <string name="import_field_label">Nombre</string>
+    <string name="import_field_address">Dirección</string>
+    <string name="import_field_port">Puerto</string>
+    <string name="import_field_user">Usuario</string>
+    <string name="import_field_group">Grupo</string>
+    <string name="import_field_tags">Etiquetas</string>
+    <string name="import_field_notes">Notas</string>
+    <string name="import_field_password">Contraseña</string>
+    <string name="import_field_protocol">Protocolo</string>
+    <string name="import_warn_not_ssh">«%1$s» es una sesión %2$s, no SSH ni Telnet: no se importa</string>
+    <string name="import_warn_no_address">«%1$s» no tiene dirección: no se importa</string>
+    <string name="import_warn_no_address_line">La fila %1$s no tiene dirección: no se importa</string>
+    <string name="import_warn_bad_port">Fila %1$s: «%2$s» no es un puerto; se usa el 22</string>
+    <string name="import_warn_proxy_unsupported">«%1$s» usa un proxy Telnet o de comando local, que Termoak no admite: se importa sin proxy</string>
+    <string name="import_warn_key_file">«%1$s»: la clave %2$s no se pudo importar (%3$s); su ruta está en las notas</string>
+    <string name="import_warn_key_without_private">La clave «%1$s» se exportó sin su parte privada: no se importa</string>
+    <string name="export_title">Exportar hosts</string>
+    <string name="export_hint">Termoak JSON o CSV, para compartir o guardar</string>
+    <string name="hosts_export">Exportar</string>
+    <string name="export_from">Desde</string>
+    <string name="export_all_groups">Todos los grupos</string>
+    <string name="export_format">Formato</string>
+    <string name="export_intro_json">Termoak JSON guarda hosts, grupos, etiquetas, identidades, claves (parte pública) y snippets, y se puede importar en cualquier app de Termoak.</string>
+    <string name="export_intro_csv">CSV guarda nombre, dirección, puerto, usuario, grupo, etiquetas y notas de cada host, para hojas de cálculo y otras apps. Nunca incluye contraseñas ni claves.</string>
+    <string name="export_include_secrets">Incluir contraseñas y claves privadas</string>
+    <string name="export_passphrase_hint">Se cifran con una frase de paso (al menos 8 caracteres). Quien importe el archivo la necesitará; Termoak no puede recuperarla.</string>
+    <string name="export_passphrase_repeat">Repite la frase de paso</string>
+    <string name="export_passphrase_short">La frase de paso debe tener al menos 8 caracteres</string>
+    <string name="export_passphrase_mismatch">Las frases de paso no coinciden</string>
+    <string name="export_run">Exportar</string>
+    <string name="export_share">Compartir el archivo</string>
+    <string name="export_failed">No se ha podido exportar</string>
+    <string name="export_save_failed">No se ha podido guardar el archivo</string>
+    <plurals name="import_run_count">
+        <item quantity="one">Importar %d host</item>
+        <item quantity="many">Importar %d hosts</item>
+        <item quantity="other">Importar %d hosts</item>
+    </plurals>
+    <plurals name="import_done_created">
+        <item quantity="one">%d host creado</item>
+        <item quantity="many">%d hosts creados</item>
+        <item quantity="other">%d hosts creados</item>
+    </plurals>
+    <plurals name="import_done_updated">
+        <item quantity="one">%d host actualizado</item>
+        <item quantity="many">%d hosts actualizados</item>
+        <item quantity="other">%d hosts actualizados</item>
+    </plurals>
+    <plurals name="import_done_skipped">
+        <item quantity="one">%d host omitido</item>
+        <item quantity="many">%d hosts omitidos</item>
+        <item quantity="other">%d hosts omitidos</item>
+    </plurals>
+    <plurals name="import_done_groups">
+        <item quantity="one">%d grupo</item>
+        <item quantity="many">%d grupos</item>
+        <item quantity="other">%d grupos</item>
+    </plurals>
+    <plurals name="import_done_keys">
+        <item quantity="one">%d clave</item>
+        <item quantity="many">%d claves</item>
+        <item quantity="other">%d claves</item>
+    </plurals>
+    <plurals name="import_done_keys_reused">
+        <item quantity="one">%d clave que ya estaba</item>
+        <item quantity="many">%d claves que ya estaban</item>
+        <item quantity="other">%d claves que ya estaban</item>
+    </plurals>
+    <plurals name="import_done_identities">
+        <item quantity="one">%d identidad</item>
+        <item quantity="many">%d identidades</item>
+        <item quantity="other">%d identidades</item>
+    </plurals>
+    <plurals name="import_done_snippets">
+        <item quantity="one">%d snippet</item>
+        <item quantity="many">%d snippets</item>
+        <item quantity="other">%d snippets</item>
+    </plurals>
+    <plurals name="export_done">
+        <item quantity="one">%d host exportado</item>
+        <item quantity="many">%d hosts exportados</item>
+        <item quantity="other">%d hosts exportados</item>
+    </plurals>
+    <plurals name="export_hidden_secrets">
+        <item quantity="one">%d secreto de elementos de solo uso no se ha incluido</item>
+        <item quantity="many">%d secretos de elementos de solo uso no se han incluido</item>
+        <item quantity="other">%d secretos de elementos de solo uso no se han incluido</item>
+    </plurals>
 </resources>
