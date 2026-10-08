@@ -170,6 +170,8 @@ private val Groups = listOf(
             Help(R.string.kb_files_up, Combo(KeyEvent.KEYCODE_DPAD_UP, alt = true)),
             Help(R.string.kb_files_refresh, Combo(KeyEvent.KEYCODE_F5), Combo(KeyEvent.KEYCODE_R, ctrl = true)),
             Help(R.string.kb_files_search, Combo(KeyEvent.KEYCODE_F, ctrl = true)),
+            Help(R.string.kb_files_preview, Combo(KeyEvent.KEYCODE_SPACE)),
+            Help(R.string.kb_files_delete, Combo(KeyEvent.KEYCODE_FORWARD_DEL)),
         ),
     ),
 )
@@ -196,6 +198,7 @@ private fun keyName(context: Context, keyCode: Int): String = when (keyCode) {
     KeyEvent.KEYCODE_F5 -> "F5"
     KeyEvent.KEYCODE_FORWARD_DEL -> context.getString(R.string.key_delete)
     KeyEvent.KEYCODE_ENTER -> context.getString(R.string.key_enter)
+    KeyEvent.KEYCODE_SPACE -> context.getString(R.string.key_space)
     else -> KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD).getDisplayLabel(keyCode).toString()
 }
 

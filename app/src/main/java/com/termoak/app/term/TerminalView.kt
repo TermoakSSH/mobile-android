@@ -96,6 +96,12 @@ class TerminalView(context: Context) : View(context) {
         return RectF(x, y, x + cellWidth * fit, y + cellHeight * fit)
     }
 
+    /**
+     * What the keyboard is composing and hasn't sent yet (Chinese, Japanese,
+     * Korean...): drawn at the cursor, underlined, until it is committed.
+     */
+    private var preedit: String? = null
+
     /** Size of a cell (px), as drawn now. */
     val cellSize: Pair<Float, Float> get() = cellWidth * fit to cellHeight * fit
 
@@ -262,9 +268,26 @@ class TerminalView(context: Context) : View(context) {
             }
             fill.alpha = 0xFF
         }
+        // The keyboard's text being composed, at the cursor (over the cell), underlined.
+        val composing = preedit
+        if (composing != null && snap.displayOffset == 0u) {
+            snap.cursor?.let { c ->
+                val x = left + c.col.toInt() * cellWidth
+                val y = top + c.row.toInt() * cellHeight
+                val w = paint.measureText(composing)
+                fill.color = snap.background.toInt()
+                canvas.drawRect(x, y, x + w, y + cellHeight, fill)
+                paint.color = snap.foreground.toInt()
+                paint.isFakeBoldText = false
+                paint.textSkewX = 0f
+                canvas.drawText(composing, x, y + baseline, paint)
+                fill.color = snap.cursorColor.toInt()
+                canvas.drawRect(x, y + cellHeight - 2 * density, x + w, y + cellHeight - density, fill)
+            }
+        }
         // The rest of the suggestion, dimmed after the cursor (only while the end is on screen).
         val ghost = ghostText
-        if (ghost != null && snap.displayOffset == 0u) {
+        if (ghost != null && preedit == null && snap.displayOffset == 0u) {
             snap.cursor?.let { c ->
                 val x = left + c.col.toInt() * cellWidth
                 val y = top + c.row.toInt() * cellHeight
@@ -603,7 +626,12 @@ class TerminalView(context: Context) : View(context) {
             EditorInfo.IME_FLAG_NO_EXTRACT_UI or
             EditorInfo.IME_ACTION_NONE
         return object : BaseInputConnection(this, false) {
-            private var composing: String? = null
+            private var composing: String?
+                get() = preedit
+                set(value) {
+                    preedit = value?.takeIf { it.isNotEmpty() }
+                    invalidate()
+                }
 
             override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
                 composing = null

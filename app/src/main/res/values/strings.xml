@@ -1106,6 +1106,19 @@
     <string name="files_upload">Upload from this device</string>
     <string name="files_new_folder">New folder</string>
     <string name="files_create">Create</string>
+    <string name="files_new_file">New file</string>
+    <string name="files_new_file_failed">Couldn\'t create the file</string>
+    <string name="files_go_to">Go to folder…</string>
+    <string name="files_go">Go</string>
+    <string name="files_path">Path (/var/log, ~/app)</string>
+    <string name="files_preview">Preview</string>
+    <string name="files_preview_binary">This file isn\'t text. Open it with another app.</string>
+    <string name="files_preview_truncated">Only the first megabyte is shown, and it can\'t be edited here.</string>
+    <string name="files_preview_failed">Couldn\'t show the file. Open it with another app.</string>
+    <string name="files_saving">Saving…</string>
+    <string name="files_discard_title">Discard the changes?</string>
+    <string name="files_discard_text">What you changed in the file is lost.</string>
+    <string name="files_discard">Discard</string>
     <string name="files_refresh">Refresh</string>
     <string name="files_sort_name">Sort by name</string>
     <string name="files_sort_size">Sort by size</string>
@@ -1194,6 +1207,8 @@
     <string name="kb_files_up">Parent folder</string>
     <string name="kb_files_refresh">Refresh</string>
     <string name="kb_files_search">Search in the folder</string>
+    <string name="kb_files_preview">Preview the file</string>
+    <string name="kb_files_delete">Delete the file or folder</string>
     <string name="kb_mouse_wheel">Wheel or two fingers: scroll the history (or go to the program, when it uses the mouse, like vim or tmux)</string>
     <string name="kb_mouse_select">Drag: select text. Right click: copy and paste menu</string>
     <string name="kb_mouse_shift">Shift with click or drag: select even when the program uses the mouse</string>
@@ -1207,6 +1222,7 @@
     <string name="key_insert">Insert</string>
     <string name="key_delete">Delete</string>
     <string name="key_enter">Enter</string>
+    <string name="key_space">Space</string>
     <string name="settings_key_bar_keyboard">Key bar with a hardware keyboard</string>
     <string name="settings_key_bar_keyboard_hint">Keep the row of extra keys (Esc, Ctrl, arrows…) when a keyboard is attached</string>
     <string name="settings_shortcuts_hint">For hardware keyboards. Ctrl+/ shows them anywhere</string>

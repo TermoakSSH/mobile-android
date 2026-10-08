@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.automirrored.outlined.NoteAdd
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.ArrowUpward
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DriveFileMove
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FileDownload
@@ -105,6 +107,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -124,10 +131,11 @@ import com.termoak.app.asString
 import com.termoak.app.files.DownloadTarget
 import com.termoak.app.files.FileListing
 import com.termoak.app.files.FileSort
-import com.termoak.app.files.FilesSource
 import com.termoak.app.files.FileSources
+import com.termoak.app.files.FilesSource
 import com.termoak.app.files.FilesViewModel
 import com.termoak.app.files.LocalFile
+import com.termoak.app.files.PreviewKind
 import com.termoak.app.files.RemotePaths
 import com.termoak.app.files.Transfer
 import com.termoak.app.files.UploadRequest
@@ -203,6 +211,9 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
     var deleting by remember { mutableStateOf<RemoteFile?>(null) }
     var permissions by remember { mutableStateOf<RemoteFile?>(null) }
     var saving by remember { mutableStateOf<RemoteFile?>(null) }
+    var newFile by remember { mutableStateOf(false) }
+    var goingTo by remember { mutableStateOf(false) }
+    val preview by vm.preview.collectAsState()
     val searchFocus = remember { FocusRequester() }
 
     // The search belongs to the folder; the selection too.
@@ -247,7 +258,12 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
     }
 
     /** The actions on a file or folder (sheet on phones, details pane on wide windows). */
+    /** How [f] can be previewed here (`null`: only with another app). */
+    fun previewKind(f: RemoteFile): PreviewKind? =
+        if (f.kind == RemoteFileKind.DIR) null else PreviewKind.of(f.name, FilesViewModel.mimeOf(f.name), f.size.toLong())
     val actions = FileActions(
+        preview = { f -> previewKind(f)?.let { vm.download(f, DownloadTarget.Preview(it)) } },
+        canPreview = { f -> previewKind(f) != null },
         open = { f -> vm.download(f, DownloadTarget.Open) },
         share = { f -> vm.download(f, DownloadTarget.Share) },
         download = if (Build.VERSION.SDK_INT >= 29) ({ f -> vm.download(f, DownloadTarget.Downloads) }) else null,
@@ -280,6 +296,14 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
                     DropdownMenuItem(
                         { Text(stringResource(R.string.files_new_folder)) }, { menu = false; newFolder = true },
                         leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, null) }, enabled = ready,
+                    )
+                    DropdownMenuItem(
+                        { Text(stringResource(R.string.files_new_file)) }, { menu = false; newFile = true },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.NoteAdd, null) }, enabled = ready,
+                    )
+                    DropdownMenuItem(
+                        { Text(stringResource(R.string.files_go_to)) }, { menu = false; goingTo = true },
+                        leadingIcon = { Icon(Icons.Outlined.DriveFileMove, null) }, enabled = ready,
                     )
                     DropdownMenuItem(
                         { Text(stringResource(R.string.files_refresh)) }, { menu = false; vm.reload() },
@@ -356,10 +380,24 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
                                         RemoteFileKind.SYMLINK -> scope.launch {
                                             if (!vm.go(f.path, quiet = true)) { if (wide) selected = f else actionsFor = f }
                                         }
-                                        else -> if (wide) selected = f else actionsFor = f
+                                        // A tap shows what it has inside (text, image, PDF), as on iOS.
+                                        else -> {
+                                            val kind = previewKind(f)
+                                            if (kind != null) vm.download(f, DownloadTarget.Preview(kind))
+                                            else if (wide) selected = f else actionsFor = f
+                                        }
                                     }
                                 },
                                 onMore = { f -> if (wide) selected = f else actionsFor = f },
+                                onKey = { f, key ->
+                                    when (key) {
+                                        Key.Spacebar -> if (actions.canPreview(f)) actions.preview(f) else return@FileList false
+                                        Key.Delete, Key.Backspace -> deleting = f
+                                        Key.Menu -> if (wide) selected = f else actionsFor = f
+                                        else -> return@FileList false
+                                    }
+                                    true
+                                },
                             )
                         }
                     }
@@ -438,10 +476,52 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
         }
     }
     uploadAsk?.let { UploadConflictDialog(it, vm) }
+    if (newFile) {
+        NameDialog(stringResource(R.string.files_new_file), "", stringResource(R.string.files_create), onDismiss = { newFile = false }) {
+            newFile = false
+            vm.createFile(it)
+        }
+    }
+    if (goingTo) {
+        PathDialog(path, onDismiss = { goingTo = false }) {
+            goingTo = false
+            vm.goTo(it)
+        }
+    }
+    preview?.let { p ->
+        FilePreviewDialog(
+            p, canEdit = true,
+            onOpenWith = { vm.closePreview(); vm.download(p.file, DownloadTarget.Open) },
+            onSave = { vm.saveText(it) },
+            onDismiss = { vm.closePreview() },
+        )
+    }
+}
+
+/** "Go to folder…": a path typed by hand (absolute, or `~` for home). */
+@Composable
+private fun PathDialog(current: String, onDismiss: () -> Unit, onGo: (String) -> Unit) {
+    var text by remember { mutableStateOf(current) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.files_go_to)) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                text, { text = it }, singleLine = true, label = { Text(stringResource(R.string.files_path)) },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri, autoCorrectEnabled = false,
+                ),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onGo(text.trim()) }, enabled = text.isNotBlank()) { Text(stringResource(R.string.files_go)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 /** What can be done with a file or folder (`null`: not available here). */
 private class FileActions(
+    val preview: (RemoteFile) -> Unit,
+    val canPreview: (RemoteFile) -> Boolean,
     val open: (RemoteFile) -> Unit,
     val share: (RemoteFile) -> Unit,
     val download: ((RemoteFile) -> Unit)?,
@@ -456,6 +536,7 @@ private class FileActions(
 private fun ActionList(f: RemoteFile, a: FileActions, done: () -> Unit) {
     fun run(action: (RemoteFile) -> Unit): () -> Unit = { done(); action(f) }
     if (f.kind != RemoteFileKind.DIR) {
+        if (a.canPreview(f)) SheetAction(Icons.Outlined.Visibility, stringResource(R.string.files_preview), onClick = run(a.preview))
         SheetAction(Icons.AutoMirrored.Outlined.OpenInNew, stringResource(R.string.files_open_with), onClick = run(a.open))
         SheetAction(Icons.Outlined.Share, stringResource(R.string.files_share), onClick = run(a.share))
         a.download?.let { SheetAction(Icons.Outlined.FileDownload, stringResource(R.string.files_download), onClick = run(it)) }
@@ -512,6 +593,7 @@ private fun FileList(
     onRefresh: () -> Unit,
     onOpen: (RemoteFile) -> Unit,
     onMore: (RemoteFile) -> Unit,
+    onKey: (RemoteFile, Key) -> Boolean = { _, _ -> false },
 ) {
     // The pull indicator only for a pull (opening a folder shows the small one in the path bar).
     var pulled by remember { mutableStateOf(false) }
@@ -519,7 +601,11 @@ private fun FileList(
     PullToRefreshBox(isRefreshing = pulled, onRefresh = { pulled = true; onRefresh() }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(shown, key = { it.path }) { f ->
-                FileRow(f, f.path == selectedPath, onClick = { onOpen(f) }, onMore = { onMore(f) })
+                FileRow(
+                    f, f.path == selectedPath, onClick = { onOpen(f) }, onMore = { onMore(f) },
+                    // Keyboard on a focused row (as on iOS): Space previews, Delete deletes, Menu or Shift+F10 the actions.
+                    modifier = Modifier.onKeyEvent { e -> e.type == KeyEventType.KeyDown && onKey(f, e.key) },
+                )
             }
         }
         when {
@@ -535,10 +621,10 @@ private fun FileList(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FileRow(f: RemoteFile, selected: Boolean, onClick: () -> Unit, onMore: () -> Unit) {
+private fun FileRow(f: RemoteFile, selected: Boolean, onClick: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
     val dir = f.kind == RemoteFileKind.DIR
     Row(
-        Modifier.fillMaxWidth()
+        modifier.fillMaxWidth()
             .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onMore)
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),

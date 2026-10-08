@@ -1155,6 +1155,19 @@
     <string name="files_upload">Subir desde este dispositivo</string>
     <string name="files_new_folder">Nueva carpeta</string>
     <string name="files_create">Crear</string>
+    <string name="files_new_file">Nuevo archivo</string>
+    <string name="files_new_file_failed">No se pudo crear el archivo</string>
+    <string name="files_go_to">Ir a la carpeta…</string>
+    <string name="files_go">Ir</string>
+    <string name="files_path">Ruta (/var/log, ~/app)</string>
+    <string name="files_preview">Vista previa</string>
+    <string name="files_preview_binary">Este archivo no es texto. Ábrelo con otra app.</string>
+    <string name="files_preview_truncated">Solo se muestra el primer megabyte, y no se puede editar aquí.</string>
+    <string name="files_preview_failed">No se pudo mostrar el archivo. Ábrelo con otra app.</string>
+    <string name="files_saving">Guardando…</string>
+    <string name="files_discard_title">¿Descartar los cambios?</string>
+    <string name="files_discard_text">Se pierde lo que cambiaste en el archivo.</string>
+    <string name="files_discard">Descartar</string>
     <string name="files_refresh">Actualizar</string>
     <string name="files_sort_name">Ordenar por nombre</string>
     <string name="files_sort_size">Ordenar por tamaño</string>
@@ -1244,6 +1257,8 @@
     <string name="kb_files_up">Carpeta superior</string>
     <string name="kb_files_refresh">Actualizar</string>
     <string name="kb_files_search">Buscar en la carpeta</string>
+    <string name="kb_files_preview">Vista previa del archivo</string>
+    <string name="kb_files_delete">Borrar el archivo o la carpeta</string>
     <string name="kb_mouse_wheel">Rueda o dos dedos: recorrer el historial (o enviarlo al programa cuando usa el ratón, como vim o tmux)</string>
     <string name="kb_mouse_select">Arrastrar: seleccionar texto. Clic derecho: menú de copiar y pegar</string>
     <string name="kb_mouse_shift">Mayús con clic o arrastre: seleccionar aunque el programa use el ratón</string>
@@ -1253,6 +1268,7 @@
     <string name="key_insert">Insert</string>
     <string name="key_delete">Supr</string>
     <string name="key_enter">Intro</string>
+    <string name="key_space">Espacio</string>
     <string name="settings_key_bar_keyboard">Barra de teclas con teclado físico</string>
     <string name="settings_key_bar_keyboard_hint">Mantener la fila de teclas extra (Esc, Ctrl, flechas…) cuando hay un teclado conectado</string>
     <string name="settings_shortcuts_hint">Para teclados físicos. Ctrl+/ los muestra en cualquier sitio</string>

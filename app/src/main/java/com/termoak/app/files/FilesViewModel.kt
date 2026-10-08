@@ -65,7 +65,12 @@ sealed class DownloadTarget {
     data object Downloads : DownloadTarget()
     /** A file picked with "Save to…" (system file picker). */
     data class SaveAs(val uri: Uri) : DownloadTarget()
+    /** The in-app preview (text, image, PDF). */
+    data class Preview(val kind: PreviewKind) : DownloadTarget()
 }
+
+/** A remote file downloaded for the in-app preview. */
+data class FilePreviewState(val file: RemoteFile, val local: File, val kind: PreviewKind)
 
 /** A file on the device to hand to another app (open or share). */
 data class LocalFile(val file: File, val mime: String, val share: Boolean)
@@ -107,6 +112,9 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
     private val _opened = MutableSharedFlow<LocalFile>(extraBufferCapacity = 4)
     /** Downloaded to open or share: the screen starts the other app. */
     val opened: SharedFlow<LocalFile> = _opened
+    private val _preview = MutableStateFlow<FilePreviewState?>(null)
+    /** The file shown in the preview (downloaded), or `null`. */
+    val preview: StateFlow<FilePreviewState?> = _preview
     private val _uploadAsk = MutableStateFlow<UploadRequest?>(null)
     /** Picked files whose names already exist in the folder: replace them or keep both? */
     val uploadAsk: StateFlow<UploadRequest?> = _uploadAsk
@@ -195,6 +203,18 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
 
     fun reload() = navigate(_path.value)
 
+    /** "Go to folder…": an absolute path, or `~` / `~/…` from the home folder. */
+    fun goTo(text: String) {
+        val t = text.trim()
+        viewModelScope.launch {
+            val p = if (t == "~" || t.startsWith("~/")) {
+                val home = runCatching { fs?.home() }.getOrNull() ?: return@launch
+                RemotePaths.child(home, t.removePrefix("~").trimStart('/')).trimEnd('/').ifEmpty { "/" }
+            } else t
+            go(p)
+        }
+    }
+
     fun up() {
         val p = _path.value
         if (p.isNotEmpty() && p != "/") navigate(RemotePaths.parent(p))
@@ -238,6 +258,42 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
         it.mkdir(RemotePaths.child(_path.value, name.trim()))
     }
 
+    /** A new, empty file in the folder on screen (not over an existing one). */
+    fun createFile(name: String) = perform(R.string.files_new_file_failed) { f ->
+        val n = name.trim()
+        if (_entries.value.any { it.name == n }) error("exists")
+        val empty = File(stagingDir, "new-${System.nanoTime()}").apply { parentFile?.mkdirs(); writeBytes(ByteArray(0)) }
+        try {
+            f.upload(empty, RemotePaths.child(_path.value, n), ProgressRelay { _, _ -> })
+        } finally {
+            empty.delete()
+        }
+    }
+
+    /** Closes the preview (its download goes away). */
+    fun closePreview() {
+        val p = _preview.value ?: return
+        _preview.value = null
+        viewModelScope.launch(Dispatchers.IO) { p.local.parentFile?.deleteRecursively() }
+    }
+
+    /** Saves the edited text of the previewed file back to the server (over it). Whether it went well. */
+    suspend fun saveText(text: String): Boolean {
+        val p = _preview.value ?: return false
+        val f = fs ?: return false
+        return try {
+            withContext(Dispatchers.IO) { p.local.writeText(text) }
+            f.upload(p.local, p.file.path, ProgressRelay { _, _ -> })
+            _messages.tryEmit(uiText(R.string.files_saved, p.file.name))
+            go(_path.value, quiet = true)
+            true
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            _messages.tryEmit(e.toUiText(R.string.files_upload_failed))
+            false
+        }
+    }
+
     fun rename(file: RemoteFile, name: String) = perform(R.string.files_rename_failed) {
         it.rename(file.path, RemotePaths.child(RemotePaths.parent(file.path), name.trim()))
     }
@@ -272,6 +328,10 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
                         copyTo(local, target.uri)
                         local.parentFile?.deleteRecursively()
                         _messages.tryEmit(uiText(R.string.files_saved, file.name))
+                    }
+                    is DownloadTarget.Preview -> {
+                        _preview.value?.local?.parentFile?.deleteRecursively()
+                        _preview.value = FilePreviewState(file, local, target.kind)
                     }
                 }
             }
