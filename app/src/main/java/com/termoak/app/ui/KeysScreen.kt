@@ -476,6 +476,8 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
         var name by remember(sn) { mutableStateOf(sn.name) }
         var script by remember(sn) { mutableStateOf(sn.script) }
         var description by remember(sn) { mutableStateOf(sn.description) }
+        // Its tags (the first one is its folder in the terminal's snippets).
+        var tags by remember(sn) { mutableStateOf(sn.tags.joinToString(", ")) }
         var place by remember(sn) { mutableStateOf(com.termoak.app.data.Place(sn.accountId, sn.vaultId)) }
         AlertDialog(
             onDismissRequest = { editing = null },
@@ -487,6 +489,8 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
                         textStyle = Mono, supportingText = { Text(stringResource(R.string.snippets_variables_hint)) })
                     OutlinedTextField(description, { description = it },
                         label = { Text(stringResource(R.string.snippets_description_optional)) })
+                    OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(R.string.snippets_tags)) }, singleLine = true,
+                        supportingText = { Text(stringResource(R.string.snippets_tags_hint)) })
                     if (sn.id.isEmpty()) PlacePicker(app, place) { place = it }
                 }
             },
@@ -494,7 +498,10 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
                 TextButton(enabled = name.isNotBlank() && script.isNotBlank(), onClick = {
                     try {
                         app.core.saveSnippet(
-                            sn.copy(name = name.trim(), script = script, description = description.trim()).let {
+                            sn.copy(
+                                name = name.trim(), script = script, description = description.trim(),
+                                tags = tags.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
+                            ).let {
                                 if (it.id.isEmpty()) {
                                     app.accounts.rememberPlace(place)
                                     it.copy(accountId = place.account, vaultId = place.vault, syncMode = place.syncMode(hasAccounts(app)))

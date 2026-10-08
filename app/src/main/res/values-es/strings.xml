@@ -1936,4 +1936,6 @@
     <string name="group_defaults_off">Desactivado</string>
     <string name="group_defaults_credential">Identidad o clave</string>
     <string name="kb_ai_request">Una línea # se convierte en comando (IA)</string>
+    <string name="snippets_tags">Etiquetas</string>
+    <string name="snippets_tags_hint">Separadas por comas; la primera es su carpeta en el terminal.</string>
 </resources>

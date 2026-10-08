@@ -1868,4 +1868,6 @@
     <string name="group_defaults_off">Off</string>
     <string name="group_defaults_credential">Identity or key</string>
     <string name="kb_ai_request">A # line becomes a command (AI)</string>
+    <string name="snippets_tags">Tags</string>
+    <string name="snippets_tags_hint">Separated by commas; the first one is its folder in the terminal.</string>
 </resources>

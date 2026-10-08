@@ -369,11 +369,13 @@ abstract class TermSession(
         }
         val a = assist
         val pending = line.current()
-        val screenLine = cursorLine()
+        // Enter at the shell's line (not a bracketed paste, which the shell doesn't run): a command may start.
+        val enter = bytes.contains(0x0d) && !TerminalAiRules.isBracketedPaste(bytes)
+        // The screen's line only when it's needed (it reads the whole screen).
+        val screenLine = if (enter || !pending.isNullOrEmpty()) cursorLine() else ""
         val known = !pending.isNullOrEmpty() && commandEchoed(pending, screenLine, true)
         val echoed = a != null && known
-        // Enter at the shell's line (not a bracketed paste, which the shell doesn't run): a command may start.
-        if (bytes.contains(0x0d) && !TerminalAiRules.isBracketedPaste(bytes)) {
+        if (enter) {
             val typed = if (known) pending else null
             commandEntered(typed, TerminalAiRules.prompt(screenLine, typed))
         }
