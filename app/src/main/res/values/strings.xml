@@ -286,6 +286,8 @@
     <string name="term_not_connected">Not connected</string>
     <string name="term_keyboard">Keyboard</string>
     <string name="term_copy_screen">Copy screen</string>
+    <string name="term_select">Select</string>
+    <string name="term_select_all">Select all</string>
     <string name="term_font_bigger">Larger text</string>
     <string name="term_font_smaller">Smaller text</string>
     <string name="term_reconnect">Reconnect</string>

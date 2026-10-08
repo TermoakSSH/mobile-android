@@ -58,6 +58,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TextDecrease
+import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.TextIncrease
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.AlertDialog
@@ -949,11 +950,19 @@ private fun TerminalPane(
                 if (hasSelection) {
                     DropdownMenuItem({ Text(stringResource(R.string.term_copy)) }, { longPressMenu = false; copySelection(view[0]) },
                         leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+                } else {
+                    DropdownMenuItem(
+                        { Text(stringResource(R.string.term_select)) },
+                        { longPressMenu = false; view[0]?.selectWordAtPoint(menuAt.x.toFloat(), menuAt.y.toFloat()) },
+                        leadingIcon = { Icon(Icons.Outlined.TextFields, null) },
+                    )
                 }
+                DropdownMenuItem({ Text(stringResource(R.string.term_select_all)) }, { longPressMenu = false; view[0]?.selectAll() },
+                    leadingIcon = { Icon(Icons.Outlined.SelectAll, null) })
                 DropdownMenuItem({ Text(stringResource(R.string.common_paste)) }, { longPressMenu = false; pasteClipboard() },
                     leadingIcon = { Icon(Icons.Outlined.ContentPaste, null) })
                 DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { longPressMenu = false; copyScreen() },
-                    leadingIcon = { Icon(Icons.Outlined.SelectAll, null) })
+                    leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
             }
         }
         if (nearCursor && suggestions.isNotEmpty() && state == TermState.Running) {

@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
@@ -303,6 +304,7 @@ class TerminalView(context: Context) : View(context) {
             }
         }
         canvas.restore()
+        if (touchSelection) drawHandles(canvas, snap.cursorColor.toInt())
         cursor.pad?.let { drawCursorPad(canvas, it, snap.background.toInt(), snap.cursorColor.toInt()) }
         // Viewing the scrollback: mark on the right edge.
         if (snap.displayOffset > 0u) {
@@ -353,6 +355,28 @@ class TerminalView(context: Context) : View(context) {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
             // Not after holding (the cursor or the menu).
             if (!cursor.tapped) return true
+            // Double tap: the word; triple tap: the line (with the copy menu).
+            val cell = cellAt(e.x, e.y)
+            val last = lastTapCell
+            taps = if (last != null && e.eventTime - lastTapAt < ViewConfiguration.getDoubleTapTimeout() &&
+                last.second == cell.second && abs(last.first - cell.first) <= 2
+            ) taps + 1 else 1
+            lastTapAt = e.eventTime
+            lastTapCell = cell
+            if (taps >= 2) {
+                if (if (taps == 2) selectWordAt(cell) else selectLineAt(cell)) onContextMenu(e.x, e.y)
+                return true
+            }
+            // A tap while text is selected only lets go of it.
+            if (hasSelection) {
+                clearSelection()
+                return true
+            }
+            // The program asked for the mouse (htop, mc, vim with mouse=a...): a tap is a click.
+            if (clickRemote(cell)) {
+                showKeyboard()
+                return true
+            }
             // A tap on a link opens it; otherwise it shows the keyboard.
             if (openLinkAt(e.x, e.y)) return true
             showKeyboard()
@@ -372,6 +396,8 @@ class TerminalView(context: Context) : View(context) {
             scrollRemainder += dy
             val lines = (scrollRemainder / cellHeight).toInt()
             if (lines != 0) {
+                // The selection is of the visible screen: it goes when the screen scrolls.
+                clearSelection()
                 scrollRemainder -= lines * cellHeight
                 if (s.screen.alternateScreen()) {
                     // In vim, less, htop...: arrow keys.
@@ -458,6 +484,8 @@ class TerminalView(context: Context) : View(context) {
                 )
                 is CursorGesture.Action.Menu -> {
                     performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    // Held on text: its word is selected, with handles to change the selection.
+                    if (!hasSelection) selectWordAt(cellAt(a.x, a.y))
                     onContextMenu(a.x, a.y)
                 }
             }
@@ -528,6 +556,8 @@ class TerminalView(context: Context) : View(context) {
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) mouseGesture = false
             return mouse(event)
         }
+        // Dragging a handle of the selection.
+        if (dragHandle(event)) return true
         // First: it decides whether the fingers scroll, pinch or move the cursor.
         feedCursor(event)
         scale.onTouchEvent(event)
@@ -718,7 +748,8 @@ class TerminalView(context: Context) : View(context) {
     private fun selectionRange(): Pair<Pair<Int, Int>, Pair<Int, Int>>? {
         val a = selAnchor ?: return null
         val b = selEnd ?: return null
-        if (a == b) return null
+        // A click without dragging selects nothing; a finger can select a single cell.
+        if (a == b && !touchSelection) return null
         return if (a.second < b.second || (a.second == b.second && a.first <= b.first)) a to b else b to a
     }
 
@@ -729,6 +760,8 @@ class TerminalView(context: Context) : View(context) {
         selAnchor = null
         selEnd = null
         selecting = false
+        touchSelection = false
+        handle = 0
         if (had) {
             onSelectionChanged(false)
             invalidate()
@@ -765,6 +798,151 @@ class TerminalView(context: Context) : View(context) {
             out.append(cells.slice(c0..c1.coerceAtMost(cols - 1)).joinToString("").trimEnd())
         }
         return out.toString()
+    }
+
+    // ----- Selection by touch (the visible screen) -----
+
+    /** The selection was made with a finger: it has handles. */
+    private var touchSelection = false
+    /** The handle being dragged: 1 the start, 2 the end, 0 none. */
+    private var handle = 0
+    private var taps = 0
+    private var lastTapAt = 0L
+    private var lastTapCell: Pair<Int, Int>? = null
+    private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private fun rowCells(row: Int): Array<String>? {
+        val snap = session?.screen?.snapshot() ?: return null
+        return Suggestions.cells(snap.lines.getOrNull(row), snap.cols.toInt())
+    }
+
+    private fun setTouchSelection(from: Pair<Int, Int>, to: Pair<Int, Int>) {
+        val before = hasSelection
+        selAnchor = from
+        selEnd = to
+        selecting = false
+        touchSelection = true
+        if (before != hasSelection || hasSelection) onSelectionChanged(hasSelection)
+        performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE)
+        invalidate()
+    }
+
+    /** Selects the word at [cell] (double tap, holding). Whether there was one. */
+    fun selectWordAt(cell: Pair<Int, Int>): Boolean {
+        val cells = rowCells(cell.second) ?: return false
+        val word = TextSelection.wordAt(cells, cell.first) ?: return false
+        setTouchSelection(word.first to cell.second, word.last to cell.second)
+        return true
+    }
+
+    /** Selects the line at [cell] (triple tap). */
+    fun selectLineAt(cell: Pair<Int, Int>): Boolean {
+        val cells = rowCells(cell.second) ?: return false
+        val line = TextSelection.lineAt(cells) ?: return false
+        setTouchSelection(line.first to cell.second, line.last to cell.second)
+        return true
+    }
+
+    /** "Select" in the menu: the word at that point of the view (px). */
+    fun selectWordAtPoint(x: Float, y: Float): Boolean = selectWordAt(cellAt(x, y))
+
+    /** "Select all": the whole visible screen. */
+    fun selectAll() {
+        val s = session ?: return
+        val (from, to) = TextSelection.all(s.screen.cols().toInt(), s.screen.rows().toInt())
+        setTouchSelection(from, to)
+    }
+
+    /** Where the handles go (view px): under the start of the first cell and the end of the last one. */
+    private fun handlePoints(): Pair<PointF, PointF>? {
+        val (from, to) = selectionRange() ?: return null
+        val left = paddingLeft.toFloat()
+        val top = paddingTop.toFloat()
+        fun x(col: Int) = left + col * cellWidth * fit - panX
+        fun y(row: Int) = top + (row + 1) * cellHeight * fit
+        return PointF(x(from.first), y(from.second)) to PointF(x(to.first + 1), y(to.second))
+    }
+
+    private fun drawHandles(canvas: Canvas, color: Int) {
+        val (start, end) = handlePoints() ?: return
+        handlePaint.color = color
+        val r = 9 * density
+        for ((p, isStart) in listOf(start to true, end to false)) {
+            // A drop hanging from the text's corner, leaning outwards.
+            val cx = if (isStart) p.x - r * 0.7f else p.x + r * 0.7f
+            val cy = p.y + r
+            canvas.drawCircle(cx, cy, r, handlePaint)
+            canvas.drawRect(if (isStart) cx else p.x, p.y, if (isStart) p.x else cx, cy, handlePaint)
+        }
+    }
+
+    /** Which handle is under ([x], [y]): 1 start, 2 end, 0 none. */
+    private fun handleAt(x: Float, y: Float): Int {
+        if (!touchSelection) return 0
+        val (start, end) = handlePoints() ?: return 0
+        val reach = 28 * density
+        val r = 9 * density
+        fun near(p: PointF, dx: Float) = hypot(x - (p.x + dx), y - (p.y + r)) <= reach
+        return when {
+            near(end, r * 0.7f) -> 2
+            near(start, -r * 0.7f) -> 1
+            else -> 0
+        }
+    }
+
+    /** A finger on a handle moves that end of the selection; let go, the copy menu comes back. */
+    private fun dragHandle(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                handle = handleAt(e.x, e.y)
+                if (handle == 0) return false
+                // The other end stays put: it becomes the anchor.
+                val (from, to) = selectionRange() ?: return false.also { handle = 0 }
+                if (handle == 1) {
+                    selAnchor = to
+                    selEnd = from
+                } else {
+                    selAnchor = from
+                    selEnd = to
+                }
+                parent?.requestDisallowInterceptTouchEvent(true)
+                onTouched()
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (handle == 0) return false
+                // Above the finger, so the text being selected can be seen.
+                val next = cellAt(e.x, e.y - 24 * density)
+                if (next != selEnd) {
+                    selEnd = next
+                    performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE)
+                    invalidate()
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (handle == 0) return false
+                handle = 0
+                if (e.actionMasked == MotionEvent.ACTION_UP && hasSelection) onContextMenu(e.x, e.y)
+                return true
+            }
+        }
+        return handle != 0
+    }
+
+    /** A tap as a left click when the remote program asked for the mouse. Whether it was sent. */
+    private fun clickRemote(cell: Pair<Int, Int>): Boolean {
+        val s = session ?: return false
+        if (readOnly || tooWide() || s.modes.mouse == MouseTracking.OFF) return false
+        val tracking = s.modes.mouse
+        for (kind in listOf(MouseEncoder.Kind.PRESS, MouseEncoder.Kind.RELEASE)) {
+            if (!MouseEncoder.wants(tracking, kind, held = kind == MouseEncoder.Kind.RELEASE)) continue
+            MouseEncoder.encode(
+                MouseEncoder.Button.LEFT, kind, cell.first, cell.second, s.modes.encoding, tracking,
+                shift = false, alt = false, ctrl = false,
+            )?.let { s.write(it) }
+        }
+        return true
     }
 
     /** Scrolls the history a page (Shift+PgUp / Shift+PgDn). */
@@ -817,6 +995,7 @@ class TerminalView(context: Context) : View(context) {
                         selEnd = cell
                         selecting = true
                         dragged = false
+                        touchSelection = false
                     }
                     else -> Unit
                 }
