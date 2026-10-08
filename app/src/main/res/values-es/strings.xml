@@ -1286,4 +1286,17 @@
     <string name="term_telnet_from_phone">Telnet desde el móvil · sin cifrar</string>
     <string name="term_latency">Latencia: %1$s</string>
     <string name="sessions_connected_telnet">Conectada · Telnet desde el móvil</string>
+    <string name="settings_cursor_gestures">Gestos del cursor</string>
+    <string name="settings_gestures_hold">Mantener y arrastrar</string>
+    <string name="settings_gestures_hold_hint">Deslizar desplaza el terminal. Mantén pulsado un momento y arrastra para mover el cursor; mantén quieto para copiar y pegar.</string>
+    <string name="settings_gestures_one_finger">Un dedo para el cursor</string>
+    <string name="settings_gestures_one_finger_hint">Deslizar con un dedo mueve el cursor; con dos dedos se desplaza el terminal.</string>
+    <string name="settings_gestures_two_fingers">Dos dedos para el cursor</string>
+    <string name="settings_gestures_two_fingers_hint">Deslizar con un dedo desplaza el terminal; con dos dedos se mueve el cursor.</string>
+    <string name="settings_gestures_button">Con botón</string>
+    <string name="settings_gestures_button_hint">Un botón en la barra de teclas (y arriba) cambia un dedo entre mover el cursor y desplazar. Con el cursor activo, dos dedos desplazan.</string>
+    <string name="settings_gestures_off">Desactivados</string>
+    <string name="settings_gestures_off_hint">Deslizar solo desplaza el terminal.</string>
+    <string name="term_move_cursor">Mover el cursor con el dedo</string>
+    <string name="term_cursor_mode_badge">Cursor con el dedo · dos dedos desplazan</string>
 </resources>

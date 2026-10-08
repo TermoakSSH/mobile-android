@@ -98,6 +98,8 @@ abstract class TermSession(
     /** Ctrl and Alt from the key bar: they apply to the next key press. */
     val ctrl = MutableStateFlow(false)
     val alt = MutableStateFlow(false)
+    /** Cursor gestures "With a button": one finger moves the cursor (instead of scrolling). */
+    val cursorByButton = MutableStateFlow(false)
 
     /** Needs a redraw (from any thread). */
     @Volatile var onScreenChanged: () -> Unit = {}
@@ -173,6 +175,13 @@ abstract class TermSession(
     fun key(key: TerminalKey, shift: Boolean = false) = input(TermInput.Key(key, modifiers().copy(shift = shift)))
 
     fun paste(text: String) = input(TermInput.Paste(text))
+
+    /**
+     * An arrow from the cursor gestures: encoded like the key bar's (the
+     * application cursor mode included), broadcast like typing, and without
+     * taking the key bar's Ctrl and Alt.
+     */
+    fun arrow(key: TerminalKey) = input(TermInput.Key(key, KeyModifiers(shift = false, alt = false, ctrl = false)))
 
     /** A key of a hardware keyboard (with the key bar's Ctrl and Alt already applied). */
     fun stroke(stroke: KeyStroke) = input(TermInput.Stroke(stroke))

@@ -55,6 +55,12 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.TextDecrease
 import androidx.compose.material.icons.outlined.TextIncrease
+import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import com.termoak.app.term.GestureMode
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -146,6 +152,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val confirmPaste by app.prefs.confirmMultilinePaste.collectAsState()
     val hardwareKeyboard by app.keyboard.connected.collectAsState()
     val keepKeyBar by app.prefs.keyBarWithKeyboard.collectAsState()
+    val gestureMode by app.prefs.cursorGestures.collectAsState()
     val session = sessions.firstOrNull { it.id == activeId } ?: sessions.lastOrNull()
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     // The terminal views on screen (one, or one per pane): the keyboard goes to the focused one.
@@ -276,6 +283,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     fun Pane(s: TermSession, focused: Boolean) {
         TerminalPane(
             app, nav, s, fontSize, focused,
+            gestureMode = gestureMode,
             views = views,
             onFocus = { if (s.id != app.sessions.active.value) app.sessions.select(s.id) },
             onPaste = { requestPaste(s, it) },
@@ -392,6 +400,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     session, state, title, live, sharable = sharable, canBrowse = canBrowse,
                     copilotOpen = copilotOpen, splitShown = splitShown, hardwareKeyboard = hardwareKeyboard,
                     splitButton = { SplitButton() },
+                    cursorButton = { if (gestureMode == GestureMode.BUTTON && live.canWrite) CursorToggleButton(session) },
                     onReconnect = { session.reconnect() },
                     onFiles = { openFiles() },
                     onCopy = {
@@ -433,6 +442,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                         ParticipantsChip(live) { showParticipants = true }
                     }
                     SplitButton()
+                    if (gestureMode == GestureMode.BUTTON && live.canWrite) CursorToggleButton(session)
                     IconButton(onClick = { toggleCopilot() }) {
                         Icon(
                             Icons.Outlined.AutoAwesome, stringResource(R.string.copilot_title),
@@ -488,7 +498,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         footer = {
             KeyboardStrip(session, live)
             // With a hardware keyboard the key bar goes away (unless the setting keeps it).
-            if (live.canWrite && (!hardwareKeyboard || keepKeyBar)) ExtraKeys(session)
+            if (live.canWrite && (!hardwareKeyboard || keepKeyBar)) ExtraKeys(session, cursorButton = gestureMode == GestureMode.BUTTON)
         },
     ) { modifier, overlay ->
         CopilotPanel(
@@ -602,6 +612,7 @@ private fun DesktopTerminalToolbar(
     splitShown: Boolean,
     hardwareKeyboard: Boolean,
     splitButton: @Composable () -> Unit,
+    cursorButton: @Composable () -> Unit,
     onReconnect: () -> Unit,
     onFiles: () -> Unit,
     onCopy: () -> Unit,
@@ -646,6 +657,7 @@ private fun DesktopTerminalToolbar(
                 }
             }
             splitButton()
+            cursorButton()
             if (canBrowse) ToolbarButton(Icons.Outlined.Folder, stringResource(R.string.term_files), labels, onClick = onFiles)
             ToolbarButton(Icons.Outlined.ContentCopy, stringResource(R.string.term_copy), labels && !splitShown, onClick = onCopy)
             ToolbarButton(Icons.Outlined.ContentPaste, stringResource(R.string.common_paste), labels && !splitShown, enabled = live.canWrite, onClick = onPaste)
@@ -764,6 +776,7 @@ private fun TerminalPane(
     session: TermSession,
     fontSize: Float,
     focused: Boolean,
+    gestureMode: GestureMode,
     views: MutableList<TerminalView>,
     onFocus: () -> Unit,
     onPaste: (String) -> Unit,
@@ -826,7 +839,8 @@ private fun TerminalPane(
                 v.onTouched = onFocus
                 v.onContextMenu = { x, y -> onFocus(); menuAt = IntOffset(x.toInt(), y.toInt()); longPressMenu = true }
                 v.onPasteText = onPaste
-                // Watching only: no keyboard (nothing would reach the terminal).
+                v.gestureMode = gestureMode
+                // Watching only: no keyboard (nothing would reach the terminal), no cursor gestures.
                 v.readOnly = !live.canWrite
             },
             onRelease = { views -= it },
@@ -898,6 +912,36 @@ private fun TerminalPane(
             }
         }
         RequestBanners(session, live, Modifier.align(Alignment.TopCenter), onParticipants)
+        // "With a button" and the button on: so you know what one finger does.
+        val cursorByButton by session.cursorByButton.collectAsState()
+        if (gestureMode == GestureMode.BUTTON && cursorByButton && live.canWrite) {
+            Row(
+                Modifier.align(Alignment.TopEnd).padding(8.dp).clip(RoundedCornerShape(50))
+                    .background(BarBg.copy(alpha = 0.85f)).padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.TouchApp, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    stringResource(R.string.term_cursor_mode_badge), Modifier.padding(start = 6.dp),
+                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Cursor gestures "With a button": one finger moves the cursor (on) or
+ * scrolls (off), in this terminal.
+ */
+@Composable
+private fun CursorToggleButton(session: TermSession) {
+    val on by session.cursorByButton.collectAsState()
+    IconToggleButton(on, { session.cursorByButton.value = it }) {
+        Icon(
+            if (on) Icons.Filled.TouchApp else Icons.Outlined.TouchApp, stringResource(R.string.term_move_cursor),
+            tint = if (on) MaterialTheme.colorScheme.primary else KeyFg,
+        )
     }
 }
 
@@ -932,31 +976,52 @@ private fun SessionTab(s: TermSession, selected: Boolean, inSplit: Boolean, onCl
     }
 }
 
-/** Keys missing from the phone keyboard, in a scrollable row (like Termius). Ctrl and Alt apply to the next key. */
+/**
+ * Keys missing from the phone keyboard, in a scrollable row (like Termius). Ctrl and Alt apply to the next key.
+ * [cursorButton]: cursor gestures "With a button", whose toggle stays at the start, out of the scrolling row.
+ */
 @Composable
-private fun ExtraKeys(session: TermSession) {
+private fun ExtraKeys(session: TermSession, cursorButton: Boolean) {
     val ctrl by session.ctrl.collectAsState()
     val alt by session.alt.collectAsState()
-    Row(
-        Modifier.fillMaxWidth().background(BarBg).horizontalScroll(rememberScrollState())
-            .padding(horizontal = 6.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        val w = Modifier.widthIn(min = 44.dp)
-        Key("esc", w) { session.key(TerminalKey.Escape) }
-        Key("tab", w) { session.key(TerminalKey.Tab) }
-        Key("ctrl", w, active = ctrl) { session.ctrl.value = !ctrl }
-        Key("alt", w, active = alt) { session.alt.value = !alt }
-        Key("←", w) { session.key(TerminalKey.Left) }
-        Key("↑", w) { session.key(TerminalKey.Up) }
-        Key("↓", w) { session.key(TerminalKey.Down) }
-        Key("→", w) { session.key(TerminalKey.Right) }
-        for (c in listOf("/", "-", "|", "~", "*", "&", ";", ":", "$", ">", "<", "'", "\"")) Key(c, w) { session.text(c) }
-        Key("home", w, small = true) { session.key(TerminalKey.Home) }
-        Key("end", w, small = true) { session.key(TerminalKey.End) }
-        Key("pgup", w, small = true) { session.key(TerminalKey.PageUp) }
-        Key("pgdn", w, small = true) { session.key(TerminalKey.PageDown) }
-        for (n in 1..12) Key("F$n", w, small = true) { session.key(TerminalKey.Function(n.toUByte())) }
+    val cursorByButton by session.cursorByButton.collectAsState()
+    Row(Modifier.fillMaxWidth().background(BarBg), verticalAlignment = Alignment.CenterVertically) {
+        if (cursorButton) {
+            val label = stringResource(R.string.term_move_cursor)
+            Box(
+                Modifier.padding(start = 6.dp).size(44.dp, 40.dp).clip(RoundedCornerShape(8.dp))
+                    .background(if (cursorByButton) MaterialTheme.colorScheme.primary else KeyBg)
+                    .toggleable(cursorByButton, role = Role.Switch) { session.cursorByButton.value = it }
+                    .semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (cursorByButton) Icons.Filled.TouchApp else Icons.Outlined.TouchApp, null, Modifier.size(20.dp),
+                    tint = if (cursorByButton) Color.White else KeyFg,
+                )
+            }
+        }
+        Row(
+            Modifier.weight(1f).horizontalScroll(rememberScrollState())
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val w = Modifier.widthIn(min = 44.dp)
+            Key("esc", w) { session.key(TerminalKey.Escape) }
+            Key("tab", w) { session.key(TerminalKey.Tab) }
+            Key("ctrl", w, active = ctrl) { session.ctrl.value = !ctrl }
+            Key("alt", w, active = alt) { session.alt.value = !alt }
+            Key("←", w) { session.key(TerminalKey.Left) }
+            Key("↑", w) { session.key(TerminalKey.Up) }
+            Key("↓", w) { session.key(TerminalKey.Down) }
+            Key("→", w) { session.key(TerminalKey.Right) }
+            for (c in listOf("/", "-", "|", "~", "*", "&", ";", ":", "$", ">", "<", "'", "\"")) Key(c, w) { session.text(c) }
+            Key("home", w, small = true) { session.key(TerminalKey.Home) }
+            Key("end", w, small = true) { session.key(TerminalKey.End) }
+            Key("pgup", w, small = true) { session.key(TerminalKey.PageUp) }
+            Key("pgdn", w, small = true) { session.key(TerminalKey.PageDown) }
+            for (n in 1..12) Key("F$n", w, small = true) { session.key(TerminalKey.Function(n.toUByte())) }
+        }
     }
 }
 

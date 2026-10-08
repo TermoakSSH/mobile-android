@@ -3,6 +3,7 @@ package com.termoak.app.data
 import android.content.Context
 import androidx.core.content.edit
 import com.termoak.app.files.FileSort
+import com.termoak.app.term.GestureMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -97,6 +98,14 @@ class Prefs(context: Context) {
     fun setKeyBarWithKeyboard(on: Boolean) {
         _keyBar.value = on
         sp.edit { putBoolean("key_bar_with_keyboard", on) }
+    }
+
+    private val _cursorGestures = MutableStateFlow(GestureMode.of(sp.getString("cursor_gestures", null)))
+    /** How a finger moves the cursor in the terminal (Settings → Terminal; the iOS app's setting). */
+    val cursorGestures: StateFlow<GestureMode> = _cursorGestures
+    fun setCursorGestures(mode: GestureMode) {
+        _cursorGestures.value = mode
+        sp.edit { putString("cursor_gestures", mode.key) }
     }
 
     private val _telnetAutoLogin = MutableStateFlow(sp.getBoolean("telnet_auto_login", true))

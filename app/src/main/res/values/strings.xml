@@ -1239,4 +1239,17 @@
     <string name="term_telnet_from_phone">Telnet from the phone · unencrypted</string>
     <string name="term_latency">Latency: %1$s</string>
     <string name="sessions_connected_telnet">Connected · Telnet from the phone</string>
+    <string name="settings_cursor_gestures">Cursor gestures</string>
+    <string name="settings_gestures_hold">Hold and drag</string>
+    <string name="settings_gestures_hold_hint">Swiping scrolls the terminal. Hold for a moment and drag to move the cursor; hold still to copy and paste.</string>
+    <string name="settings_gestures_one_finger">One finger for the cursor</string>
+    <string name="settings_gestures_one_finger_hint">Swiping with one finger moves the cursor; with two fingers it scrolls the terminal.</string>
+    <string name="settings_gestures_two_fingers">Two fingers for the cursor</string>
+    <string name="settings_gestures_two_fingers_hint">Swiping with one finger scrolls the terminal; with two fingers it moves the cursor.</string>
+    <string name="settings_gestures_button">With a button</string>
+    <string name="settings_gestures_button_hint">A button on the key bar (and at the top) switches one finger between moving the cursor and scrolling. With the cursor active, two fingers scroll.</string>
+    <string name="settings_gestures_off">Off</string>
+    <string name="settings_gestures_off_hint">Swiping only scrolls the terminal.</string>
+    <string name="term_move_cursor">Move the cursor with your finger</string>
+    <string name="term_cursor_mode_badge">Cursor with your finger · two fingers scroll</string>
 </resources>

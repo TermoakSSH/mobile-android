@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,6 +68,7 @@ import com.termoak.app.TermoakApp
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ThemeMode
 import com.termoak.app.data.WideLayout
+import com.termoak.app.term.GestureMode
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.TwoFactorStatus
 import com.termoak.app.data.officialServer
@@ -96,6 +98,8 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val telnetAutoLogin by app.prefs.telnetAutoLogin.collectAsState()
     val wideLayout by app.prefs.wideLayout.collectAsState()
     var choosingLayout by remember { mutableStateOf(false) }
+    val gestureMode by app.prefs.cursorGestures.collectAsState()
+    var choosingGestures by remember { mutableStateOf(false) }
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
     val checkUpdates by app.prefs.checkUpdates.collectAsState()
     val latest by app.updates.latest.collectAsState()
@@ -169,6 +173,13 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                 Slider(fontSize, { app.prefs.setFontSize(it) }, valueRange = Prefs.MIN_FONT..Prefs.MAX_FONT, steps = 15)
                 Text(stringResource(R.string.settings_font_size_hint), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            // The chosen mode and what it does (like the iOS app's explanation under the picker).
+            Row0(
+                Icons.Outlined.Swipe, stringResource(R.string.settings_cursor_gestures),
+                stringResource(gestureModeName(gestureMode)) + "\n" + stringResource(gestureModeHint(gestureMode)),
+            ) {
+                choosingGestures = true
             }
             SwitchRow(stringResource(R.string.settings_keep_screen_on), stringResource(R.string.settings_keep_screen_on_hint), keepOn) {
                 app.prefs.setKeepScreenOn(it)
@@ -263,6 +274,12 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             app.prefs.setWideLayout(it)
         }
     }
+    if (choosingGestures) {
+        GestureModeDialog(gestureMode, onDismiss = { choosingGestures = false }) {
+            choosingGestures = false
+            app.prefs.setCursorGestures(it)
+        }
+    }
     if (choosingLanguage) {
         LanguageDialog(languages, language, onDismiss = { choosingLanguage = false }) { tag ->
             choosingLanguage = false
@@ -302,6 +319,55 @@ private fun WideLayoutDialog(selected: WideLayout, onDismiss: () -> Unit, onSele
                             Text(stringResource(wideLayoutName(mode)), style = MaterialTheme.typography.bodyLarge)
                             Text(
                                 stringResource(hint), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+@androidx.annotation.StringRes
+private fun gestureModeName(mode: GestureMode): Int = when (mode) {
+    GestureMode.HOLD -> R.string.settings_gestures_hold
+    GestureMode.ONE_FINGER -> R.string.settings_gestures_one_finger
+    GestureMode.TWO_FINGERS -> R.string.settings_gestures_two_fingers
+    GestureMode.BUTTON -> R.string.settings_gestures_button
+    GestureMode.OFF -> R.string.settings_gestures_off
+}
+
+@androidx.annotation.StringRes
+private fun gestureModeHint(mode: GestureMode): Int = when (mode) {
+    GestureMode.HOLD -> R.string.settings_gestures_hold_hint
+    GestureMode.ONE_FINGER -> R.string.settings_gestures_one_finger_hint
+    GestureMode.TWO_FINGERS -> R.string.settings_gestures_two_fingers_hint
+    GestureMode.BUTTON -> R.string.settings_gestures_button_hint
+    GestureMode.OFF -> R.string.settings_gestures_off_hint
+}
+
+/** "Cursor gestures": how a finger moves the cursor, each mode with what it does (the iOS app's picker). */
+@Composable
+private fun GestureModeDialog(selected: GestureMode, onDismiss: () -> Unit, onSelect: (GestureMode) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_cursor_gestures)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                GestureMode.entries.forEach { mode ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { onSelect(mode) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = mode == selected, onClick = { onSelect(mode) })
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text(stringResource(gestureModeName(mode)), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(gestureModeHint(mode)), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }

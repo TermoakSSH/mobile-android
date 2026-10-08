@@ -4,24 +4,31 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.SystemClock
 import android.text.InputType
 import android.util.TypedValue
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import androidx.core.graphics.withTranslation
 import com.termoak.ffi.KeyModifiers
 import com.termoak.ffi.ScreenCursorShape
 import com.termoak.ffi.TerminalKey
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.max
 
 /**
@@ -59,9 +66,13 @@ class TerminalView(context: Context) : View(context) {
      */
     var onPasteText: ((String) -> Unit)? = null
 
+    /** How a finger moves the cursor (Settings → Terminal → Cursor gestures). */
+    var gestureMode = GestureMode.DEFAULT
+
     /**
      * Watching a shared terminal without the keyboard: the system keyboard
-     * stays hidden (nothing typed would reach the terminal).
+     * stays hidden (nothing typed would reach the terminal), and the cursor
+     * gestures are off.
      */
     var readOnly = false
         set(value) {
@@ -126,6 +137,8 @@ class TerminalView(context: Context) : View(context) {
 
     override fun onDetachedFromWindow() {
         session?.let { if (it.onScreenChanged === redraw) it.onScreenChanged = {} }
+        removeCallbacks(cursorTick)
+        cursor.cancel()
         super.onDetachedFromWindow()
     }
 
@@ -233,6 +246,7 @@ class TerminalView(context: Context) : View(context) {
             }
         }
         canvas.restore()
+        cursor.pad?.let { drawCursorPad(canvas, it, snap.background.toInt(), snap.cursorColor.toInt()) }
         // Viewing the scrollback: mark on the right edge.
         if (snap.displayOffset > 0u) {
             fill.color = snap.cursorColor.toInt()
@@ -248,6 +262,8 @@ class TerminalView(context: Context) : View(context) {
     private var scaling = false
     private val scale = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            // Two fingers that already move the cursor don't zoom.
+            if (!cursor.pinchBegins()) return false
             scaling = true
             return true
         }
@@ -278,22 +294,18 @@ class TerminalView(context: Context) : View(context) {
     })
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
+            // Not after holding (the cursor or the menu).
+            if (!cursor.tapped) return true
             // A tap on a link opens it; otherwise it shows the keyboard.
             if (openLinkAt(e.x, e.y)) return true
             showKeyboard()
             return true
         }
 
-        override fun onLongPress(e: MotionEvent) {
-            if (!scaling) {
-                performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-                onContextMenu(e.x, e.y)
-            }
-        }
-
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
             val s = session ?: return false
-            if (scaling) return true
+            // The fingers move the cursor (or held to open the menu).
+            if (scaling || !cursor.scrolls) return true
             // Zoomed in on a wider terminal: sideways.
             if (tooWide() && abs(dx) > abs(dy)) {
                 panX += dx
@@ -307,6 +319,7 @@ class TerminalView(context: Context) : View(context) {
                 if (s.screen.alternateScreen()) {
                     // In vim, less, htop...: arrow keys.
                     // Only here: scrolling isn't typing, it isn't broadcast to other panes.
+                    // (The cursor gestures' arrows are: they are typing.)
                     val key = TermInput.Key(if (lines > 0) TerminalKey.Down else TerminalKey.Up, NoModifiers)
                     repeat(abs(lines)) { s.apply(key) }
                 } else {
@@ -316,7 +329,139 @@ class TerminalView(context: Context) : View(context) {
             }
             return true
         }
-    })
+    }).apply {
+        // The long-press menu comes from the cursor gestures (later when holding moves the cursor).
+        setIsLongpressEnabled(false)
+    }
+
+    // ----- Cursor gestures: arrows by dragging (CursorGesture) -----
+
+    private val cursor = ViewConfiguration.get(context).let {
+        CursorGesture(density, it.scaledTouchSlop.toFloat(), ViewConfiguration.getLongPressTimeout().toLong())
+    }
+    private val cursorTick = Runnable {
+        cursorActions(cursor.tick(SystemClock.uptimeMillis()))
+        scheduleCursorTick()
+    }
+
+    private fun scheduleCursorTick() {
+        removeCallbacks(cursorTick)
+        cursor.deadline?.let { postDelayed(cursorTick, (it - SystemClock.uptimeMillis()).coerceAtLeast(0)) }
+    }
+
+    /** What moves the cursor now: the setting, the button, and whether there is a cursor to move. */
+    private fun cursorDrag(): CursorDrag =
+        CursorDrag.of(gestureMode, session?.cursorByButton?.value == true, suspended = readOnly || tooWide())
+
+    private fun feedCursor(e: MotionEvent) {
+        var cx = 0f
+        var cy = 0f
+        for (i in 0 until e.pointerCount) {
+            cx += e.getX(i)
+            cy += e.getY(i)
+        }
+        cx /= e.pointerCount
+        cy /= e.pointerCount
+        val span = if (e.pointerCount >= 2) hypot(e.getX(1) - e.getX(0), e.getY(1) - e.getY(0)) else 0f
+        val padBefore = cursor.pad
+        val actions = when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> cursor.down(e.x, e.y, e.eventTime, cursorDrag())
+            MotionEvent.ACTION_POINTER_DOWN -> cursor.pointerDown(cx, cy, span, e.pointerCount, e.eventTime)
+            MotionEvent.ACTION_MOVE -> cursor.move(cx, cy, span, e.pointerCount, e.eventTime)
+            MotionEvent.ACTION_POINTER_UP -> cursor.pointerUp()
+            MotionEvent.ACTION_UP -> cursor.up()
+            MotionEvent.ACTION_CANCEL -> {
+                cursor.cancel()
+                emptyList()
+            }
+            else -> emptyList()
+        }
+        cursorActions(actions)
+        if (cursor.pad != padBefore) invalidate()
+        scheduleCursorTick()
+    }
+
+    private fun cursorActions(actions: List<CursorGesture.Action>) {
+        for (a in actions) {
+            when (a) {
+                is CursorGesture.Action.Arrow -> if (!readOnly) session?.arrow(
+                    when (a.direction) {
+                        ArrowDirection.UP -> TerminalKey.Up
+                        ArrowDirection.DOWN -> TerminalKey.Down
+                        ArrowDirection.LEFT -> TerminalKey.Left
+                        ArrowDirection.RIGHT -> TerminalKey.Right
+                    },
+                )
+                is CursorGesture.Action.Haptic -> performHapticFeedback(
+                    when (a.kind) {
+                        CursorGesture.HapticKind.START -> HapticFeedbackConstants.VIRTUAL_KEY
+                        CursorGesture.HapticKind.DIRECTION -> HapticFeedbackConstants.CLOCK_TICK
+                        CursorGesture.HapticKind.LEVEL -> HapticFeedbackConstants.CONTEXT_CLICK
+                    },
+                )
+                is CursorGesture.Action.Menu -> {
+                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    onContextMenu(a.x, a.y)
+                }
+            }
+        }
+    }
+
+    private val padPath = Path()
+    private val padRect = RectF()
+    private val padStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2.5f * density
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    /**
+     * The pad while dragging the cursor (top left): the four arrows, the
+     * active one in the cursor's color with one, two or three chevrons
+     * depending on the speed.
+     */
+    private fun drawCursorPad(canvas: Canvas, pad: CursorPad, background: Int, accent: Int) {
+        val dark = android.graphics.Color.luminance(background) < 0.5f
+        val size = 96 * density
+        val left = 16 * density
+        val top = 16 * density
+        padRect.set(left, top, left + size, top + size)
+        fill.color = if (dark) 0xD9303034.toInt() else 0xD9EDEDF0.toInt()
+        canvas.drawRoundRect(padRect, 18 * density, 18 * density, fill)
+        val cx = padRect.centerX()
+        val cy = padRect.centerY()
+        val stroke = padStroke
+        // Not `density` inside withTranslation: that would be the Canvas's.
+        val dp = density
+        val idle = if (dark) 0x99FFFFFF.toInt() else 0x80000000.toInt()
+        for (d in ArrowDirection.entries) {
+            val active = d == pad.direction
+            val (ox, oy, angle) = when (d) {
+                ArrowDirection.RIGHT -> Triple(30f, 0f, 0f)
+                ArrowDirection.DOWN -> Triple(0f, 30f, 90f)
+                ArrowDirection.LEFT -> Triple(-30f, 0f, 180f)
+                ArrowDirection.UP -> Triple(0f, -30f, 270f)
+            }
+            stroke.color = if (active) accent else idle
+            val count = if (active) pad.level else 1
+            canvas.withTranslation(cx + ox * dp, cy + oy * dp) {
+                rotate(angle)
+                // Chevrons side by side, centered on the arrow's place.
+                val gap = 6 * dp
+                val first = -(count - 1) * gap / 2
+                for (i in 0 until count) {
+                    val x = first + i * gap
+                    padPath.reset()
+                    padPath.moveTo(x - 3 * dp, -6 * dp)
+                    padPath.lineTo(x + 3 * dp, 0f)
+                    padPath.lineTo(x - 3 * dp, 6 * dp)
+                    drawPath(padPath, stroke)
+                }
+            }
+        }
+        fill.alpha = 0xFF
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -326,6 +471,8 @@ class TerminalView(context: Context) : View(context) {
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) mouseGesture = false
             return mouse(event)
         }
+        // First: it decides whether the fingers scroll, pinch or move the cursor.
+        feedCursor(event)
         scale.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             scaling = false
