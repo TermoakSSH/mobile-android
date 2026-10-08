@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.InviteLinkRef
 import com.termoak.app.data.JoinLinkRef
 import com.termoak.app.term.LinkJoin
 import com.termoak.ffi.LinkInvite
@@ -194,19 +195,31 @@ private fun InfoRow(icon: ImageVector, title: String, text: String?) {
     )
 }
 
-/** Asks for an invitation link (pasted, or already on the clipboard) and opens it. */
+/**
+ * Asks for an invitation link (pasted, or already on the clipboard) and opens
+ * it; an invitation to create an account opens the sign-up form instead.
+ */
 @Composable
 fun JoinLinkDialog(onDismiss: () -> Unit, onJoin: (JoinLinkRef) -> Unit) {
+    val app = LocalContext.current.applicationContext as com.termoak.app.TermoakApp
     val context = LocalContext.current
     var text by remember {
         val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip
             ?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
-        mutableStateOf(clip?.takeIf { JoinLinkRef.parse(it) != null }.orEmpty())
+        mutableStateOf(clip?.takeIf { JoinLinkRef.parse(it) != null || InviteLinkRef.parse(it) != null }.orEmpty())
     }
     var invalid by remember { mutableStateOf(false) }
     fun go() {
         val link = JoinLinkRef.parse(text)
-        if (link == null) invalid = true else onJoin(link)
+        val invite = if (link == null) InviteLinkRef.parse(text) else null
+        when {
+            link != null -> onJoin(link)
+            invite != null -> {
+                onDismiss()
+                app.pendingInvite.value = invite
+            }
+            else -> invalid = true
+        }
     }
     AlertDialog(
         onDismissRequest = onDismiss,

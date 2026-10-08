@@ -1,6 +1,8 @@
 package com.termoak.app.data
 
+import com.termoak.ffi.LinkTarget
 import com.termoak.ffi.SshHost
+import com.termoak.ffi.parseQuickConnect
 
 /**
  * The protocol of a host (`SshHost.protocol`): `ssh` or `telnet`, the
@@ -109,74 +111,16 @@ data class QuickTarget(
 
     companion object {
         /**
-         * Reads a typed address, or `null`. Only text that looks like an
-         * address (with `@`, `:` or `.`, or a scheme) counts, so a plain
-         * search word is not taken as a host.
+         * Reads a typed address with the engine's rules ([parseQuickConnect],
+         * the same as the desktop's and iOS's), or `null`. Only text that
+         * looks like an address (with `@`, `:` or `.`, or a scheme) counts,
+         * so a plain search word is not taken as a host.
          */
         fun parse(input: String): QuickTarget? {
-            val text = input.trim()
-            stripPrefix(text, "telnet://")?.let { rest ->
-                return address(rest.trimEnd('/'), any = true)?.copy(protocol = HostProtocol.TELNET)
-            }
-            stripPrefix(text, "ssh://")?.let { rest -> return address(rest.trimEnd('/'), any = true) }
-            stripPrefix(text, "telnet ")?.let { rest ->
-                // `telnet host [port]`, as on the command line.
-                val words = rest.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-                if (words.isEmpty() || words.size > 2) return null
-                val port = words.getOrNull(1)?.let { p -> parsePort(p) ?: return null }
-                val t = address(words[0], any = true) ?: return null
-                return t.copy(protocol = HostProtocol.TELNET, port = port ?: t.port)
-            }
-            var rest = if (text.startsWith("ssh ")) text.removePrefix("ssh ").trim() else text
-            var flagPort: UInt? = null
-            val p = rest.indexOf(" -p ")
-            if (p >= 0) {
-                flagPort = parsePort(rest.substring(p + 4).trim()) ?: return null
-                rest = rest.substring(0, p).trim()
-            }
-            if (rest.none { it == '@' || it == ':' || it == '.' }) return null
-            val t = address(rest, any = false) ?: return null
-            return if (flagPort != null) t.copy(port = flagPort) else t
-        }
-
-        private fun stripPrefix(text: String, prefix: String): String? =
-            if (text.length >= prefix.length && text.regionMatches(0, prefix, 0, prefix.length, ignoreCase = true)) {
-                text.substring(prefix.length)
-            } else {
-                null
-            }
-
-        private fun parsePort(text: String): UInt? = text.toUIntOrNull()?.takeIf { it in 1u..65535u }
-
-        /** `[user@]host[:port]` (SSH; [any]: a bare name counts too). */
-        private fun address(text: String, any: Boolean): QuickTarget? {
-            if (text.isEmpty() || text.any { it.isWhitespace() }) return null
-            if (!any && text.none { it == '@' || it == ':' || it == '.' }) return null
-            val at = text.lastIndexOf('@')
-            val user = if (at >= 0) text.substring(0, at).ifEmpty { return null } else null
-            val rest = if (at >= 0) text.substring(at + 1) else text
-            val host: String
-            val port: UInt?
-            if (rest.startsWith("[")) {
-                val close = rest.indexOf(']')
-                if (close < 0) return null
-                host = rest.substring(1, close)
-                val after = rest.substring(close + 1)
-                port = when {
-                    after.isEmpty() -> null
-                    after.startsWith(":") -> parsePort(after.substring(1)) ?: return null
-                    else -> return null
-                }
-            } else if (rest.count { it == ':' } == 1) {
-                val colon = rest.indexOf(':')
-                host = rest.substring(0, colon)
-                port = parsePort(rest.substring(colon + 1)) ?: return null
-            } else {
-                host = rest
-                port = null
-            }
-            val valid = host.isNotEmpty() && host.all { it.isLetterOrDigit() || it in ".-_:%" }
-            return if (valid) QuickTarget(HostProtocol.SSH, user, host, port) else null
+            val text = input.trim().takeIf { it.isNotEmpty() } ?: return null
+            val t = runCatching { parseQuickConnect(text) }.getOrNull() as? LinkTarget.QuickConnect ?: return null
+            val protocol = if (HostProtocol.isTelnet(t.protocol)) HostProtocol.TELNET else HostProtocol.SSH
+            return QuickTarget(protocol, t.user?.takeIf { it.isNotEmpty() }, t.host, t.port)
         }
     }
 }
