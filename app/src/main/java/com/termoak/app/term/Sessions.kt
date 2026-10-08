@@ -53,6 +53,50 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
 
     fun get(id: String): TermSession? = _list.value.firstOrNull { it.id == id }
 
+    // ----- Reconnecting the phone's terminals by themselves (B19) -----
+
+    private var leftAt: Long? = null
+    private var networkLostAt: Long? = null
+
+    /** The app went to the background. */
+    fun appLeaving() {
+        leftAt = System.currentTimeMillis()
+        _list.value.filterIsInstance<LocalTerminal>().forEach { it.leaving() }
+    }
+
+    /** The app came back: the terminals cut meanwhile reconnect (see [LocalTerminal.returned]). */
+    fun appReturned() {
+        val since = leftAt ?: return
+        leftAt = null
+        val away = System.currentTimeMillis() - since
+        _list.value.filterIsInstance<LocalTerminal>().forEach { it.returned(away) }
+    }
+
+    init {
+        // The network came back after dropping: the same, at once (a keep-alive checks the ones that look alive).
+        runCatching {
+            context.getSystemService(android.net.ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
+                object : android.net.ConnectivityManager.NetworkCallback() {
+                    override fun onLost(network: android.net.Network) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            if (networkLostAt == null) networkLostAt = System.currentTimeMillis()
+                            _list.value.filterIsInstance<LocalTerminal>().forEach { it.leaving() }
+                        }
+                    }
+
+                    override fun onAvailable(network: android.net.Network) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            if (networkLostAt == null) return@post
+                            networkLostAt = null
+                            // Long enough to check the ones that still look connected.
+                            _list.value.filterIsInstance<LocalTerminal>().forEach { it.returned(AutoReconnect.CHECK_AFTER_MS) }
+                        }
+                    }
+                },
+            )
+        }
+    }
+
     /** The open tab of server session [sessionId] (attached, or a shared local terminal). */
     fun bySessionId(sessionId: String): TermSession? = _list.value.firstOrNull {
         (it is ServerTerminal && it.sessionId == sessionId) || (it is LocalTerminal && it.sharedId.value == sessionId)

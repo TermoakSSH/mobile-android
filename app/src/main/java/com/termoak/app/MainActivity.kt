@@ -104,12 +104,16 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         (application as TermoakApp).appLock.started()
+        (application as TermoakApp).sessions.appReturned()
         (application as TermoakApp).shareNotices.inForeground = true
     }
 
     override fun onStop() {
         // Rotating or folding isn't leaving the app.
-        if (!isChangingConfigurations) (application as TermoakApp).appLock.stopped()
+        if (!isChangingConfigurations) {
+            (application as TermoakApp).appLock.stopped()
+            (application as TermoakApp).sessions.appLeaving()
+        }
         (application as TermoakApp).shareNotices.inForeground = false
         super.onStop()
     }

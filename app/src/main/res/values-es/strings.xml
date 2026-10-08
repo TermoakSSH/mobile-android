@@ -516,6 +516,12 @@
     <string name="tunnels_title">Túneles · %1$s</string>
     <string name="tunnels_remote_word">servidor</string>
     <string name="tunnels_running">Activo</string>
+    <string name="tunnels_adhoc_new">Iniciar sin guardar…</string>
+    <string name="tunnels_adhoc_header">Sin guardar</string>
+    <string name="tunnels_adhoc_explanation">Se inicia ahora y no se guarda: desaparece al detenerlo o al cerrarse la conexión.</string>
+    <string name="tunnels_adhoc_start">Iniciar</string>
+    <string name="tunnels_adhoc_stop">Detener</string>
+    <string name="tunnels_adhoc_unnamed">Túnel</string>
     <string name="import_title">Importar configuración SSH</string>
     <string name="import_intro">Crea un host por cada «Host» de un fichero de configuración de OpenSSH (~/.ssh/config), con su usuario, puerto, saltos (ProxyJump) y túneles. Los hosts que ya existen con el mismo nombre se saltan, y las claves (IdentityFile) solo se encuentran si su ruta existe en este teléfono.</string>
     <string name="import_choose_file">Elegir un fichero</string>

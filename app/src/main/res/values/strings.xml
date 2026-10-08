@@ -510,6 +510,12 @@
     <string name="tunnels_title">Tunnels · %1$s</string>
     <string name="tunnels_remote_word">server</string>
     <string name="tunnels_running">Running</string>
+    <string name="tunnels_adhoc_new">Start without saving…</string>
+    <string name="tunnels_adhoc_header">Not saved</string>
+    <string name="tunnels_adhoc_explanation">It starts now and is not saved: it goes away when you stop it or the connection closes.</string>
+    <string name="tunnels_adhoc_start">Start</string>
+    <string name="tunnels_adhoc_stop">Stop</string>
+    <string name="tunnels_adhoc_unnamed">Tunnel</string>
     <string name="import_title">Import SSH config</string>
     <string name="import_intro">Creates a host for each “Host” of an OpenSSH config file (~/.ssh/config), with its user, port, jump hosts (ProxyJump) and tunnels. Hosts that already exist with the same name are skipped, and keys (IdentityFile) are only found if their path exists on this phone.</string>
     <string name="import_choose_file">Choose a file</string>

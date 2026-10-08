@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
@@ -32,6 +33,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -52,15 +55,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
@@ -217,6 +223,10 @@ internal fun HostTunnelsSheet(app: TermoakApp, host: SshHost, onDismiss: () -> U
     var list by remember { mutableStateOf(load()) }
     var editing by remember { mutableStateOf<PortForward?>(null) }
     var deleting by remember { mutableStateOf<PortForward?>(null) }
+    var startingAdHoc by remember { mutableStateOf(false) }
+    val adHoc by app.tunnels.adHoc.collectAsState()
+    val allStats by app.tunnels.stats.collectAsState()
+    val running by app.tunnels.running.collectAsState()
     TunnelPrompts(app)
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -246,6 +256,38 @@ internal fun HostTunnelsSheet(app: TermoakApp, host: SshHost, onDismiss: () -> U
                     onDelete = if (f.access.canWrite()) ({ deleting = f }) else null,
                 )
             }
+            // Started without saving them (as on iOS).
+            val mine = adHoc.filter { it.hostId == host.id && it.accountId == host.accountId }
+            if (mine.isNotEmpty()) item { SectionLabel(stringResource(R.string.tunnels_adhoc_header)) }
+            items(mine, key = { it.uid }) { t ->
+                val port = running[t.uid]?.let { runCatching { it.boundPort() }.getOrNull() }
+                ListItem(
+                    headlineContent = { Text(t.spec.label.ifBlank { stringResource(R.string.tunnels_adhoc_unnamed) }) },
+                    supportingContent = {
+                        Column {
+                            Text(TunnelText.summary(t.spec, port, stringResource(R.string.tunnels_remote_word)), fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp)
+                            allStats[t.uid]?.let { st ->
+                                Text(
+                                    pluralStringResource(R.plurals.tunnels_connections, st.activeConnections.toInt(), st.activeConnections.toInt(),
+                                        st.totalConnections.toInt()),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                        }
+                    },
+                    trailingContent = { TextButton(onClick = { app.tunnels.stopAdHoc(t) }) { Text(stringResource(R.string.tunnels_adhoc_stop)) } },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+            }
+            if (!host.isTelnet) {
+                item {
+                    TextButton(onClick = { startingAdHoc = true }, modifier = Modifier.padding(horizontal = 12.dp)) {
+                        Icon(Icons.Outlined.Bolt, null, Modifier.size(18.dp))
+                        Text(stringResource(R.string.tunnels_adhoc_new), Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
             if (list.isNotEmpty()) {
                 item {
                     Text(
@@ -254,6 +296,13 @@ internal fun HostTunnelsSheet(app: TermoakApp, host: SshHost, onDismiss: () -> U
                     )
                 }
             }
+        }
+    }
+    if (startingAdHoc) {
+        val blank = PortForward(id = "", label = "", hostId = host.id, kind = ForwardKind.LOCAL, destHost = "localhost")
+        ForwardDialog(blank, listOf(host), onDismiss = { startingAdHoc = false }, startOnly = true) { spec ->
+            startingAdHoc = false
+            app.tunnels.startAdHoc(host, spec)
         }
     }
     editing?.let { f ->
@@ -388,7 +437,14 @@ private fun ForwardRow(app: TermoakApp, f: PortForward, host: SshHost?, onClick:
 }
 
 @Composable
-private fun ForwardDialog(f: PortForward, hosts: List<SshHost>, onDismiss: () -> Unit, onSave: (PortForward) -> Unit) {
+private fun ForwardDialog(
+    f: PortForward,
+    hosts: List<SshHost>,
+    onDismiss: () -> Unit,
+    /** "Start without saving": no name needed, nothing saved, started at once. */
+    startOnly: Boolean = false,
+    onSave: (PortForward) -> Unit,
+) {
     var label by remember { mutableStateOf(f.label) }
     var hostId by remember { mutableStateOf(f.hostId) }
     var kind by remember { mutableStateOf(f.kind) }
@@ -401,7 +457,7 @@ private fun ForwardDialog(f: PortForward, hosts: List<SshHost>, onDismiss: () ->
     val bind = bindPort.trim().ifEmpty { "0" }.toUIntOrNull()?.takeIf { it <= 65535u }
     val dPort = destPort.trim().toUIntOrNull()?.takeIf { it in 1u..65535u }
     val needsDest = kind != ForwardKind.DYNAMIC
-    val valid = label.isNotBlank() && bind != null && hostId.isNotEmpty() && (!needsDest || (destHost.isNotBlank() && dPort != null))
+    val valid = (startOnly || label.isNotBlank()) && bind != null && hostId.isNotEmpty() && (!needsDest || (destHost.isNotBlank() && dPort != null))
     val kinds = listOf(
         ForwardKind.LOCAL to R.string.forwards_kind_local,
         ForwardKind.REMOTE to R.string.forwards_kind_remote,
@@ -411,7 +467,9 @@ private fun ForwardDialog(f: PortForward, hosts: List<SshHost>, onDismiss: () ->
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (f.id.isEmpty()) R.string.forwards_new else R.string.forwards_edit)) },
+        title = {
+            Text(stringResource(if (startOnly) R.string.tunnels_adhoc_new else if (f.id.isEmpty()) R.string.forwards_new else R.string.forwards_edit))
+        },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
@@ -463,12 +521,17 @@ private fun ForwardDialog(f: PortForward, hosts: List<SshHost>, onDismiss: () ->
                         )
                     }
                 }
-                Row(
-                    Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { autoStart = !autoStart },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(autoStart, { autoStart = it })
-                    Text(stringResource(R.string.forwards_auto_start), style = MaterialTheme.typography.bodyMedium)
+                if (startOnly) {
+                    Text(stringResource(R.string.tunnels_adhoc_explanation), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { autoStart = !autoStart },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(autoStart, { autoStart = it })
+                        Text(stringResource(R.string.forwards_auto_start), style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
         },
@@ -482,7 +545,7 @@ private fun ForwardDialog(f: PortForward, hosts: List<SshHost>, onDismiss: () ->
                         autoStart = autoStart,
                     ),
                 )
-            }) { Text(stringResource(R.string.common_save)) }
+            }) { Text(stringResource(if (startOnly) R.string.tunnels_adhoc_start else R.string.common_save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )

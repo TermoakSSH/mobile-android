@@ -4,6 +4,9 @@ import java.net.URI
 import java.net.URLDecoder
 import java.util.Locale
 
+/** The website's language in front of its links (`/es/join/…`, `/pt-BR/invite/…`): not part of the server. */
+private val WebLanguage = Regex("^[a-z]{2}(-[A-Za-z]{2,4})?$")
+
 /**
  * An invitation link: `termoak://join?server=…&token=…` or
  * `https://<server>/join/<token>` (also `/api/v1/join/<token>` and the
@@ -37,7 +40,7 @@ data class JoinLinkRef(val server: String, val token: String) {
             // nor the language of the website (`/es`).
             var prefix = parts.subList(0, i)
             if (prefix.takeLast(2) == listOf("api", "v1")) prefix = prefix.dropLast(2)
-            if (prefix.size == 1 && prefix[0].length == 2) prefix = emptyList()
+            if (prefix.size == 1 && WebLanguage.matches(prefix[0])) prefix = emptyList()
             val port = if (uri.port > 0) ":${uri.port}" else ""
             val path = if (prefix.isEmpty()) "" else prefix.joinToString("/", prefix = "/")
             return JoinLinkRef("$scheme://$host$port$path", token)
@@ -94,7 +97,7 @@ data class InviteLinkRef(val server: String, val token: String) {
             if (i < 0 || token == null || !TOKEN.matches(token)) return null
             var prefix = parts.subList(0, i)
             if (prefix.takeLast(2) == listOf("api", "v1")) prefix = prefix.dropLast(2)
-            if (prefix.size == 1 && prefix[0].length == 2) prefix = emptyList()
+            if (prefix.size == 1 && WebLanguage.matches(prefix[0])) prefix = emptyList()
             val port = if (uri.port > 0) ":${uri.port}" else ""
             val path = if (prefix.isEmpty()) "" else prefix.joinToString("/", prefix = "/")
             return InviteLinkRef("$scheme://$host$port$path", token)

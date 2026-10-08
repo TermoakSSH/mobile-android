@@ -16,6 +16,7 @@ class JoinLinkRefTest {
         // The API path and the website's language are not part of the server.
         assertEquals(JoinLinkRef("https://termoak.com", "tok"), JoinLinkRef.parse("https://termoak.com/api/v1/join/tok"))
         assertEquals(JoinLinkRef("https://termoak.com", "tok"), JoinLinkRef.parse("https://termoak.com/es/join/tok"))
+        assertEquals(JoinLinkRef("https://termoak.com", "tok"), JoinLinkRef.parse("https://termoak.com/pt-BR/join/tok"))
     }
 
     @Test
@@ -63,6 +64,7 @@ class InviteLinkRefTest {
     fun links() {
         assertEquals(InviteLinkRef("https://example.com", "abc-123"), InviteLinkRef.parse("termoak://invite?server=https://example.com/&token=abc-123"))
         assertEquals(InviteLinkRef("https://termoak.com", "abc"), InviteLinkRef.parse("https://termoak.com/es/invite/abc"))
+        assertEquals(InviteLinkRef("https://termoak.com", "abc"), InviteLinkRef.parse("https://termoak.com/pt-BR/invite/abc"))
         assertEquals(InviteLinkRef("https://example.com/termoak", "abc"), InviteLinkRef.parse("https://example.com/termoak/invite/abc"))
         assertNull(InviteLinkRef.parse("https://termoak.com/join/abc"))
         assertNull(InviteLinkRef.parse("termoak://join?server=https://x&token=t"))

@@ -43,3 +43,29 @@ object Elapsed {
         else String.format(java.util.Locale.ROOT, "%d:%02d", m, s)
     }
 }
+
+/**
+ * Reconnecting the terminals of the phone that the system or the network cut
+ * while the app was away (the iOS app's rule): what to do with one when the
+ * app comes back (or the network does).
+ */
+object AutoReconnect {
+    /** After this long away, a terminal that still looks connected is checked (a keep-alive) before trusting it. */
+    const val CHECK_AFTER_MS = 20_000L
+    /** For this long after coming back, a terminal that was connected and drops reconnects by itself (the system tells late). */
+    const val WINDOW_MS = 15_000L
+
+    enum class Action { NONE, RECONNECT, WATCH, CHECK }
+
+    /**
+     * [connectedWhenLeaving]: it was connected when the app left; [closed] /
+     * [connected]: its state now; [endedByProgram]: it closed with an exit
+     * code (`exit`), which doesn't come back by itself.
+     */
+    fun onReturn(connectedWhenLeaving: Boolean, asleep: Boolean, closed: Boolean, connected: Boolean, endedByProgram: Boolean, awayMs: Long): Action = when {
+        !connectedWhenLeaving || asleep -> Action.NONE
+        closed -> if (endedByProgram) Action.NONE else Action.RECONNECT
+        connected -> if (awayMs >= CHECK_AFTER_MS) Action.CHECK else Action.WATCH
+        else -> Action.NONE
+    }
+}

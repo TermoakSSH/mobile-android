@@ -43,6 +43,51 @@ class LocalTerminal(
     /** Connected (each time: also after reconnecting). */
     @Volatile var onConnected: () -> Unit = {}
 
+    // ----- Reconnecting by itself (the iOS app's rule, AutoReconnect) -----
+
+    /** It was connected when the app (or the network) went away. */
+    @Volatile private var connectedWhenLeaving = false
+    /** It closed with an exit code (`exit`): that doesn't come back by itself. */
+    @Volatile private var endedByProgram = false
+    /** Until when a drop reconnects by itself (just after coming back). */
+    @Volatile private var reconnectsUntil = 0L
+
+    /** The app goes to the background (or the network drops). */
+    fun leaving() {
+        connectedWhenLeaving = _state.value == TermState.Running
+    }
+
+    /**
+     * Back after [awayMs]: cut meanwhile, it reconnects by itself; still
+     * looking connected after a long while, a keep-alive checks it first; and
+     * if it drops in the next seconds it reconnects too. Not the ones closed by hand or by `exit`.
+     */
+    fun returned(awayMs: Long) {
+        val action = AutoReconnect.onReturn(
+            connectedWhenLeaving, asleep, _state.value is TermState.Closed, _state.value == TermState.Running, endedByProgram, awayMs,
+        )
+        connectedWhenLeaving = false
+        when (action) {
+            AutoReconnect.Action.NONE -> Unit
+            AutoReconnect.Action.RECONNECT -> autoReconnect()
+            AutoReconnect.Action.WATCH -> reconnectsUntil = System.currentTimeMillis() + AutoReconnect.WINDOW_MS
+            AutoReconnect.Action.CHECK -> {
+                reconnectsUntil = System.currentTimeMillis() + AutoReconnect.WINDOW_MS
+                val h = handle
+                scope.launch {
+                    val alive = latencyMs() != null
+                    if (!alive && handle === h && _state.value == TermState.Running) autoReconnect()
+                }
+            }
+        }
+    }
+
+    private fun autoReconnect() {
+        reconnectsUntil = 0L
+        toast(uiText(R.string.term_reconnecting))
+        reconnect()
+    }
+
     /**
      * Round trip to the host in milliseconds (an SSH keep-alive or a Telnet
      * TIMING-MARK), or `null` when unknown: not connected, no answer in
@@ -259,6 +304,12 @@ class LocalTerminal(
 
     override fun onStatus(status: TerminalStatus) {
         if (status is TerminalStatus.Closed) {
+            endedByProgram = status.exitCode != null
+            // Cut just after coming back from the background (not `exit`): again by itself.
+            if (status.exitCode == null && System.currentTimeMillis() < reconnectsUntil && _state.value == TermState.Running) {
+                scope.launch { autoReconnect() }
+                return
+            }
             val why = status.reason?.let { UiText.Raw(it) }
                 ?: status.exitCode?.let { uiText(R.string.term_session_ended_code, it.toString()) }
             _state.value = TermState.Closed(why ?: uiText(R.string.term_connection_closed))

@@ -50,6 +50,50 @@ class Tunnels(private val core: TermoakCore, private val sessions: Sessions) {
     private val _errors = MutableSharedFlow<UiText>(extraBufferCapacity = 8)
     val errors: SharedFlow<UiText> = _errors
 
+    private val _adHoc = MutableStateFlow<List<AdHocTunnel>>(emptyList())
+    /** Tunnels started without saving them (they go away when stopped or when their connection closes). */
+    val adHoc: StateFlow<List<AdHocTunnel>> = _adHoc
+
+    /**
+     * Starts a tunnel to [host] without saving it (the engine's
+     * `startForwardSpec`), from [spec]'s kind, ports and destination.
+     */
+    fun startAdHoc(host: com.termoak.ffi.SshHost, spec: PortForward) {
+        val uid = "adhoc:" + java.util.UUID.randomUUID()
+        _starting.value += uid
+        scope.launch {
+            try {
+                val s = connection(host.id, host.accountId)
+                val active = s.startForwardSpec(spec.kind, spec.bindAddress, spec.bindPort, spec.destHost, spec.destPort)
+                _running.value += uid to active
+                hostOf[uid] = hostKey(host.accountId, host.id)
+                _adHoc.value += AdHocTunnel(uid, host.id, host.accountId, spec.copy(id = uid, hostId = host.id))
+                changed()
+            } catch (e: TermoakException) {
+                _errors.tryEmit(e.toUiText(R.string.tunnels_start_failed))
+                releaseIfUnused(hostKey(host.accountId, host.id))
+            } finally {
+                _starting.value -= uid
+            }
+        }
+    }
+
+    fun stopAdHoc(t: AdHocTunnel) {
+        _adHoc.value = _adHoc.value.filterNot { it.uid == t.uid }
+        val active = _running.value[t.uid]
+        _running.value -= t.uid
+        _stats.value -= t.uid
+        val host = hostOf.remove(t.uid)
+        changed()
+        scope.launch {
+            active?.let {
+                runCatching { it.stop() }
+                it.close()
+            }
+            host?.let { releaseIfUnused(it) }
+        }
+    }
+
     private class Connection(val session: SshSession, val own: Boolean)
 
     /** Connections by host ("account/host"). */
@@ -100,6 +144,7 @@ class Tunnels(private val core: TermoakCore, private val sessions: Sessions) {
     /** Stops every tunnel ("Close all" of the notification). */
     fun stopAll() {
         val all = _running.value.values.toList()
+        _adHoc.value = emptyList()
         _running.value = emptyMap()
         _stats.value = emptyMap()
         hostOf.clear()
@@ -195,12 +240,16 @@ class Tunnels(private val core: TermoakCore, private val sessions: Sessions) {
         }
         if (gone.isNotEmpty()) {
             _running.value -= gone.toSet()
+            _adHoc.value = _adHoc.value.filterNot { it.uid in gone }
             gone.forEach { uid -> hostOf.remove(uid)?.let { releaseIfUnused(it) } }
             sessions.updateService()
         }
         _stats.value = stats
     }
 }
+
+/** A tunnel started without saving it: its key in [Tunnels.running], its host and what it is. */
+data class AdHocTunnel(val uid: String, val hostId: String, val accountId: String?, val spec: PortForward)
 
 /** Texts and links of a tunnel (JVM tests). */
 object TunnelText {
