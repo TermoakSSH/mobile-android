@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.termoak.app.data.InviteLinkRef
 import com.termoak.app.data.JoinLinkRef
+import com.termoak.app.data.QuickAction
 import com.termoak.app.term.HardwareKeys
 import com.termoak.app.term.layout
 import com.termoak.app.term.toKeyPress
@@ -42,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         app.accounts.refresh()
         app.shareNotices.start()
         if (savedInstanceState == null) handleIntent(intent)
+        app.shortcuts.update()
         // The app lock: the recent apps screen doesn't show the app's content while it is on.
         if (Build.VERSION.SDK_INT >= 33) {
             lifecycleScope.launch { app.appLock.enabled.collect { setRecentsScreenshotEnabled(!it) } }
@@ -113,15 +115,23 @@ class MainActivity : AppCompatActivity() {
         if (!isChangingConfigurations) {
             (application as TermoakApp).appLock.stopped()
             (application as TermoakApp).sessions.appLeaving()
+            // The hosts opened meanwhile, for the shortcuts of the app's icon.
+            (application as TermoakApp).shortcuts.update()
         }
         (application as TermoakApp).shareNotices.inForeground = false
         super.onStop()
     }
 
-    /** Invitation links (`termoak://join`, `https://…/join/…`, `termoak://invite`, `https://…/invite/…`) and our notifications. */
+    /** Invitation links (`termoak://join`, `https://…/join/…`, `termoak://invite`, `https://…/invite/…`), our notifications and the shortcuts of the app's icon. */
     private fun handleIntent(intent: Intent?) {
         val app = application as TermoakApp
         if (app.shareNotices.handleIntent(intent)) return
+        // A shortcut of the app's icon (touch and hold it).
+        QuickAction.parse(intent?.action, intent?.getStringExtra(QuickAction.EXTRA_HOST), intent?.getStringExtra(QuickAction.EXTRA_ACCOUNT))?.let {
+            app.pendingQuickAction.value = it
+            app.shortcuts.used(it)
+            return
+        }
         if (intent?.action == Intent.ACTION_VIEW) {
             JoinLinkRef.parse(intent.dataString)?.let { app.pendingLink.value = it }
                 ?: InviteLinkRef.parse(intent.dataString)?.let { app.pendingInvite.value = it }

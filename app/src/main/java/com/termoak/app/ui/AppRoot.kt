@@ -79,8 +79,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +105,7 @@ import com.termoak.app.MainActivity
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.JoinLinkRef
+import com.termoak.app.data.QuickAction
 import com.termoak.app.term.ShareNotice
 import com.termoak.app.term.Shortcut
 import com.termoak.app.term.TermSession
@@ -529,6 +532,33 @@ fun AppRoot(app: TermoakApp) {
         val l = link ?: return@LaunchedEffect
         app.pendingLink.value = null
         nav.navigate(Routes.join(l)) { launchSingleTop = true }
+    }
+    // A shortcut of the app's icon: Quick connect, Join with a link or connect to a host.
+    val quickAction by app.pendingQuickAction.collectAsState()
+    var joinAsk by remember { mutableStateOf(false) }
+    val iconActivity = LocalActivity.current
+    LaunchedEffect(quickAction) {
+        val a = quickAction ?: return@LaunchedEffect
+        app.pendingQuickAction.value = null
+        when (a) {
+            QuickAction.QuickConnect -> DesktopUi.quickConnect.value = true
+            QuickAction.Join -> joinAsk = true
+            is QuickAction.Host -> {
+                val host = runCatching { app.core.getHost(a.id, a.accountId) }.getOrNull()
+                if (host == null) {
+                    snackbar.showSnackbar(resources.getString(R.string.shortcut_host_gone))
+                } else {
+                    (iconActivity as? MainActivity)?.askNotificationPermission()
+                    quickConnect(app, nav, host)
+                }
+            }
+        }
+    }
+    if (joinAsk) {
+        JoinLinkDialog(onDismiss = { joinAsk = false }) { l ->
+            joinAsk = false
+            nav.navigate(Routes.join(l)) { launchSingleTop = true }
+        }
     }
     // Join and keyboard requests of open terminals, answered from any screen.
     val requests = remember { mutableStateListOf<ShareNotice>() }

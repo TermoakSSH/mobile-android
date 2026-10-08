@@ -200,6 +200,11 @@ class Prefs(context: Context) {
         get() = sp.getString("device_name", null)?.trim()?.takeIf { it.isNotEmpty() }
         set(v) = sp.edit { putString("device_name", v?.trim()?.take(64)) }
 
+    /** The hosts opened last, for the app's shortcuts (on this device only). */
+    var recentHosts: RecentHosts
+        get() = RecentHosts(sp.getString("recent_hosts", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty())
+        set(v) = sp.edit { putString("recent_hosts", v.keys.joinToString("\n")) }
+
     /** Already used without a server: don't show the welcome screen again. */
     var skippedLogin: Boolean
         get() = sp.getBoolean("skipped_login", false)

@@ -110,6 +110,8 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     @Volatile var tunnelCount: () -> Int = { 0 }
     /** A terminal from the phone connected (its automatic tunnels start; set by the app). */
     @Volatile var onLocalConnected: (LocalTerminal) -> Unit = {}
+    /** A terminal to a host was opened (the app's shortcuts offer the last ones). */
+    @Volatile var onHostOpened: (SshHost) -> Unit = {}
 
     /**
      * Detects the system of the host a terminal from the phone just connected
@@ -144,8 +146,9 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     }
 
     /** SSH (or Telnet) from the phone ([activate]: it becomes the terminal on screen). */
-    fun openLocal(host: SshHost, activate: Boolean = true): TermSession =
-        add(
+    fun openLocal(host: SshHost, activate: Boolean = true): TermSession {
+        onHostOpened(host)
+        return add(
             LocalTerminal(core, host.label, host.id, host.address, host.accountId, host.isTelnet, telnetAutoLogin)
                 .also {
                     prepare(it, host.os)
@@ -153,6 +156,7 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
                 },
             activate,
         )
+    }
 
     /** An open terminal of [hostId] from the phone that is connected or connecting (to reuse it). */
     fun liveLocal(hostId: String, accountId: String? = null): TermSession? = _list.value.firstOrNull {
@@ -160,8 +164,10 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     }
 
     /** New (persistent) session on the server of the host's account ([record]: recorded there; `null`: as the host says). */
-    fun openOnServer(host: SshHost, record: Boolean? = null): TermSession =
-        add(ServerTerminal(core, host.label, host.id, null, accountId = host.accountId, record = record))
+    fun openOnServer(host: SshHost, record: Boolean? = null): TermSession {
+        onHostOpened(host)
+        return add(ServerTerminal(core, host.label, host.id, null, accountId = host.accountId, record = record))
+    }
 
     /**
      * Attaches to a session that already lives on a server ([owner]: yours,

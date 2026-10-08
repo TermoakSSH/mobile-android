@@ -1632,4 +1632,5 @@
     <string name="vault_audit_role_changed">Rol cambiado</string>
     <string name="vault_audit_transfer">Elementos movidos o copiados</string>
     <string name="vault_audit_update">Vault modificado</string>
+    <string name="shortcut_host_gone">Ese host ya no existe</string>
 </resources>

@@ -40,8 +40,13 @@ class TermoakApp : Application() {
                 tunnels.onTerminalConnected(it)
                 detectOs(it)
             }
+            onHostOpened = { shortcuts.record(it) }
         }
     }
+    /** The app's shortcuts (touch and hold its icon). */
+    val shortcuts: AppShortcuts by lazy { AppShortcuts(this, core, prefs) }
+    /** A shortcut of the app's icon, waiting for the app to do it. */
+    val pendingQuickAction = kotlinx.coroutines.flow.MutableStateFlow<com.termoak.app.data.QuickAction?>(null)
     /** The app lock (Settings → Lock). */
     val appLock: com.termoak.app.data.AppLock by lazy { com.termoak.app.data.AppLock(this) }
     /** Running tunnels (port forwarding). */
