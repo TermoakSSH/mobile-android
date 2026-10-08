@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.termoak.app.R
+import com.termoak.app.data.shownEmail
 import com.termoak.app.userMessage
 import com.termoak.ffi.AccountHandle
 import com.termoak.ffi.AuditEvent
@@ -60,7 +61,7 @@ internal object VaultAudit {
     fun who(actor: String, members: List<VaultMember>): String {
         val id = actor.removePrefix("user:")
         val m = members.firstOrNull { it.userId == id || it.id == id } ?: return actor
-        return m.email ?: m.name.ifEmpty { actor }
+        return m.email?.let(::shownEmail) ?: m.name.ifEmpty { actor }
     }
 }
 

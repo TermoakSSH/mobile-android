@@ -104,6 +104,7 @@ import com.termoak.app.data.HostProtocol
 import com.termoak.app.data.Place
 import com.termoak.app.data.canEdit
 import com.termoak.app.data.canWrite
+import com.termoak.app.data.displayName
 import com.termoak.app.data.isTelnet
 import com.termoak.app.data.place
 import com.termoak.app.data.uid
@@ -910,7 +911,7 @@ private fun placeLabel(p: Place, accounts: List<AccountInfo>, vaults: List<Vault
     val account = accounts.firstOrNull { it.id == p.account }
     val v = vaults.firstOrNull { it.id == p.vault && it.accountId == p.account }
     val name = v?.let { vaultName(it) } ?: stringResource(R.string.vault_personal)
-    return if (accounts.size > 1 && account != null) "$name · ${account.email}" else name
+    return if (accounts.size > 1 && account != null) "$name · ${account.displayName}" else name
 }
 
 /**

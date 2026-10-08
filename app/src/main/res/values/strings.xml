@@ -1736,4 +1736,10 @@
     <string name="teams_invite_revoke">Revoke</string>
     <string name="teams_invite_link_title">Invitation to sign up</string>
     <string name="teams_invite_link_text">%1$s has no account on this server yet. Send them this link: it opens the sign-up form with the invitation, and they join the team.</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_hide_emails">Hide email addresses</string>
+    <string name="settings_hide_emails_hint">Your accounts\' emails and other people\'s show as a•••@e•••.com (for screenshots, screen sharing and demos). Names you gave your accounts still show.</string>
+    <string name="accounts_alias">Name on this device</string>
+    <string name="accounts_alias_placeholder">Work, Personal…</string>
+    <string name="accounts_alias_hint">Shown instead of %1$s on this device only (not synced). Leave it empty to show the email.</string>
 </resources>

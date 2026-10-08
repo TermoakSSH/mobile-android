@@ -65,6 +65,7 @@ import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
+import com.termoak.app.data.displayName
 import com.termoak.app.term.Elapsed
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
@@ -179,7 +180,7 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
             // With several accounts, each session says which one it is on.
             val several = lists.size > 1
             fun accountLabel(id: String): String? =
-                if (several) lists.firstOrNull { it.first.id == sessionAccount[id] }?.first?.email else null
+                if (several) lists.firstOrNull { it.first.id == sessionAccount[id] }?.first?.displayName else null
             if (local.isEmpty() && active.isEmpty() && shared.isEmpty() && recent.isEmpty()) {
                 Column(Modifier.fillMaxSize()) {
                     EmptyState(

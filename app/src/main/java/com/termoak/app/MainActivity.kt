@@ -45,6 +45,12 @@ class MainActivity : AppCompatActivity() {
         app.shareNotices.start()
         if (savedInstanceState == null) handleIntent(intent)
         app.shortcuts.update()
+        // The names of the accounts and "Hide email addresses", for every screen.
+        lifecycleScope.launch {
+            kotlinx.coroutines.flow.combine(app.prefs.accountAliases, app.prefs.hideEmails) { aliases, hide ->
+                com.termoak.ffi.AccountNames(aliases, hide)
+            }.collect { com.termoak.app.data.AccountNamesState.names = it }
+        }
         // The app lock: the recent apps screen doesn't show the app's content while it is on.
         if (Build.VERSION.SDK_INT >= 33) {
             lifecycleScope.launch { app.appLock.enabled.collect { setRecentsScreenshotEnabled(!it) } }

@@ -103,6 +103,8 @@ import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.canEdit
+import com.termoak.app.data.displayName
+import com.termoak.app.data.shownEmail
 import com.termoak.app.userMessage
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.ItemFilter
@@ -238,7 +240,7 @@ fun VaultsScreen(app: TermoakApp, nav: NavHostController) {
             }
             accounts.forEach { a ->
                 val mine = vaults.filter { it.accountId == a.id }
-                if (accounts.size > 1) item(key = "a" + a.id) { SectionLabel(a.email) }
+                if (accounts.size > 1) item(key = "a" + a.id) { SectionLabel(a.displayName) }
                 if (!a.vaultsSupported) {
                     item(key = "nv" + a.id) {
                         Text(
@@ -333,8 +335,8 @@ private fun NewVaultDialog(app: TermoakApp, onDismiss: () -> Unit, onCreated: (V
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (accounts.size > 1) {
                     Picker(
-                        stringResource(R.string.vault_account), accounts.firstOrNull { it.id == accountId }?.email, null,
-                        accounts.map { it.id to it.email },
+                        stringResource(R.string.vault_account), accounts.firstOrNull { it.id == accountId }?.displayName, null,
+                        accounts.map { it.id to it.displayName },
                     ) { accountId = it }
                 }
                 OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
@@ -683,7 +685,7 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
     }
     removing?.let { m ->
         ConfirmDialog(
-            stringResource(R.string.vault_remove_member_title, m.email ?: m.name),
+            stringResource(R.string.vault_remove_member_title, m.email?.let(::shownEmail) ?: m.name),
             stringResource(R.string.vault_remove_member_text, vaultName(vault)),
             stringResource(R.string.host_remove), destructive = true, onDismiss = { removing = null },
         ) {
@@ -738,11 +740,11 @@ private fun MemberRow(m: VaultMember, canManage: Boolean, onRole: (VaultRole) ->
                 Icon(if (m.kind == VaultMemberKind.TEAM) Icons.Outlined.Group else Icons.Outlined.Person, null)
             }
         },
-        headlineContent = { Text(m.name.ifBlank { m.email ?: "" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        headlineContent = { Text(m.name.ifBlank { m.email?.let(::shownEmail) ?: "" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             Text(
                 listOfNotNull(
-                    m.email?.takeIf { it != m.name && m.name.isNotBlank() },
+                    m.email?.let(::shownEmail)?.takeIf { it != m.name && m.name.isNotBlank() },
                     stringResource(R.string.vault_member_team).takeIf { m.kind == VaultMemberKind.TEAM },
                     stringResource(R.string.vault_member_implicit).takeIf { m.implicit },
                 ).joinToString(" · ").ifEmpty { roleText(m.role) },
@@ -923,9 +925,9 @@ fun TransferFlow(app: TermoakApp, request: TransferRequest, onDismiss: () -> Uni
         buildList {
             if (single == null || single.first != null) add(Destination(null, null, deviceLabel, null, null))
             accounts.filter { it.status != AccountStatus.UNVERIFIED }.forEach { a ->
-                val detail = a.email.takeIf { accounts.size > 1 }
+                val detail = a.displayName.takeIf { accounts.size > 1 }
                 if (!a.vaultsSupported) {
-                    if (single?.first != a.id) add(Destination(a.id, null, a.email, null, null))
+                    if (single?.first != a.id) add(Destination(a.id, null, a.displayName, null, null))
                 } else {
                     vaults.filter { it.accountId == a.id && it.role.canEdit() }.forEach { v ->
                         if (single != (a.id to v.id) && !(single?.first == a.id && single.second == null && v.kind == VaultKind.PERSONAL)) {

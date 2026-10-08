@@ -39,8 +39,8 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Psychology
@@ -96,6 +96,7 @@ import com.termoak.app.data.ApprovalPreview
 import com.termoak.app.data.RiskReason
 import com.termoak.app.data.Turn
 import com.termoak.app.data.decide
+import com.termoak.app.data.displayName
 import com.termoak.app.data.isTelnet
 import com.termoak.app.data.parseConversation
 import com.termoak.app.data.stripContext
@@ -820,7 +821,7 @@ internal fun AiAccountPicker(accounts: List<com.termoak.ffi.AccountInfo>, select
         accounts.forEach { a ->
             FilterChip(
                 selected = a.id == selected, onClick = { onSelect(a.id) },
-                label = { Text(a.email, maxLines = 1) },
+                label = { Text(a.displayName, maxLines = 1) },
                 leadingIcon = { AccountAvatar(a, 18.dp) },
             )
         }

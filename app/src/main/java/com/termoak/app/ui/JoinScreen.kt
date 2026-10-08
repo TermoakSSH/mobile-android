@@ -52,15 +52,16 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.AccountView
 import com.termoak.app.data.InviteLinkRef
 import com.termoak.app.data.JoinLinkRef
+import com.termoak.app.data.displayName
 import com.termoak.app.term.LinkJoin
+import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.LinkInvite
 import com.termoak.ffi.SessionAccess
 import com.termoak.ffi.TermoakException
 import com.termoak.ffi.linkInviteInfo
-import com.termoak.ffi.AccountStatus
-import com.termoak.app.data.AccountView
 
 /**
  * Joining a shared session with an invitation link: what it is (who shares
@@ -73,7 +74,7 @@ fun JoinScreen(app: TermoakApp, nav: NavHostController, server: String, token: S
     // A signed-in account on the link's server joins with its name (the current one first).
     val match = accountList.filter { it.status == AccountStatus.ACTIVE && JoinLinkRef.sameServer(it.serverUrl, server) }
         .sortedByDescending { it.isCurrent }.firstOrNull()
-    val user = match?.email
+    val user = match?.displayName
     var info by remember { mutableStateOf<LinkInvite?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf(app.prefs.guestName.orEmpty()) }

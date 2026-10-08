@@ -221,6 +221,28 @@ class Prefs(context: Context) {
         get() = RecentHosts(sp.getString("recent_hosts", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty())
         set(v) = sp.edit { putString("recent_hosts", v.keys.joinToString("\n")) }
 
+    private val _hideEmails = MutableStateFlow(sp.getBoolean("hide_emails", false))
+    /** Settings → Privacy: the emails of your accounts (and of other people) are masked (a•••@e•••.com). */
+    val hideEmails: StateFlow<Boolean> = _hideEmails
+    fun setHideEmails(on: Boolean) {
+        _hideEmails.value = on
+        sp.edit { putBoolean("hide_emails", on) }
+    }
+
+    private val _aliases = MutableStateFlow(readAliases())
+    /** Names given to the accounts on this device, by account id (not synced, like the desktop's). */
+    val accountAliases: StateFlow<Map<String, String>> = _aliases
+    fun setAccountAlias(accountId: String, alias: String?) {
+        val next = if (alias == null) _aliases.value - accountId else _aliases.value + (accountId to alias)
+        _aliases.value = next
+        sp.edit { putString("account_aliases", org.json.JSONObject(next).toString()) }
+    }
+
+    private fun readAliases(): Map<String, String> = runCatching {
+        val o = org.json.JSONObject(sp.getString("account_aliases", null) ?: "{}")
+        o.keys().asSequence().associateWith { o.getString(it) }
+    }.getOrDefault(emptyMap())
+
     /** The device's push token (Firebase), when the build has push. */
     var pushToken: String?
         get() = sp.getString("push_token", null)

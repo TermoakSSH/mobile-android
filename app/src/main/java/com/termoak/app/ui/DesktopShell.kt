@@ -139,6 +139,7 @@ import com.termoak.app.TermoakApp
 import com.termoak.app.data.HostProtocol
 import com.termoak.app.data.QuickTarget
 import com.termoak.app.data.WideLayout
+import com.termoak.app.data.displayName
 import com.termoak.app.data.isTelnet
 import com.termoak.app.data.uid
 import com.termoak.app.term.LocalTerminal
@@ -479,7 +480,7 @@ private fun SidebarFooter(app: TermoakApp, collapsed: Boolean, onClick: () -> Un
         if (!collapsed) {
             Column(Modifier.padding(start = 10.dp)) {
                 Text(
-                    current?.takeIf { signedIn }?.email ?: stringResource(R.string.sidebar_no_server),
+                    current?.takeIf { signedIn }?.displayName ?: stringResource(R.string.sidebar_no_server),
                     style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(

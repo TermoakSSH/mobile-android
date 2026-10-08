@@ -1793,4 +1793,10 @@
     <string name="teams_invite_revoke">Revocar</string>
     <string name="teams_invite_link_title">Invitación para registrarse</string>
     <string name="teams_invite_link_text">%1$s aún no tiene cuenta en este servidor. Envíale este enlace: abre el formulario de registro con la invitación y entra en el equipo.</string>
+    <string name="settings_privacy">Privacidad</string>
+    <string name="settings_hide_emails">Ocultar direcciones de correo</string>
+    <string name="settings_hide_emails_hint">Los correos de tus cuentas y de otras personas se ven como a•••@e•••.com (para capturas, compartir pantalla y demostraciones). Los nombres que diste a tus cuentas se siguen viendo.</string>
+    <string name="accounts_alias">Nombre en este dispositivo</string>
+    <string name="accounts_alias_placeholder">Trabajo, Personal…</string>
+    <string name="accounts_alias_hint">Se muestra en lugar de %1$s solo en este dispositivo (no se sincroniza). Déjalo vacío para mostrar el correo.</string>
 </resources>

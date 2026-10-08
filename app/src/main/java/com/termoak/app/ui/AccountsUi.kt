@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Lock
@@ -56,6 +57,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -88,6 +90,10 @@ import com.termoak.app.asString
 import com.termoak.app.data.AccountView
 import com.termoak.app.data.Accounts
 import com.termoak.app.data.DEVICE_VAULT
+import com.termoak.app.data.alias
+import com.termoak.app.data.displayEmail
+import com.termoak.app.data.displayName
+import com.termoak.app.data.initial
 import com.termoak.app.data.serverHost
 import com.termoak.app.userMessage
 import com.termoak.ffi.AccountInfo
@@ -114,8 +120,7 @@ fun accountColor(a: AccountInfo): Color =
 @Composable
 fun AccountAvatar(a: AccountInfo, size: Dp = 32.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(accountColor(a)), contentAlignment = Alignment.Center) {
-        val initial = (a.name.ifBlank { a.email }).trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
-        Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.45f).sp)
+        Text(a.initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.45f).sp)
     }
 }
 
@@ -153,7 +158,7 @@ fun AccountSwitcher(app: TermoakApp, nav: NavHostController, attention: Boolean 
                 DropdownMenuItem(
                     text = {
                         Column {
-                            Text(a.email, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(a.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             val status = statusText(a)
                             Text(
                                 listOfNotNull(accountServer(a).takeIf { !a.official }, status).joinToString(" · ")
@@ -222,7 +227,7 @@ internal fun AccountSwitcherButton(accounts: List<AccountInfo>, view: AccountVie
         Column(Modifier.padding(start = 10.dp).weight(1f, fill = false)) {
             Text(
                 when {
-                    shown != null -> shown.email
+                    shown != null -> shown.displayName
                     view == AccountView.Device -> stringResource(R.string.accounts_device_only)
                     else -> stringResource(R.string.accounts_all)
                 },
@@ -319,7 +324,7 @@ internal fun VaultFilterChips(
     ) {
         FilterChip(selected == null, { onSelect(null) }, { Text(stringResource(R.string.vaults_all)) })
         shown.forEach { v ->
-            val owner = if (several) accounts.firstOrNull { it.id == v.accountId }?.email?.substringBefore('@') else null
+            val owner = if (several) accounts.firstOrNull { it.id == v.accountId }?.displayName else null
             FilterChip(
                 selected == v.id, { onSelect(if (selected == v.id) null else v.id) },
                 { Text(listOfNotNull(vaultName(v), owner).joinToString(" · "), maxLines = 1) },
@@ -383,7 +388,7 @@ fun VaultFilterMenu(app: TermoakApp) {
                 onClick = { open = false; app.accounts.setVaultFilter(null) },
             )
             shown.forEach { v ->
-                val owner = if (several) accounts.firstOrNull { it.id == v.accountId }?.email?.substringBefore('@') else null
+                val owner = if (several) accounts.firstOrNull { it.id == v.accountId }?.displayName else null
                 DropdownMenuItem(
                     text = { Text(listOfNotNull(vaultName(v), owner).joinToString(" · "), maxLines = 1) },
                     leadingIcon = { Box(Modifier.size(10.dp).clip(CircleShape).background(vaultColor(v))) },
@@ -443,6 +448,7 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
     val vaults by app.accounts.vaults.collectAsState()
     val context = LocalContext.current
     var signingOut by remember { mutableStateOf<AccountInfo?>(null) }
+    var naming by remember { mutableStateOf<AccountInfo?>(null) }
     ScreenScaffold(
         title = stringResource(R.string.accounts_title),
         navigationIcon = {
@@ -462,9 +468,10 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             AccountAvatar(a, 44.dp)
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(a.email, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(a.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
-                                    listOfNotNull(a.name.ifBlank { null }, accountServer(a)).joinToString(" · "),
+                                    // With a name on this device, its email under it (masked when emails are hidden).
+                                    listOfNotNull(a.displayEmail.takeIf { a.alias != null }, a.name.ifBlank { null }, accountServer(a)).joinToString(" · "),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -508,6 +515,11 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                                     Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp))
                                     Text(stringResource(R.string.accounts_vaults_count, count), Modifier.padding(start = 6.dp))
                                 }
+                            }
+                            // A name for it on this device ("Work", "Personal"), like the desktop's.
+                            TextButton(onClick = { naming = a }) {
+                                Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp))
+                                Text(stringResource(R.string.accounts_alias), Modifier.padding(start = 6.dp))
                             }
                             if (accounts.size > 1) {
                                 TextButton(onClick = {
@@ -582,6 +594,7 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
             )
         }
     }
+    naming?.let { a -> AccountAliasDialog(app, a) { naming = null } }
     signingOut?.let { a -> SignOutFlow(app, a, onDone = { signingOut = null }) }
 }
 
@@ -607,7 +620,7 @@ fun SignOutFlow(app: TermoakApp, a: AccountInfo, onDone: () -> Unit) {
                 if (r.signedOut) {
                     app.sessions.closeAccount(a.id)
                     onDone()
-                    snackbar.showSnackbar(resources.getString(R.string.accounts_signed_out, a.email))
+                    snackbar.showSnackbar(resources.getString(R.string.accounts_signed_out, a.displayName))
                 } else {
                     unsynced = r.unsynced.toLong()
                 }
@@ -640,7 +653,7 @@ fun SignOutFlow(app: TermoakApp, a: AccountInfo, onDone: () -> Unit) {
             onDismissRequest = { if (!busy) onDone() },
             icon = { Icon(Icons.AutoMirrored.Filled.Logout, null) },
             title = {
-                Text(stringResource(if (a.status == AccountStatus.ACTIVE) R.string.accounts_sign_out_title else R.string.accounts_remove_title, a.email))
+                Text(stringResource(if (a.status == AccountStatus.ACTIVE) R.string.accounts_sign_out_title else R.string.accounts_remove_title, a.displayName))
             },
             text = {
                 Column {
@@ -823,7 +836,7 @@ fun AccountsSettingsSection(app: TermoakApp, nav: NavHostController) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AccountAvatar(a, 44.dp)
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text(a.email, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(a.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(accountServer(a), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (a.status == AccountStatus.ACTIVE) StatusDot(if (online) Brand.Green else Brand.Amber)
@@ -870,4 +883,31 @@ fun UseOnlyNote() {
             )
         }
     }
+}
+
+/** The name of an account on this device (up to 40 characters; blank removes it), by the engine's rule. */
+@Composable
+private fun AccountAliasDialog(app: TermoakApp, a: AccountInfo, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(a.alias.orEmpty()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.accounts_alias)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    text, { text = it.take(60) }, Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text(stringResource(R.string.common_name)) }, placeholder = { Text(stringResource(R.string.accounts_alias_placeholder)) },
+                )
+                Text(stringResource(R.string.accounts_alias_hint, a.email), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                app.prefs.setAccountAlias(a.id, runCatching { com.termoak.ffi.cleanAccountAlias(text) }.getOrNull())
+                onDismiss()
+            }) { Text(stringResource(R.string.common_save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }

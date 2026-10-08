@@ -146,6 +146,7 @@ import com.termoak.app.data.AccountView
 import com.termoak.app.data.HostProtocol
 import com.termoak.app.data.QuickTarget
 import com.termoak.app.data.canWrite
+import com.termoak.app.data.displayName
 import com.termoak.app.data.isTelnet
 import com.termoak.app.data.uid
 import com.termoak.app.data.useOnly
@@ -786,7 +787,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                         useOnly = host.access.useOnly(),
                     )
                     accountList.firstOrNull { it.id == host.accountId }?.takeIf { accountList.size > 1 }?.let {
-                        Text(it.email, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(it.displayName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -959,7 +960,7 @@ private fun ScopeLabel(account: AccountInfo?) {
             AccountAvatar(account, 22.dp)
         }
         Text(
-            account?.email ?: stringResource(R.string.vault_this_device), Modifier.padding(start = 10.dp),
+            account?.displayName ?: stringResource(R.string.vault_this_device), Modifier.padding(start = 10.dp),
             style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

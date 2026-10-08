@@ -116,6 +116,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val terminalFont by app.prefs.terminalFont.collectAsState()
     val terminalTheme by app.prefs.terminalTheme.collectAsState()
     val aiFixChip by app.prefs.aiFixChip.collectAsState()
+    val hideEmails by app.prefs.hideEmails.collectAsState()
     val lockOn by app.appLock.enabled.collectAsState()
     val lockDelay by app.appLock.delay.collectAsState()
     var choosingLockDelay by remember { mutableStateOf(false) }
@@ -270,6 +271,12 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             if (lockOn) {
                 Row0(Icons.Outlined.Timer, stringResource(R.string.settings_lock_after), lockDelayName(lockDelay)) { choosingLockDelay = true }
                 Row0(Icons.Outlined.Lock, stringResource(R.string.settings_lock_now), "") { app.appLock.lockNow() }
+            }
+
+            // ----- Privacy (the desktop's): emails masked in the app, for screenshots, screen sharing, demos -----
+            SectionLabel(stringResource(R.string.settings_privacy))
+            SwitchRow(stringResource(R.string.settings_hide_emails), stringResource(R.string.settings_hide_emails_hint), hideEmails) {
+                app.prefs.setHideEmails(it)
             }
 
             SectionLabel(stringResource(R.string.settings_appearance))

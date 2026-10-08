@@ -56,6 +56,8 @@ import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.AccountTeams
 import com.termoak.app.data.TeamPerson
+import com.termoak.app.data.displayName
+import com.termoak.app.data.shownEmail
 import com.termoak.app.userMessage
 import com.termoak.ffi.AccountInfo
 import com.termoak.ffi.AccountStatus
@@ -142,7 +144,7 @@ fun TeamsScreen(app: TermoakApp, nav: NavHostController) {
             }
             active.forEach { a ->
                 val list = teams[a.id]
-                if (active.size > 1) item(key = "a" + a.id) { SectionLabel(a.email) }
+                if (active.size > 1) item(key = "a" + a.id) { SectionLabel(a.displayName) }
                 when {
                     a.id !in teams -> Unit
                     list == null -> item(key = "f" + a.id) { Note(stringResource(R.string.teams_load_failed)) }
@@ -185,8 +187,8 @@ private fun NewTeamDialog(app: TermoakApp, accounts: List<AccountInfo>, onDismis
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (accounts.size > 1) {
-                    Picker(stringResource(R.string.vault_account), accounts.firstOrNull { it.id == accountId }?.email, null,
-                        accounts.map { it.id to it.email }) { accountId = it }
+                    Picker(stringResource(R.string.vault_account), accounts.firstOrNull { it.id == accountId }?.displayName, null,
+                        accounts.map { it.id to it.displayName }) { accountId = it }
                 }
                 OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text(stringResource(R.string.common_name)) }, placeholder = { Text(stringResource(R.string.teams_name_placeholder)) })
@@ -283,11 +285,11 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
                             ListItem(
                                 headlineContent = {
                                     Text(
-                                        m.name.ifBlank { m.email } + if (mine) " (" + stringResource(R.string.teams_you) + ")" else "",
+                                        m.name.ifBlank { shownEmail(m.email) } + if (mine) " (" + stringResource(R.string.teams_you) + ")" else "",
                                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     )
                                 },
-                                supportingContent = if (m.name.isNotBlank()) ({ Text(m.email, maxLines = 1, overflow = TextOverflow.Ellipsis) }) else null,
+                                supportingContent = if (m.name.isNotBlank()) ({ Text(shownEmail(m.email), maxLines = 1, overflow = TextOverflow.Ellipsis) }) else null,
                                 trailingContent = {
                                     if (editable) {
                                         Box {
@@ -324,7 +326,7 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
                     invites.forEach { inv ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(inv.email ?: stringResource(R.string.teams_invite_anyone), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(inv.email?.let(::shownEmail) ?: stringResource(R.string.teams_invite_anyone), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
                                     teamRoleText(inv.teamRole?.let(AccountTeams::roleKey) ?: AccountTeams.MEMBER) +
                                         (inv.expiresAt?.let { " · " + stringResource(R.string.teams_invite_until, formatDay(it)) } ?: ""),
@@ -431,7 +433,7 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
     }
     removing?.let { m ->
         ConfirmDialog(
-            stringResource(R.string.teams_remove_title, m.name.ifBlank { m.email }), stringResource(R.string.teams_remove_text),
+            stringResource(R.string.teams_remove_title, m.name.ifBlank { shownEmail(m.email) }), stringResource(R.string.teams_remove_text),
             stringResource(R.string.teams_remove), destructive = true, onDismiss = { removing = null },
         ) {
             act {
