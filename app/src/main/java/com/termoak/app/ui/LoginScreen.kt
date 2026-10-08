@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
@@ -78,9 +79,11 @@ import com.termoak.app.data.officialServer
 import com.termoak.app.data.serverHost
 import com.termoak.app.userMessage
 import com.termoak.ffi.AccountStatus
+import com.termoak.ffi.InviteInfo
 import com.termoak.ffi.ServerChoice
 import com.termoak.ffi.TermoakException
 import com.termoak.ffi.canonicalServerUrl
+import com.termoak.ffi.inviteInfo
 import com.termoak.ffi.serverInfo
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -150,6 +153,8 @@ fun LoginScreen(
     mode: String? = null,
     prefillServer: String? = null,
     prefillEmail: String? = null,
+    /** The code of an invitation link (`termoak://invite`): it fills the sign-up form. */
+    prefillInvite: String? = null,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -172,12 +177,21 @@ fun LoginScreen(
     var code by remember { mutableStateOf("") }
     var needsCode by remember { mutableStateOf(false) }
     var acceptTerms by rememberSaveable { mutableStateOf(false) }
-    var invite by rememberSaveable { mutableStateOf("") }
+    var invite by rememberSaveable { mutableStateOf(prefillInvite ?: "") }
+    // What an invitation link offers (team, email, expiry).
+    var invitation by remember { mutableStateOf<InviteInfo?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val official = serverUrl == officialServer
     // A server with closed registration still takes new accounts with an invitation code.
     val needsInvite = !official && details?.url == serverUrl && details?.registrationOpen == false
+    // The invitation field: required on a closed server, or filled from a link.
+    val showInvite = needsInvite || prefillInvite != null
+    LaunchedEffect(prefillInvite) {
+        val token = prefillInvite ?: return@LaunchedEffect
+        invitation = runCatching { inviteInfo(serverUrl, token) }.getOrNull()
+        invitation?.email?.let { if (email.isBlank()) email = it }
+    }
 
     fun choice(): ServerChoice = if (official) ServerChoice.Official else ServerChoice.Custom(serverUrl)
 
@@ -259,7 +273,7 @@ fun LoginScreen(
         scope.launch {
             try {
                 val info = app.accounts.signUp(
-                    choice(), email, name, password, invite.trim().takeIf { needsInvite && it.isNotEmpty() },
+                    choice(), email, name, password, invite.trim().takeIf { showInvite && it.isNotEmpty() },
                     acceptTerms = terms && acceptTerms,
                 )
                 finished(info.status)
@@ -410,10 +424,11 @@ fun LoginScreen(
                     EmailField(email) { email = it }
                     PasswordField(
                         password, showPassword, { password = it }, { showPassword = !showPassword },
-                        if (needsInvite) ImeAction.Next else ImeAction.Done,
+                        if (showInvite) ImeAction.Next else ImeAction.Done,
                         supporting = stringResource(R.string.signup_password_rules), new = true,
                     ) { signUp() }
-                    if (needsInvite) {
+                    if (showInvite) {
+                        invitation?.let { InvitationCard(it) }
                         OutlinedTextField(
                             invite, { invite = it.trim() }, Modifier.fillMaxWidth(),
                             label = { Text(stringResource(R.string.signup_invite)) }, singleLine = true,
@@ -588,3 +603,24 @@ internal val TwoFactorKeyboard = KeyboardOptions(
     keyboardType = KeyboardType.Ascii,
     imeAction = ImeAction.Go,
 )
+
+/** What an invitation offers: the team it joins, who it is for and until when (as on iOS). */
+@Composable
+private fun InvitationCard(i: InviteInfo) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                i.team?.let { stringResource(R.string.signup_invite_team, it) } ?: stringResource(R.string.signup_invite_valid),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            i.email?.let { Text(stringResource(R.string.signup_invite_only_for, it), style = MaterialTheme.typography.bodySmall) }
+            i.expiresAt?.let { at ->
+                val ms = if (at < 10_000_000_000L) at * 1000 else at
+                val text = java.text.DateFormat.getDateTimeInstance(
+                    java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT, LocalConfiguration.current.locales[0],
+                ).format(java.util.Date(ms))
+                Text(stringResource(R.string.signup_invite_expires, text), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}

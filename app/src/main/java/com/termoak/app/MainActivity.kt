@@ -2,8 +2,8 @@ package com.termoak.app
 
 import android.Manifest
 import android.content.Intent
-import android.content.res.Configuration
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -13,15 +13,22 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.termoak.app.data.InviteLinkRef
 import com.termoak.app.data.JoinLinkRef
 import com.termoak.app.term.HardwareKeys
 import com.termoak.app.term.layout
 import com.termoak.app.term.toKeyPress
+import com.termoak.app.ui.AppLockScreen
 import com.termoak.app.ui.AppRoot
 import com.termoak.app.ui.KeyShortcuts
-import com.termoak.app.ui.keyboardShortcutGroups
 import com.termoak.app.ui.TermoakTheme
+import com.termoak.app.ui.keyboardShortcutGroups
+import kotlinx.coroutines.launch
 
 /** The only activity. AppCompat applies the per-app language on Android 12 and older (AppLanguage). */
 class MainActivity : AppCompatActivity() {
@@ -35,8 +42,17 @@ class MainActivity : AppCompatActivity() {
         app.accounts.refresh()
         app.shareNotices.start()
         if (savedInstanceState == null) handleIntent(intent)
+        // The app lock: the recent apps screen doesn't show the app's content while it is on.
+        if (Build.VERSION.SDK_INT >= 33) {
+            lifecycleScope.launch { app.appLock.enabled.collect { setRecentsScreenshotEnabled(!it) } }
+        }
         setContent {
-            TermoakTheme(app.prefs) { AppRoot(app) }
+            TermoakTheme(app.prefs) {
+                Box(Modifier.fillMaxSize()) {
+                    AppRoot(app)
+                    AppLockScreen(app)
+                }
+            }
         }
     }
 
@@ -87,20 +103,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        (application as TermoakApp).appLock.started()
         (application as TermoakApp).shareNotices.inForeground = true
     }
 
     override fun onStop() {
+        // Rotating or folding isn't leaving the app.
+        if (!isChangingConfigurations) (application as TermoakApp).appLock.stopped()
         (application as TermoakApp).shareNotices.inForeground = false
         super.onStop()
     }
 
-    /** Invitation links (`termoak://join`, `https://…/join/…`) and our notifications. */
+    /** Invitation links (`termoak://join`, `https://…/join/…`, `termoak://invite`, `https://…/invite/…`) and our notifications. */
     private fun handleIntent(intent: Intent?) {
         val app = application as TermoakApp
         if (app.shareNotices.handleIntent(intent)) return
         if (intent?.action == Intent.ACTION_VIEW) {
             JoinLinkRef.parse(intent.dataString)?.let { app.pendingLink.value = it }
+                ?: InviteLinkRef.parse(intent.dataString)?.let { app.pendingInvite.value = it }
         }
     }
 

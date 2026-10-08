@@ -267,7 +267,7 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
         open = { f -> vm.download(f, DownloadTarget.Open) },
         share = { f -> vm.download(f, DownloadTarget.Share) },
         download = if (Build.VERSION.SDK_INT >= 29) ({ f -> vm.download(f, DownloadTarget.Downloads) }) else null,
-        saveAs = { f -> saving = f; saveAs.launch(f.name) },
+        saveAs = { f -> saving = f; app.appLock.expectReturn(); saveAs.launch(f.name) },
         rename = { f -> renaming = f },
         permissions = if (vm.canChmod) ({ f -> permissions = f }) else null,
         copyPath = { f -> copyPath(f.path) },
@@ -286,7 +286,7 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
             IconButton(onClick = { searching = !searching; if (!searching) query = "" }, enabled = ready) {
                 Icon(Icons.Outlined.Search, stringResource(R.string.files_search))
             }
-            IconButton(onClick = { pickUpload.launch(arrayOf("*/*")) }, enabled = ready) {
+            IconButton(onClick = { app.appLock.expectReturn(); pickUpload.launch(arrayOf("*/*")) }, enabled = ready) {
                 Icon(Icons.Outlined.FileUpload, stringResource(R.string.files_upload))
             }
             Box {

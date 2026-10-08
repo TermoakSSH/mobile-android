@@ -27,12 +27,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Invitation links to a shared session (JoinScreen). -->
+            <!-- Invitation links to a shared session (JoinScreen) and to create an account (sign-up). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="termoak" android:host="join" />
+                <data android:scheme="termoak" />
+                <data android:host="join" />
+                <data android:host="invite" />
             </intent-filter>
             <!-- Android App Links: verified with /.well-known/assetlinks.json on each
                  host (TermoakSSH/public-web), so these links open the app directly. -->
@@ -44,6 +46,7 @@
                 <data android:host="termoak.com" />
                 <data android:host="next.termoak.com" />
                 <data android:pathPrefix="/join/" />
+                <data android:pathPrefix="/invite/" />
             </intent-filter>
         </activity>
 

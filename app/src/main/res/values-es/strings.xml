@@ -13,6 +13,7 @@
     <string name="common_delete_named">¿Borrar «%1$s»?</string>
     <string name="common_edit">Editar</string>
     <string name="common_close">Cerrar</string>
+    <string name="common_done">Hecho</string>
     <string name="common_open">Abrir</string>
     <string name="common_new">Nuevo</string>
     <string name="common_show">Mostrar</string>
@@ -95,7 +96,7 @@
     <string name="settings_no_server">Sin servidor</string>
     <string name="settings_no_server_text">Tus hosts y claves están solo en este móvil. Con una cuenta se sincronizan con tus otros dispositivos, tienes sesiones que no se cortan e IA.</string>
     <string name="settings_two_factor">Verificación en dos pasos</string>
-    <string name="settings_two_factor_off">Desactivada: actívala desde la web para proteger tu cuenta</string>
+    <string name="settings_two_factor_off">Desactivada: actívala para proteger tu cuenta</string>
     <string name="settings_two_factor_active">Activa</string>
     <string name="settings_two_factor_inactive">Inactiva</string>
     <string name="settings_vault">Bóveda</string>
@@ -940,6 +941,10 @@
     <string name="signup_create">Crear cuenta</string>
     <string name="signup_create_invite">Crear una cuenta con invitación</string>
     <string name="signup_invite">Código de invitación</string>
+    <string name="signup_invite_valid">Invitación válida.</string>
+    <string name="signup_invite_team">Te unirás al equipo «%1$s».</string>
+    <string name="signup_invite_only_for">Solo para %1$s.</string>
+    <string name="signup_invite_expires">Caduca el %1$s.</string>
     <string name="signup_password_rules">Usa al menos 8 caracteres.</string>
     <string name="login_server_no_vaults">Este servidor aún no tiene vaults: todo se sincroniza con tu cuenta.</string>
     <string name="login_registration_closed">Este servidor solo admite cuentas nuevas con invitación: pide un código a quien lo administra.</string>
@@ -1486,4 +1491,38 @@
         <item quantity="many">%1$d abiertas · %2$d en total</item>
         <item quantity="other">%1$d abiertas · %2$d en total</item>
     </plurals>
+    <string name="two_factor_title">Verificación en dos pasos</string>
+    <string name="two_factor_explain">Al iniciar sesión también se pide un código de una app de autenticación (o un código de recuperación), así que tu contraseña sola no basta.</string>
+    <string name="two_factor_turn_on">Activar la verificación en dos pasos</string>
+    <string name="two_factor_turn_off">Desactivar la verificación en dos pasos</string>
+    <string name="two_factor_turn_off_confirm">Tu cuenta quedará protegida solo por su contraseña.</string>
+    <string name="two_factor_turn_off_footer">Tu contraseña y un código de la app de autenticación (o un código de recuperación).</string>
+    <string name="two_factor_step_scan">1. Añádela a tu app de autenticación</string>
+    <string name="two_factor_scan_footer">Escanea el código QR con otro dispositivo, ábrelo en la app de autenticación de este o escribe la clave secreta.</string>
+    <string name="two_factor_open_app">Abrir en la app de autenticación</string>
+    <string name="two_factor_copy_secret">Copiar la clave secreta</string>
+    <string name="two_factor_step_code">2. Escribe el código que muestra</string>
+    <string name="two_factor_confirm">Activar</string>
+    <string name="two_factor_recovery_title">Códigos de recuperación</string>
+    <string name="two_factor_recovery_footer">Guárdalos en un lugar seguro: cada uno sirve una vez para iniciar sesión si pierdes tu app de autenticación. No se vuelven a mostrar.</string>
+    <string name="two_factor_copy_codes">Copiar los códigos</string>
+    <string name="two_factor_copied">Copiados</string>
+    <string name="two_factor_share_codes">Compartir los códigos</string>
+    <string name="two_factor_qr">Código QR para la app de autenticación</string>
+    <string name="two_factor_current_only">Aquí para la cuenta actual (%1$s). Para otra, hazla actual o usa la web.</string>
+    <string name="lock_title">Termoak está bloqueado</string>
+    <string name="lock_detail">Usa tu huella, tu cara o el bloqueo de pantalla para abrirlo. Tus terminales siguen funcionando.</string>
+    <string name="lock_unlock">Desbloquear</string>
+    <string name="lock_canceled">Cancelado. Termoak sigue bloqueado.</string>
+    <string name="lock_reason_open">Desbloquear Termoak</string>
+    <string name="lock_reason_enable">Activar o desactivar el bloqueo de Termoak</string>
+    <string name="settings_lock_title">Bloqueo</string>
+    <string name="settings_lock_enabled">Bloquear Termoak</string>
+    <string name="settings_lock_enabled_hint">Pedir tu huella, tu cara o el bloqueo de pantalla para abrir Termoak y cuando haya estado en segundo plano. Al activarlo o desactivarlo se pide una vez.</string>
+    <string name="settings_lock_unavailable">Pon un bloqueo de pantalla en este dispositivo para usar el bloqueo.</string>
+    <string name="settings_lock_after">Bloquear tras</string>
+    <string name="settings_lock_after_background">Salir de la app</string>
+    <string name="settings_lock_after_hour">1 hora en segundo plano</string>
+    <string name="settings_lock_after_minutes">%1$d min en segundo plano</string>
+    <string name="settings_lock_now">Bloquear ahora</string>
 </resources>

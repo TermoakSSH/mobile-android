@@ -56,3 +56,18 @@ class JoinLinkRefTest {
         assertFalse(JoinLinkRef.sameServer(null, "https://x.com"))
     }
 }
+
+/** Invitations to create an account (the desktop's and iOS's links). */
+class InviteLinkRefTest {
+    @org.junit.Test
+    fun links() {
+        assertEquals(InviteLinkRef("https://example.com", "abc-123"), InviteLinkRef.parse("termoak://invite?server=https://example.com/&token=abc-123"))
+        assertEquals(InviteLinkRef("https://termoak.com", "abc"), InviteLinkRef.parse("https://termoak.com/es/invite/abc"))
+        assertEquals(InviteLinkRef("https://example.com/termoak", "abc"), InviteLinkRef.parse("https://example.com/termoak/invite/abc"))
+        assertNull(InviteLinkRef.parse("https://termoak.com/join/abc"))
+        assertNull(InviteLinkRef.parse("termoak://join?server=https://x&token=t"))
+        assertNull(InviteLinkRef.parse("termoak://invite?server=ftp://x&token=t"))
+        // A join link isn't an invitation, and the other way round.
+        assertNull(JoinLinkRef.parse("https://termoak.com/invite/abc"))
+    }
+}

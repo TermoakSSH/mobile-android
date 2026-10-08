@@ -318,7 +318,7 @@ private fun sideItemOf(route: String?): SideItem? = when (route) {
     Routes.CONNECTIONS, Routes.JOIN -> SideItem.SESSIONS
     Routes.TEAMS -> SideItem.TEAMS
     Routes.VAULTS, Routes.VAULT -> SideItem.VAULTS
-    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.ACCOUNTS -> SideItem.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.ACCOUNTS -> SideItem.SETTINGS
     else -> null
 }
 

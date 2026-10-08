@@ -14,6 +14,7 @@
     <string name="common_delete_named">Delete “%1$s”?</string>
     <string name="common_edit">Edit</string>
     <string name="common_close">Close</string>
+    <string name="common_done">Done</string>
     <string name="common_open">Open</string>
     <string name="common_new">New</string>
     <string name="common_show">Show</string>
@@ -96,7 +97,7 @@
     <string name="settings_no_server">No server</string>
     <string name="settings_no_server_text">Your hosts and keys are only on this phone. With an account they sync with your other devices, and you get sessions that don\'t drop and AI.</string>
     <string name="settings_two_factor">Two-step verification</string>
-    <string name="settings_two_factor_off">Off: turn it on from the web to protect your account</string>
+    <string name="settings_two_factor_off">Off: turn it on to protect your account</string>
     <string name="settings_two_factor_active">On</string>
     <string name="settings_two_factor_inactive">Off</string>
     <string name="settings_vault">Vault</string>
@@ -907,6 +908,10 @@
     <string name="signup_create">Create account</string>
     <string name="signup_create_invite">Create an account with an invitation</string>
     <string name="signup_invite">Invitation code</string>
+    <string name="signup_invite_valid">Valid invitation.</string>
+    <string name="signup_invite_team">You will join the team “%1$s”.</string>
+    <string name="signup_invite_only_for">Only for %1$s.</string>
+    <string name="signup_invite_expires">Expires on %1$s.</string>
     <string name="signup_password_rules">Use at least 8 characters.</string>
     <string name="login_server_no_vaults">This server has no vaults yet: everything syncs to your account.</string>
     <string name="login_registration_closed">This server only accepts new accounts with an invitation: ask whoever runs it for a code.</string>
@@ -1437,4 +1442,38 @@
         <item quantity="one">%1$d open · %2$d in total</item>
         <item quantity="other">%1$d open · %2$d in total</item>
     </plurals>
+    <string name="two_factor_title">Two-step verification</string>
+    <string name="two_factor_explain">Signing in also asks for a code from an authenticator app (or a recovery code), so your password alone is not enough.</string>
+    <string name="two_factor_turn_on">Turn on two-step verification</string>
+    <string name="two_factor_turn_off">Turn off two-step verification</string>
+    <string name="two_factor_turn_off_confirm">Your account will be protected only by its password.</string>
+    <string name="two_factor_turn_off_footer">Your password and a code from the authenticator app (or a recovery code).</string>
+    <string name="two_factor_step_scan">1. Add it to your authenticator app</string>
+    <string name="two_factor_scan_footer">Scan the QR code with another device, open it in the authenticator app of this one, or type the secret key.</string>
+    <string name="two_factor_open_app">Open in the authenticator app</string>
+    <string name="two_factor_copy_secret">Copy the secret key</string>
+    <string name="two_factor_step_code">2. Enter the code it shows</string>
+    <string name="two_factor_confirm">Turn on</string>
+    <string name="two_factor_recovery_title">Recovery codes</string>
+    <string name="two_factor_recovery_footer">Save them somewhere safe: each one signs you in once if you lose your authenticator app. They are not shown again.</string>
+    <string name="two_factor_copy_codes">Copy the codes</string>
+    <string name="two_factor_copied">Copied</string>
+    <string name="two_factor_share_codes">Share the codes</string>
+    <string name="two_factor_qr">QR code for the authenticator app</string>
+    <string name="two_factor_current_only">Here for the current account (%1$s). For another one, make it current or use the web.</string>
+    <string name="lock_title">Termoak is locked</string>
+    <string name="lock_detail">Use your fingerprint, face or screen lock to open it. Your terminals keep running.</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_canceled">Cancelled. Termoak stays locked.</string>
+    <string name="lock_reason_open">Unlock Termoak</string>
+    <string name="lock_reason_enable">Turn the Termoak lock on or off</string>
+    <string name="settings_lock_title">Lock</string>
+    <string name="settings_lock_enabled">Lock Termoak</string>
+    <string name="settings_lock_enabled_hint">Ask for your fingerprint, face or screen lock to open Termoak and after it has been in the background. Turning it on or off asks once.</string>
+    <string name="settings_lock_unavailable">Set a screen lock on this device to use the lock.</string>
+    <string name="settings_lock_after">Lock after</string>
+    <string name="settings_lock_after_background">Leaving the app</string>
+    <string name="settings_lock_after_hour">1 hour in the background</string>
+    <string name="settings_lock_after_minutes">%1$d min in the background</string>
+    <string name="settings_lock_now">Lock now</string>
 </resources>

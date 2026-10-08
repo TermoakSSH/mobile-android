@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -69,6 +70,7 @@ import com.termoak.app.AppLanguage
 import com.termoak.app.BuildConfig
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.LockDelay
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ThemeMode
 import com.termoak.app.data.WideLayout
@@ -106,6 +108,10 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val suggestionMode by app.prefs.commandSuggestions.collectAsState()
     var choosingSuggestions by remember { mutableStateOf(false) }
     val terminalFont by app.prefs.terminalFont.collectAsState()
+    val lockOn by app.appLock.enabled.collectAsState()
+    val lockDelay by app.appLock.delay.collectAsState()
+    var choosingLockDelay by remember { mutableStateOf(false) }
+    val deviceAuth = rememberDeviceAuth()
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
     val checkUpdates by app.prefs.checkUpdates.collectAsState()
     val latest by app.updates.latest.collectAsState()
@@ -148,7 +154,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                                 if (tf.enabled) Brand.Green else Brand.Amber,
                             )
                         },
-                    ) { server?.let { open("$it/app/account") } }
+                    ) { nav.navigate(Routes.TWO_FACTOR) }
                 }
                 server?.let { url ->
                     Row0(Icons.AutoMirrored.Outlined.OpenInNew, stringResource(R.string.settings_my_account), serverHost(url)) {
@@ -219,6 +225,25 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             }
 
             // ----- Appearance -----
+            // ----- Lock (the app lock, like the desktop's and iOS's) -----
+            SectionLabel(stringResource(R.string.settings_lock_title))
+            SwitchRow(
+                stringResource(R.string.settings_lock_enabled),
+                stringResource(if (deviceAuth.secure || lockOn) R.string.settings_lock_enabled_hint else R.string.settings_lock_unavailable),
+                lockOn,
+            ) { on ->
+                if (!deviceAuth.secure) {
+                    if (!on) app.appLock.setEnabled(false)
+                    return@SwitchRow
+                }
+                // Turning it on or off asks once (whoever has the unlocked phone can't just switch it off).
+                deviceAuth.unlock(resources.getString(R.string.lock_reason_enable)) { ok -> if (ok) app.appLock.setEnabled(on) }
+            }
+            if (lockOn) {
+                Row0(Icons.Outlined.Timer, stringResource(R.string.settings_lock_after), lockDelayName(lockDelay)) { choosingLockDelay = true }
+                Row0(Icons.Outlined.Lock, stringResource(R.string.settings_lock_now), "") { app.appLock.lockNow() }
+            }
+
             SectionLabel(stringResource(R.string.settings_appearance))
             val modes = listOf(
                 ThemeMode.SYSTEM to R.string.settings_theme_system,
@@ -292,6 +317,28 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             app.prefs.setWideLayout(it)
         }
     }
+    if (choosingLockDelay) {
+        AlertDialog(
+            onDismissRequest = { choosingLockDelay = false },
+            title = { Text(stringResource(R.string.settings_lock_after)) },
+            text = {
+                Column {
+                    LockDelay.entries.forEach { d ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
+                                .clickable { app.appLock.setDelay(d); choosingLockDelay = false }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = d == lockDelay, onClick = { app.appLock.setDelay(d); choosingLockDelay = false })
+                            Text(lockDelayName(d), Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosingLockDelay = false }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
     if (choosingSuggestions) {
         ChoiceDialog(
             stringResource(R.string.settings_command_suggestions), SuggestionMode.entries, suggestionMode,
@@ -313,6 +360,13 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             if (tag != language) AppLanguage.choose(app, tag)
         }
     }
+}
+
+@Composable
+private fun lockDelayName(d: LockDelay): String = when (d) {
+    LockDelay.IMMEDIATELY -> stringResource(R.string.settings_lock_after_background)
+    LockDelay.HOUR -> stringResource(R.string.settings_lock_after_hour)
+    else -> stringResource(R.string.settings_lock_after_minutes, d.seconds / 60)
 }
 
 @androidx.annotation.StringRes
@@ -503,7 +557,7 @@ private fun Row0(
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
         headlineContent = { Text(title, color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified) },
-        supportingContent = { Text(subtitle) },
+        supportingContent = if (subtitle.isNotEmpty()) ({ Text(subtitle) }) else null,
         leadingContent = { Icon(icon, null, tint = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) },
         trailingContent = trailing,
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),

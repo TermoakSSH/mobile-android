@@ -62,6 +62,7 @@ fun rememberDeviceAuth(): DeviceAuth {
                 onResult(true)
             } else {
                 pending[0] = onResult
+                (context.applicationContext as? com.termoak.app.TermoakApp)?.appLock?.expectReturn()
                 launcher.launch(intent)
             }
         }

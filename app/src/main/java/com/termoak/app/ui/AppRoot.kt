@@ -119,6 +119,8 @@ object Routes {
     const val AI = "ai"
     const val SETTINGS = "settings"
     const val AI_KEYS = "settings/ai"
+    /** Settings → Two-step verification (the current account). */
+    const val TWO_FACTOR = "settings/2fa"
     /** Settings → Terminal → Keys above the keyboard (also the quick panel's Customize). */
     const val KEYBOARD = "settings/keys"
     const val TERMINAL = "terminal"
@@ -135,7 +137,7 @@ object Routes {
     const val FORWARDS = "forwards"
     const val IMPORT = "import"
     /** Add account (or sign in again): `mode` [LoginMode], prefilled `server` and `email`. */
-    const val LOGIN = "login?mode={mode}&server={server}&email={email}"
+    const val LOGIN = "login?mode={mode}&server={server}&email={email}&invite={invite}"
     const val VERIFY_EMAIL = "verify-email"
     const val ACCOUNTS = "accounts"
     const val VAULTS = "vaults"
@@ -153,8 +155,11 @@ object Routes {
     fun group(id: String, account: String? = null) = "group/$id" + (account?.let { "?account=$it" } ?: "")
     fun aiTask(id: String, account: String? = null) = "ai/$id" + (account?.let { "?account=$it" } ?: "")
     fun vault(account: String, id: String) = "vault/$account/$id"
-    fun login(mode: String? = null, server: String? = null, email: String? = null): String =
-        listOfNotNull(mode?.let { "mode=$it" }, server?.let { "server=${Uri.encode(it)}" }, email?.let { "email=${Uri.encode(it)}" })
+    fun login(mode: String? = null, server: String? = null, email: String? = null, invite: String? = null): String =
+        listOfNotNull(
+            mode?.let { "mode=$it" }, server?.let { "server=${Uri.encode(it)}" }, email?.let { "email=${Uri.encode(it)}" },
+            invite?.let { "invite=${Uri.encode(it)}" },
+        )
             .joinToString("&").let { if (it.isEmpty()) "login" else "login?$it" }
     fun join(link: JoinLinkRef) = "join?server=${Uri.encode(link.server)}&token=${Uri.encode(link.token)}"
     fun files(sourceId: String) = "files/$sourceId"
@@ -184,7 +189,7 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
-    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.KEYBOARD, Routes.LOGIN, Routes.JOIN,
+    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES,
 )
 
@@ -192,7 +197,7 @@ private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW -> Tab.AI
-    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
     else -> null
 }
 
@@ -377,12 +382,13 @@ fun AppRoot(app: TermoakApp) {
                                 navArgument("mode") { type = NavType.StringType; nullable = true; defaultValue = null },
                                 navArgument("server") { type = NavType.StringType; nullable = true; defaultValue = null },
                                 navArgument("email") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("invite") { type = NavType.StringType; nullable = true; defaultValue = null },
                             ),
                         ) { e ->
                             LoginScreen(
                                 app, welcome = false, onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() },
                                 mode = e.arguments?.getString("mode"), prefillServer = e.arguments?.getString("server"),
-                                prefillEmail = e.arguments?.getString("email"),
+                                prefillEmail = e.arguments?.getString("email"), prefillInvite = e.arguments?.getString("invite"),
                             )
                         }
                         composable(Routes.VERIFY_EMAIL) {
@@ -411,6 +417,7 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.SETTINGS) { SettingsScreen(app, nav) }
                         composable(Routes.AI_KEYS) { AiKeysScreen(app, nav) }
                         composable(Routes.KEYBOARD) { KeyboardEditorScreen(app, nav) }
+                        composable(Routes.TWO_FACTOR) { TwoFactorScreen(app, nav) }
                         // The terminal keeps a plain fade, as before.
                         composable(
                             Routes.TERMINAL,
@@ -510,6 +517,13 @@ fun AppRoot(app: TermoakApp) {
         app.accounts.notices.collect { scope.launch { snackbar.showSnackbar(it.resolve(resources), withDismissAction = true, duration = SnackbarDuration.Long) } }
     }
     // An invitation link opened from outside the app.
+    // An invitation to create an account: the sign-up form of its server, with its code.
+    val invite by app.pendingInvite.collectAsState()
+    LaunchedEffect(invite) {
+        val i = invite ?: return@LaunchedEffect
+        app.pendingInvite.value = null
+        nav.navigate(Routes.login(LoginMode.SIGN_UP, i.server, invite = i.token)) { launchSingleTop = true }
+    }
     val link by app.pendingLink.collectAsState()
     LaunchedEffect(link) {
         val l = link ?: return@LaunchedEffect

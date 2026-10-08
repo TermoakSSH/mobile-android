@@ -115,7 +115,7 @@ fun ImportScreen(app: TermoakApp, onDone: () -> Unit) {
                 stringResource(R.string.import_intro), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedButton(onClick = { pick.launch(arrayOf("*/*")) }) {
+            OutlinedButton(onClick = { app.appLock.expectReturn(); pick.launch(arrayOf("*/*")) }) {
                 Icon(Icons.Outlined.FolderOpen, null, Modifier.padding(end = 8.dp))
                 Text(stringResource(R.string.import_choose_file))
             }

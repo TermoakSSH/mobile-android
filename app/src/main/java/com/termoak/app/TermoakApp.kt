@@ -40,6 +40,8 @@ class TermoakApp : Application() {
             }
         }
     }
+    /** The app lock (Settings → Lock). */
+    val appLock: com.termoak.app.data.AppLock by lazy { com.termoak.app.data.AppLock(this) }
     /** Running tunnels (port forwarding). */
     val tunnels: Tunnels by lazy { Tunnels(core, sessions) }
     /** A snippet sent to several terminals at once, and how it went. */
@@ -52,6 +54,8 @@ class TermoakApp : Application() {
     val keyboard: HardwareKeyboard by lazy { HardwareKeyboard(this) }
     /** An invitation link opened from outside (deep link), waiting for the app to show it. */
     val pendingLink = kotlinx.coroutines.flow.MutableStateFlow<com.termoak.app.data.JoinLinkRef?>(null)
+    /** An invitation to create an account opened from outside, waiting for the sign-up form. */
+    val pendingInvite = kotlinx.coroutines.flow.MutableStateFlow<com.termoak.app.data.InviteLinkRef?>(null)
 
     override fun onCreate() {
         super.onCreate()

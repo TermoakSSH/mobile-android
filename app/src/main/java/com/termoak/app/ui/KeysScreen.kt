@@ -347,7 +347,7 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(label, { label = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
-                    TextButton(onClick = { pickFile.launch(arrayOf("*/*")) }) {
+                    TextButton(onClick = { app.appLock.expectReturn(); pickFile.launch(arrayOf("*/*")) }) {
                         Icon(Icons.Outlined.FolderOpen, null, Modifier.padding(end = 6.dp))
                         Text(stringResource(R.string.keys_import_choose_file))
                     }
