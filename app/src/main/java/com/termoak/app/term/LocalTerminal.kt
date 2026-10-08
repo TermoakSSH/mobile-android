@@ -26,16 +26,34 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** SSH terminal that goes out from the phone itself. */
+/** SSH (or Telnet) terminal that goes out from the phone itself. */
 class LocalTerminal(
     private val core: TermoakCore,
     label: String,
     hostId: String,
     private val address: String,
     accountId: String? = null,
+    /** A Telnet host: unencrypted, without SFTP or another SSH connection. */
+    val telnet: Boolean = false,
+    /** Settings → Terminal: the host's username and password answer its first login prompts. */
+    private val telnetAutoLogin: () -> Boolean = { true },
 ) : TermSession(label, hostId, accountId), TerminalListener, AuthHandler {
     @Volatile private var handle: TerminalHandle? = null
     override val persistent = false
+
+    /**
+     * Round trip to the host in milliseconds (an SSH keep-alive or a Telnet
+     * TIMING-MARK), or `null` when unknown: not connected, no answer in
+     * time, or a host that doesn't speak Telnet.
+     */
+    suspend fun latencyMs(): Double? {
+        val h = handle?.takeIf { _state.value == TermState.Running } ?: return null
+        return try {
+            h.latencyMs(LATENCY_TIMEOUT_MS)
+        } catch (_: TermoakException) {
+            null
+        }
+    }
 
     /** Shared through the server: for the AI (only for you) and/or with other people. */
     private var shared: SharedTerminal? = null
@@ -87,7 +105,7 @@ class LocalTerminal(
      * A new reference to this terminal's SSH connection (to browse its files
      * without connecting again), while connected. Whoever takes it closes it.
      */
-    fun connection(): SshSession? = handle?.takeIf { _state.value == TermState.Running }?.session()
+    fun connection(): SshSession? = handle?.takeIf { _state.value == TermState.Running && !telnet }?.session()
 
     /** The relay share, once [shareOrThrow] made it. */
     val sharedTerminal: SharedTerminal? get() = shared
@@ -126,10 +144,17 @@ class LocalTerminal(
         _state.value = TermState.Connecting(uiText(R.string.term_connecting_to, address))
         scope.launch {
             try {
-                handle = core.connectTerminal(hostId!!, screen.cols(), screen.rows(), this@LocalTerminal, this@LocalTerminal, accountId)
+                handle = core.connectTerminal(
+                    hostId!!, screen.cols(), screen.rows(), this@LocalTerminal, this@LocalTerminal, accountId,
+                    telnetAutoLogin = telnetAutoLogin(),
+                )
                 _state.value = TermState.Running
             } catch (e: TermoakException) {
-                _state.value = TermState.Closed(e.toUiText(R.string.term_connect_failed))
+                _state.value = TermState.Closed(
+                    // A Strict vault: its hosts open through the server, which doesn't open Telnet sessions.
+                    if (telnet && e is TermoakException.UseOnlyStrict) uiText(R.string.telnet_strict_vault)
+                    else e.toUiText(R.string.term_connect_failed),
+                )
             }
         }
     }
@@ -259,5 +284,10 @@ class LocalTerminal(
         }
         _pending.value = Pending.Credentials(title, request.instructions, request.fields) { answer.complete(it) }
         return runBlocking { answer.await() }.also { _pending.value = null }
+    }
+
+    private companion object {
+        /** Longest wait for a latency answer (then it is unknown). */
+        const val LATENCY_TIMEOUT_MS = 5000u
     }
 }

@@ -2,64 +2,129 @@ package com.termoak.app.ui
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
+import com.termoak.app.data.HostLogos
 
 /*
- * Logos of the systems detected on the hosts (the `os` id from core's
- * detect_os_info), drawn white on the host tile like Termius does.
+ * Host logos drawn white on the host tile (see HostLogos for which one a
+ * host shows): the systems, filled, and the generic ones, stroked.
  *
- * The paths come from Simple Icons (https://simpleicons.org, CC0 1.0); the
- * Windows one is drawn by hand. The logos are trademarks of their owners and
- * are only used to identify each system.
+ * The systems' paths come from Simple Icons (https://simpleicons.org, CC0
+ * 1.0); the Windows one is drawn by hand. The logos are trademarks of their
+ * owners and are only used to identify each system. The generic ones are the
+ * desktop's Lucide icons (https://lucide.dev, ISC license).
  */
 
 private const val WINDOWS = "M0 0H11.4V11.4H0ZM12.6 0H24V11.4H12.6ZM0 12.6H11.4V24H0ZM12.6 12.6H24V24H12.6Z"
 
-/** Logo path (24×24 viewport) for each detected system id. */
-private fun logoPath(os: String): String? = when (os) {
+/** Filled path (24×24 viewport) of each system logo id (HostLogos.all). */
+private fun systemPath(id: String): String? = when (id) {
     "ubuntu" -> UBUNTU
-    "debian", "devuan" -> DEBIAN
-    "raspbian" -> RASPBERRYPI
-    "linuxmint", "mint" -> LINUXMINT
-    "pop" -> POPOS
+    "debian" -> DEBIAN
+    "raspberrypi" -> RASPBERRYPI
+    "mint" -> LINUXMINT
+    "popos" -> POPOS
     "elementary" -> ELEMENTARY
     "zorin" -> ZORIN
     "kali" -> KALILINUX
-    "fedora", "nobara" -> FEDORA
+    "fedora" -> FEDORA
     "centos" -> CENTOS
     "rocky" -> ROCKYLINUX
-    "almalinux" -> ALMALINUX
+    "alma" -> ALMALINUX
     "rhel" -> REDHAT
-    "arch", "artix", "garuda" -> ARCHLINUX
+    "arch" -> ARCHLINUX
     "manjaro" -> MANJARO
     "endeavouros" -> ENDEAVOUROS
-    "alpine", "postmarketos" -> ALPINELINUX
-    "opensuse", "opensuse-leap", "opensuse-tumbleweed" -> OPENSUSE
-    "sles", "sled" -> SUSE
+    "alpine" -> ALPINELINUX
+    "opensuse" -> OPENSUSE
+    "suse" -> SUSE
     "gentoo" -> GENTOO
     "nixos" -> NIXOS
     "void" -> VOIDLINUX
     "freebsd" -> FREEBSD
-    "macos", "darwin" -> APPLE
+    "macos" -> APPLE
     "windows" -> WINDOWS
     "linux" -> LINUX
     else -> null
 }
 
+// ----- Lucide shapes as paths (spaces before signs, as the parser likes them) -----
+
+private fun n(v: Float): String = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
+
+private fun rect(x: Float, y: Float, w: Float, h: Float, r: Float): String =
+    "M${n(x + r)} ${n(y)}H${n(x + w - r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + w)} ${n(y + r)}V${n(y + h - r)}" +
+        "A${n(r)} ${n(r)} 0 0 1 ${n(x + w - r)} ${n(y + h)}H${n(x + r)}A${n(r)} ${n(r)} 0 0 1 ${n(x)} ${n(y + h - r)}" +
+        "V${n(y + r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + r)} ${n(y)}Z"
+
+private fun ellipse(cx: Float, cy: Float, rx: Float, ry: Float): String =
+    "M${n(cx - rx)} ${n(cy)}A${n(rx)} ${n(ry)} 0 1 0 ${n(cx + rx)} ${n(cy)}A${n(rx)} ${n(ry)} 0 1 0 ${n(cx - rx)} ${n(cy)}Z"
+
+private fun circle(cx: Float, cy: Float, r: Float): String = ellipse(cx, cy, r, r)
+
+/** Stroked paths (24×24, stroke 2, round caps) of each generic logo id. */
+private fun genericPaths(id: String): List<String>? = when (id) {
+    "server" -> listOf(rect(2f, 2f, 20f, 8f, 2f), rect(2f, 14f, 20f, 8f, 2f), "M6 6L6.01 6", "M6 18L6.01 18")
+    "database" -> listOf(ellipse(12f, 5f, 9f, 3f), "M3 5V19A9 3 0 0 0 21 19V5", "M3 12A9 3 0 0 0 21 12")
+    "router" -> listOf(
+        rect(2f, 14f, 20f, 8f, 2f), "M6.01 18H6", "M10.01 18H10", "M15 10v4",
+        "M17.84 7.17a4 4 0 0 0 -5.66 0", "M20.66 4.34a8 8 0 0 0 -11.31 0",
+    )
+    "firewall" -> listOf(
+        rect(3f, 3f, 18f, 18f, 2f), "M12 9v6", "M16 15v6", "M16 3v6", "M3 15h18", "M3 9h18", "M8 15v6", "M8 3v6",
+    )
+    "cloud" -> listOf("M17.5 19H9a7 7 0 1 1 6.71 -9h1.79a4.5 4.5 0 1 1 0 9Z")
+    "container" -> listOf(
+        "M22 7.7c0 -0.6 -0.4 -1.2 -0.8 -1.5l-6.3 -3.9a1.72 1.72 0 0 0 -1.7 0l-10.3 6c-0.5 0.2 -0.9 0.8 -0.9 1.4v6.6" +
+            "c0 0.5 0.4 1.2 0.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3 -6c0.5 -0.3 0.9 -1 0.9 -1.5Z",
+        "M10 21.9V14L2.1 9.1", "M10 14l11.9 -6.9", "M14 19.8v-8.1", "M18 17.5V9.4",
+    )
+    "kubernetes" -> listOf(
+        circle(12f, 12f, 8f), "M12 2v7.5", "M19 5l-5.23 5.23", "M22 12h-7.5", "M19 19l-5.23 -5.23", "M12 14.5V22",
+        "M10.23 13.77L5 19", "M9.5 12H2", "M10.23 10.23L5 5", circle(12f, 12f, 2.5f),
+    )
+    "web" -> listOf(circle(12f, 12f, 10f), "M12 2a14.5 14.5 0 0 0 0 20a14.5 14.5 0 0 0 0 -20", "M2 12h20")
+    "mail" -> listOf("M22 7l-8.991 5.727a2 2 0 0 1 -2.009 0L2 7", rect(2f, 4f, 20f, 16f, 2f))
+    "storage" -> listOf(
+        "M10 16h0.01",
+        "M2.212 11.577a2 2 0 0 0 -0.212 0.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2 -2v-5.527a2 2 0 0 0 -0.212 -0.896" +
+            "L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0 -1.79 1.11z",
+        "M21.946 12.013H2.054", "M6 16h0.01",
+    )
+    "terminal" -> listOf("M12 19h8", "M4 17l6 -6l-6 -6")
+    "iot" -> listOf(
+        "M12 20v2", "M12 2v2", "M17 20v2", "M17 2v2", "M2 12h2", "M2 17h2", "M2 7h2", "M20 12h2", "M20 17h2", "M20 7h2",
+        "M7 20v2", "M7 2v2", rect(4f, 4f, 16f, 16f, 2f), rect(8f, 8f, 8f, 8f, 1f),
+    )
+    "security" -> listOf(rect(3f, 11f, 18f, 11f, 2f), "M7 11V7a5 5 0 0 1 10 0v4")
+    else -> null
+}
+
 private val logoCache = HashMap<String, ImageVector?>()
 
-/** White logo of a detected system, or `null` when there is none for it. */
-fun osLogo(os: String?): ImageVector? {
-    val id = os?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
-    return logoCache.getOrPut(id) {
-        logoPath(id)?.let { path ->
-            ImageVector.Builder("os-$id", 24.dp, 24.dp, 24f, 24f)
-                .addPath(addPathNodes(path), fill = SolidColor(Color.White))
-                .build()
+/** White vector of [logo] (its id from HostLogos), or `null` if this version has no drawing for it. */
+fun logoVector(logo: HostLogos.Logo): ImageVector? = logoCache.getOrPut(logo.id) {
+    val b = ImageVector.Builder("logo-${logo.id}", 24.dp, 24.dp, 24f, 24f)
+    when (logo.kind) {
+        HostLogos.Kind.SYSTEM -> {
+            val path = systemPath(logo.id) ?: return@getOrPut null
+            b.addPath(addPathNodes(path), fill = SolidColor(Color.White))
+        }
+        HostLogos.Kind.GENERIC -> {
+            val paths = genericPaths(logo.id) ?: return@getOrPut null
+            paths.forEach { p ->
+                b.addPath(
+                    addPathNodes(p), stroke = SolidColor(Color.White), strokeLineWidth = 2f,
+                    strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round,
+                )
+            }
         }
     }
+    b.build()
 }
 
 private const val UBUNTU =

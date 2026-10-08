@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 import com.termoak.app.R
+import com.termoak.app.data.HostLogos
+import com.termoak.ffi.SshHost
 
 /** Short notices ("Copied", errors...) from any screen. */
 val LocalSnackbar = staticCompositionLocalOf { SnackbarHostState() }
@@ -78,34 +80,84 @@ private val TilePalette = listOf(
 )
 
 /**
- * Rounded square of a host, like Termius': the logo of its detected system
- * (on the host color or the system's), or the initial of its name. With
- * [logo] off, the desktop's avatar: the initials of the name on the host
- * color (or one picked by name).
+ * Rounded square of a host, like Termius': its logo ([icon], the one chosen
+ * in the editor, else the one of its detected system [os], see HostLogos)
+ * on the host color or the logo's, or the initial of its name. With
+ * [twoInitials], the desktop's avatar without a logo: the initials of the
+ * name ("TS").
  */
 @Composable
-fun HostTile(label: String, os: String?, color: String? = null, size: Dp = 42.dp, logo: Boolean = true) {
-    val badge = osBadge(os).takeIf { logo }
-    val icon = if (logo) osLogo(os) else null
+fun HostTile(
+    label: String,
+    os: String?,
+    color: String? = null,
+    size: Dp = 42.dp,
+    twoInitials: Boolean = false,
+    icon: String? = null,
+) {
+    val logo = HostLogos.resolve(icon, os)
+    val vector = logo?.let { logoVector(it) }
+    val badge = osBadge(os)
     val bg = color?.let { runCatching { Color(it.toColorInt()) }.getOrNull() }
-        ?: badge?.second
+        ?: logo?.let { Color(0xFF000000 or it.color) }
+        ?: badge?.second?.takeIf { !twoInitials }
         ?: TilePalette[Math.floorMod(label.lowercase().hashCode(), TilePalette.size)]
     Box(
         Modifier.size(size).clip(RoundedCornerShape(size / 4.5f)).background(bg),
         contentAlignment = Alignment.Center,
     ) {
-        if (icon != null) {
-            Icon(icon, badge?.first, Modifier.size(size * 0.56f), tint = Color.White)
+        if (vector != null) {
+            Icon(vector, logo.takeIf { it.kind == HostLogos.Kind.SYSTEM }?.name ?: badge?.first, Modifier.size(size * 0.56f), tint = Color.White)
         } else {
             // With a detected system without a logo, its initial; otherwise the name's.
-            val initial = if (logo) {
-                (badge?.first ?: label).trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
-            } else {
+            val initial = if (twoInitials) {
                 initials(label)
+            } else {
+                (badge?.first ?: label).trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
             }
             Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * (if (initial.length > 1) 0.36f else 0.42f)).sp)
         }
     }
+}
+
+/** [HostTile] of a saved host (its logo, system and color). */
+@Composable
+fun HostTile(host: SshHost, size: Dp = 42.dp, twoInitials: Boolean = false) =
+    HostTile(host.label, host.os, host.color, size, twoInitials, host.icon)
+
+/** Name of a logo for the picker: the system's, or the generic one's in the app language. */
+@Composable
+fun logoName(logo: HostLogos.Logo): String = when (logo.kind) {
+    HostLogos.Kind.SYSTEM -> logo.name
+    HostLogos.Kind.GENERIC -> genericLogoName(logo.id)?.let { stringResource(it) } ?: logo.id
+}
+
+@androidx.annotation.StringRes
+private fun genericLogoName(id: String): Int? = when (id) {
+    "server" -> R.string.logo_server
+    "database" -> R.string.logo_database
+    "router" -> R.string.logo_router
+    "firewall" -> R.string.logo_firewall
+    "cloud" -> R.string.logo_cloud
+    "container" -> R.string.logo_container
+    "kubernetes" -> R.string.logo_kubernetes
+    "web" -> R.string.logo_web
+    "mail" -> R.string.logo_mail
+    "storage" -> R.string.logo_storage
+    "terminal" -> R.string.logo_terminal
+    "iot" -> R.string.logo_iot
+    "security" -> R.string.logo_security
+    else -> null
+}
+
+/** The "Telnet" badge of a host (rows, cards, sheets): it is unencrypted. */
+@Composable
+fun TelnetBadge(modifier: Modifier = Modifier) {
+    Text(
+        "Telnet",
+        modifier.clip(RoundedCornerShape(4.dp)).background(Brand.Amber.copy(alpha = 0.18f)).padding(horizontal = 5.dp, vertical = 1.dp),
+        style = MaterialTheme.typography.labelSmall, color = Brand.Amber, maxLines = 1,
+    )
 }
 
 /** "TS" for "Test server", "W" for "web-1" (the desktop's avatars). */

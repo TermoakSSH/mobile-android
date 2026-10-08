@@ -40,6 +40,9 @@ import com.termoak.ffi.TransferMode
 import com.termoak.ffi.VaultInfo
 import com.termoak.ffi.AccountInfo
 import com.termoak.app.data.uid
+import com.termoak.app.data.HostProtocol
+import com.termoak.app.data.isTelnet
+import com.termoak.app.data.QuickTarget
 import com.termoak.app.data.useOnly
 import com.termoak.app.data.canWrite
 import com.termoak.app.data.AccountView
@@ -301,6 +304,15 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         selected = emptyList()
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
+    /** Connects to an address typed in the search (a saved host with it, or a new one). */
+    fun quickConnectTo(target: QuickTarget) {
+        val host = runCatching { quickConnectHost(app, hosts, target) }
+            .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
+            .getOrNull() ?: return
+        query = ""
+        reload()
+        connect(host, false)
+    }
     fun save(host: SshHost) {
         runCatching { app.core.saveHost(host, SecretChange.Keep) }
             .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
@@ -339,10 +351,13 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         }
         // Server sessions: on the host's account, which has to be signed in.
         val hostAccount = accountList.firstOrNull { it.id == host.accountId }
-        if (hostAccount?.status == com.termoak.ffi.AccountStatus.ACTIVE) {
+        // Telnet hosts: no server sessions or SFTP.
+        if (hostAccount?.status == com.termoak.ffi.AccountStatus.ACTIVE && !host.isTelnet) {
             add(ItemAction(Icons.Outlined.CloudQueue, stringResource(R.string.hosts_connect_on_server), 0) { connect(host, true) })
         }
-        add(ItemAction(Icons.Outlined.Folder, stringResource(R.string.files_sftp), 0) { nav.openFiles(filesSourceOf(app, host)) })
+        if (!host.isTelnet) {
+            add(ItemAction(Icons.Outlined.Folder, stringResource(R.string.files_sftp), 0) { nav.openFiles(filesSourceOf(app, host)) })
+        }
         val writable = host.access.canWrite()
         add(
             ItemAction(
@@ -514,10 +529,14 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                     }
                 }
                 if (visibleHosts.isEmpty() && searching) {
+                    // An address typed in the search: quick connect to it.
+                    val target = QuickTarget.parse(query)
                     full {
                         EmptyState(
                             Icons.Outlined.SearchOff, stringResource(R.string.hosts_no_match, query),
                             stringResource(R.string.hosts_no_match_text), Modifier.height(320.dp),
+                            action = target?.let { stringResource(R.string.quick_connect_to, it.display()) },
+                            onAction = { target?.let { quickConnectTo(it) } },
                         )
                     }
                 }
@@ -583,7 +602,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             selecting = selecting, selectedCount = count, selectionActions = selectionActions,
             onClearSelection = { selected = emptyList() },
             onServerCount = onServer.size, onServerSessions = { openServerSessions() },
-            onNewHost = { edit(null) }, onNewGroup = { newGroup() },
+            onNewHost = { edit(null) }, onNewGroup = { newGroup() }, onQuickConnect = { quickConnectTo(it) },
             countIn = { countIn(it) },
             groupMenu = { g, dismiss -> MenuItems(actionsOfGroup(g), dismiss) },
             editor = editing?.let { (id, account) ->
@@ -670,9 +689,12 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     actionsFor?.let { host ->
         ModalBottomSheet(onDismissRequest = { actionsFor = null }) {
             Row(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                HostTile(host.label, host.os, host.color, size = 48.dp)
+                HostTile(host, size = 48.dp)
                 Column(Modifier.padding(start = 16.dp)) {
-                    Text(host.label, style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(host.label, style = MaterialTheme.typography.titleMedium)
+                        if (host.isTelnet) TelnetBadge(Modifier.padding(start = 8.dp))
+                    }
                     Text(
                         listOfNotNull((host.settings.username?.let { "$it@" } ?: "") + host.address, host.osVersion)
                             .joinToString(" · "),
@@ -832,7 +854,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
  * Strict vault where you are Use only (its secrets never leave the server).
  */
 fun connectHost(app: TermoakApp, host: SshHost): TermSession =
-    if (isStrictUseOnly(app, host)) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
+    // The server doesn't open Telnet sessions: a Strict vault's Telnet host says so in its tab.
+    if (isStrictUseOnly(app, host) && !host.isTelnet) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
 
 /** [host] is in a Strict vault where you are Use only: connections and files go through the server. */
 fun isStrictUseOnly(app: TermoakApp, host: SshHost): Boolean =
@@ -883,12 +906,13 @@ private fun SearchField(query: String, focus: FocusRequester, onChange: (String)
     )
 }
 
-/** "ssh, user" as in Termius (with the port if it isn't 22). */
+/** "ssh, user" as in Termius ("telnet" for Telnet hosts, with the port if it isn't the protocol's). */
 @Composable
 private fun subtitle(host: SshHost): String {
     val user = host.settings.username?.takeIf { it.isNotBlank() }
-    val port = host.settings.port?.takeIf { it != 22u }?.let { stringResource(R.string.hosts_port, it.toString()) }
-    return listOfNotNull("ssh", user, port).joinToString(", ")
+    val port = host.settings.port?.takeIf { it != HostProtocol.defaultPort(host.protocol) }
+        ?.let { stringResource(R.string.hosts_port, it.toString()) }
+    return listOfNotNull(host.protocol.ifBlank { HostProtocol.SSH }.lowercase(), user, port).joinToString(", ")
 }
 
 /** Hosts of group [group] and of its subgroups. */
@@ -940,7 +964,7 @@ private fun HostRow(
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Outlined.Check, stringResource(R.string.bulk_selected_cd), tint = MaterialTheme.colorScheme.onPrimary) }
             } else {
-                HostTile(host.label, host.os, host.color, size = 44.dp)
+                HostTile(host, size = 44.dp)
             }
             // The account it belongs to (with several accounts).
             if (account != null && selected != true) {
@@ -968,6 +992,7 @@ private fun HostRow(
                     Spacer(Modifier.width(6.dp))
                     Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                if (host.isTelnet) TelnetBadge(Modifier.padding(start = 6.dp))
             }
             Text(
                 subtitle(host), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1211,6 +1236,7 @@ private fun DesktopHosts(
     onServerSessions: () -> Unit,
     onNewHost: () -> Unit,
     onNewGroup: () -> Unit,
+    onQuickConnect: (QuickTarget) -> Unit,
     countIn: (HostGroup) -> Int,
     groupMenu: @Composable (HostGroup, () -> Unit) -> Unit,
     editor: (@Composable () -> Unit)?,
@@ -1350,10 +1376,13 @@ private fun DesktopHosts(
                                     }
                                 }
                                 if (searching && sections.all { it.hosts.isEmpty() }) {
+                                    val target = QuickTarget.parse(query)
                                     full {
                                         EmptyState(
                                             Icons.Outlined.SearchOff, stringResource(R.string.hosts_no_match, query),
                                             stringResource(R.string.hosts_no_match_text), Modifier.height(320.dp),
+                                            action = target?.let { stringResource(R.string.quick_connect_to, it.display()) },
+                                            onAction = { target?.let(onQuickConnect) },
                                         )
                                     }
                                 }
@@ -1504,7 +1533,7 @@ private fun DesktopHostCard(
                                 contentAlignment = Alignment.Center,
                             ) { Icon(Icons.Outlined.Check, stringResource(R.string.bulk_selected_cd), tint = MaterialTheme.colorScheme.onPrimary) }
                         } else {
-                            HostTile(host.label, host.os, host.color, size = 40.dp, logo = false)
+                            HostTile(host, size = 40.dp, twoInitials = true)
                         }
                         if (account != null && selected != true) {
                             Box(Modifier.align(Alignment.TopStart).offset((-4).dp, (-4).dp)) { AccountAvatar(account, 16.dp) }
@@ -1545,11 +1574,12 @@ private fun DesktopHostCard(
                     }
                 }
                 val os = osBadge(host.os)
-                if (os != null || host.tags.isNotEmpty() || vault != null) {
+                if (os != null || host.tags.isNotEmpty() || vault != null || host.isTelnet) {
                     Row(
                         Modifier.padding(top = 10.dp, end = 10.dp).fillMaxWidth().clipToBounds(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (host.isTelnet) TelnetBadge()
                         os?.let { (name, color) ->
                             Text(
                                 name, Modifier.clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = 0.18f)).padding(horizontal = 5.dp, vertical = 1.dp),

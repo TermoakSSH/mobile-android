@@ -213,7 +213,8 @@ fun AppRoot(app: TermoakApp) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     // Tablets, unfolded foldables, Chromebooks and DeX: the desktop's layout (tabs on top, sidebar).
-    val desktop = rememberDesktopLayout()
+    val wideLayout by app.prefs.wideLayout.collectAsState()
+    val desktop = rememberDesktopLayout(wideLayout)
 
     if (loggedIn == null) {
         // On the theme's background (the window's is the dark one of the launch): the status bar's icons go by the theme.

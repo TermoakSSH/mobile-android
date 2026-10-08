@@ -237,7 +237,7 @@ private fun HostChoice(h: SshHost, checked: Boolean, onToggle: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked, null)
-        HostTile(h.label, h.os, h.color, size = 32.dp)
+        HostTile(h, size = 32.dp)
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
             Text(h.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(

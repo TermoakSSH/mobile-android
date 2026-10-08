@@ -69,6 +69,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -120,11 +121,25 @@ import com.termoak.app.BuildConfig
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.uid
+import com.termoak.app.data.HostProtocol
+import com.termoak.app.data.isTelnet
+import com.termoak.app.data.WideLayout
 import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.TabOrder
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
 import com.termoak.ffi.SshHost
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.runtime.rememberCoroutineScope
+import com.termoak.app.data.QuickTarget
+import com.termoak.app.userMessage
+import com.termoak.ffi.HostSettings
+import com.termoak.ffi.SecretChange
+import com.termoak.ffi.SyncMode
+import com.termoak.ffi.TermoakException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -138,12 +153,22 @@ import kotlin.math.roundToInt
 /** The window is wide enough for the desktop layout (it changes when a foldable folds or unfolds). */
 val LocalDesktop = compositionLocalOf { false }
 
-/** Whether this window gets the desktop layout: Material's Expanded width class (≥ 840 dp). */
+/**
+ * Whether this window gets the desktop layout, as chosen in Settings →
+ * Appearance ([mode], see [WideLayout]): by default only with Material's
+ * Expanded width class (≥ 840 dp) and a height that isn't Compact (tablets,
+ * unfolded foldables, Chromebooks; not phones in landscape). It follows the
+ * window as it changes; the terminals live outside the composition.
+ */
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
-fun rememberDesktopLayout(): Boolean {
+fun rememberDesktopLayout(mode: WideLayout): Boolean {
     val activity = LocalActivity.current ?: return false
-    return calculateWindowSizeClass(activity).widthSizeClass == WindowWidthSizeClass.Expanded
+    val size = calculateWindowSizeClass(activity)
+    return mode.desktop(
+        expandedWidth = size.widthSizeClass == WindowWidthSizeClass.Expanded,
+        compactHeight = size.heightSizeClass == WindowHeightSizeClass.Compact,
+    )
 }
 
 /** Requests to the desktop layout from anywhere (keyboard shortcuts, the terminal). */
@@ -663,9 +688,16 @@ private fun SessionTabChip(
 
 // ----- Quick connect -----
 
-/** The "+" of the tab bar (and Ctrl+Shift+T): find a host and open it in a new tab. */
+/**
+ * The "+" of the tab bar (and Ctrl+Shift+T): find a host and open it in a
+ * new tab, or type an address (`user@host:port`, `telnet://host:23`) to
+ * connect to it (the desktop's host picker).
+ */
 @Composable
 fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHost) -> Unit) {
+    val resources = LocalResources.current
+    val snackbar = LocalSnackbar.current
+    val scope = rememberCoroutineScope()
     val hosts = remember {
         runCatching { app.core.listHosts(app.accounts.filter()) }.getOrDefault(emptyList())
             .sortedWith(compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() })
@@ -675,6 +707,15 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
     val q = query.trim().lowercase()
     val shown = if (q.isEmpty()) hosts else hosts.filter { h ->
         listOf(h.label, h.address, h.settings.username ?: "", h.tags.joinToString(" ")).any { it.lowercase().contains(q) }
+    }
+    // An address typed when no saved host matches the search.
+    val target = if (shown.isEmpty()) QuickTarget.parse(query) else null
+    fun connectTo(t: QuickTarget) {
+        try {
+            onConnect(quickConnectHost(app, hosts, t))
+        } catch (e: TermoakException) {
+            scope.launch { snackbar.showSnackbar(e.userMessage(resources, R.string.error_save_failed)) }
+        }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     Dialog(onDismissRequest = onDismiss) {
@@ -690,13 +731,34 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
                 OutlinedTextField(
                     query, { query = it },
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focus),
-                    placeholder = { Text(stringResource(R.string.desktop_search_hosts)) },
+                    placeholder = { Text(stringResource(R.string.quick_connect_placeholder)) },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(onGo = { shown.firstOrNull()?.let(onConnect) }),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+                    keyboardActions = KeyboardActions(onGo = {
+                        if (target != null) connectTo(target) else shown.firstOrNull()?.let(onConnect)
+                    }),
                 )
-                if (shown.isEmpty()) {
+                if (target != null) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp).clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer).clickable { connectTo(target) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.Bolt, null, tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(
+                                stringResource(R.string.quick_connect_to, target.display()), style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                stringResource(if (target.telnet) R.string.quick_connect_detail_telnet else R.string.quick_connect_detail),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                } else if (shown.isEmpty()) {
                     Text(
                         if (hosts.isEmpty()) stringResource(R.string.hosts_empty_title) else stringResource(R.string.hosts_no_match, query.trim()),
                         Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
@@ -709,7 +771,7 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
                             Modifier.fillMaxWidth().clickable { onConnect(h) }.padding(horizontal = 20.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            HostTile(h.label, h.os, h.color, size = 34.dp, logo = false)
+                            HostTile(h, size = 34.dp, twoInitials = true)
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(h.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
@@ -717,6 +779,7 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
                                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                             }
+                            if (h.isTelnet) TelnetBadge(Modifier.padding(start = 8.dp))
                         }
                     }
                 }
@@ -725,10 +788,41 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
     }
 }
 
-/** "user@address" and the port when it isn't 22 (the desktop's host cards). */
+/**
+ * The host for an address typed in quick connect: the saved one with that
+ * protocol, address, user and port, or a new one saved first where new
+ * items go (so its password, fingerprint and history have a place).
+ */
+fun quickConnectHost(app: TermoakApp, hosts: List<SshHost>, t: QuickTarget): SshHost {
+    hosts.firstOrNull { h ->
+        h.address.equals(t.host, ignoreCase = true) &&
+            HostProtocol.isTelnet(h.protocol) == t.telnet &&
+            (t.user == null || h.settings.username == t.user) &&
+            (h.settings.port ?: HostProtocol.defaultPort(h.protocol)) == t.effectivePort
+    }?.let { return it }
+    val place = app.accounts.defaultPlace()
+    val host = SshHost(
+        label = t.display(),
+        address = t.host,
+        settings = HostSettings(
+            username = t.user,
+            // Telnet hosts keep their port written out (see HostProtocol.portAfterSwitch).
+            port = t.port ?: if (t.telnet) HostProtocol.defaultPort(t.protocol) else null,
+        ),
+        protocol = t.protocol,
+        accountId = place.account,
+        vaultId = place.vault,
+        syncMode = if (place.device && app.accounts.list.value.isNotEmpty()) SyncMode.DEVICE_ONLY else null,
+    )
+    val saved = app.core.saveHost(host, SecretChange.Keep)
+    app.accounts.sync()
+    return saved
+}
+
+/** "user@address" and the port when it isn't the protocol's default (the desktop's host cards). */
 fun hostAddress(h: SshHost): String =
     (h.settings.username?.takeIf { it.isNotBlank() }?.let { "$it@" } ?: "") + h.address +
-        (h.settings.port?.takeIf { it != 22u }?.let { ":$it" } ?: "")
+        (h.settings.port?.takeIf { it != HostProtocol.defaultPort(h.protocol) }?.let { ":$it" } ?: "")
 
 /** Opens [host] in a new terminal tab (from the phone, or through the server for Strict Use-only hosts). */
 fun quickConnect(app: TermoakApp, nav: NavHostController, host: SshHost): TermSession {

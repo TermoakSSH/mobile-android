@@ -60,6 +60,7 @@ import com.termoak.app.TermoakApp
 import com.termoak.ffi.ForwardKind
 import com.termoak.ffi.PortForward
 import com.termoak.ffi.SshHost
+import com.termoak.app.data.isTelnet
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.launch
 
@@ -79,8 +80,8 @@ fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
     LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { forwards = load(); hosts = loadHosts() } }
     // A tunnel lives with its host (same account and vault).
     val byId = remember(hosts) { hosts.associateBy { it.accountId to it.id } }
-    // Hosts a tunnel can be added to (not those of Use-only vaults).
-    val usable = hosts.filter { it.access.canWrite() }
+    // Hosts a tunnel can be added to (not those of Use-only vaults, nor Telnet hosts: tunnels are SSH).
+    val usable = hosts.filter { it.access.canWrite() && !it.isTelnet }
     var editing by remember { mutableStateOf<PortForward?>(null) }
     var deleting by remember { mutableStateOf<PortForward?>(null) }
 

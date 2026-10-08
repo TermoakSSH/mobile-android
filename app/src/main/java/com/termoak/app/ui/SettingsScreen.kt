@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Key
@@ -65,6 +66,7 @@ import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ThemeMode
+import com.termoak.app.data.WideLayout
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.TwoFactorStatus
 import com.termoak.app.data.officialServer
@@ -91,6 +93,9 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val confirmPaste by app.prefs.confirmMultilinePaste.collectAsState()
     val keyBar by app.prefs.keyBarWithKeyboard.collectAsState()
     val theme by app.prefs.theme.collectAsState()
+    val telnetAutoLogin by app.prefs.telnetAutoLogin.collectAsState()
+    val wideLayout by app.prefs.wideLayout.collectAsState()
+    var choosingLayout by remember { mutableStateOf(false) }
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
     val checkUpdates by app.prefs.checkUpdates.collectAsState()
     val latest by app.updates.latest.collectAsState()
@@ -177,6 +182,9 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             SwitchRow(stringResource(R.string.settings_key_bar_keyboard), stringResource(R.string.settings_key_bar_keyboard_hint), keyBar) {
                 app.prefs.setKeyBarWithKeyboard(it)
             }
+            SwitchRow(stringResource(R.string.settings_telnet_auto_login), stringResource(R.string.settings_telnet_auto_login_hint), telnetAutoLogin) {
+                app.prefs.setTelnetAutoLogin(it)
+            }
             Row0(Icons.Outlined.KeyboardCommandKey, stringResource(R.string.kb_shortcuts), stringResource(R.string.settings_shortcuts_hint)) {
                 KeyShortcuts.sheet.value = true
             }
@@ -196,6 +204,9 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                 }
             }
             Spacer(Modifier.height(8.dp))
+            Row0(Icons.Outlined.Devices, stringResource(R.string.settings_wide_layout), stringResource(wideLayoutName(wideLayout))) {
+                choosingLayout = true
+            }
             Row0(
                 Icons.Outlined.Language, stringResource(R.string.settings_language),
                 languages.firstOrNull { it.tag == language }?.name ?: stringResource(R.string.settings_language_system),
@@ -246,12 +257,61 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
         }
     }
 
+    if (choosingLayout) {
+        WideLayoutDialog(wideLayout, onDismiss = { choosingLayout = false }) {
+            choosingLayout = false
+            app.prefs.setWideLayout(it)
+        }
+    }
     if (choosingLanguage) {
         LanguageDialog(languages, language, onDismiss = { choosingLanguage = false }) { tag ->
             choosingLanguage = false
             if (tag != language) AppLanguage.choose(app, tag)
         }
     }
+}
+
+@androidx.annotation.StringRes
+private fun wideLayoutName(mode: WideLayout): Int = when (mode) {
+    WideLayout.AUTO -> R.string.settings_wide_layout_auto
+    WideLayout.PHONE -> R.string.settings_wide_layout_phone
+    WideLayout.DESKTOP -> R.string.settings_wide_layout_desktop
+}
+
+/** "Layout on wide screens": Automatic, Phone layout or Desktop layout, each with what it does. */
+@Composable
+private fun WideLayoutDialog(selected: WideLayout, onDismiss: () -> Unit, onSelect: (WideLayout) -> Unit) {
+    val options = listOf(
+        WideLayout.AUTO to R.string.settings_wide_layout_auto_hint,
+        WideLayout.PHONE to R.string.settings_wide_layout_phone_hint,
+        WideLayout.DESKTOP to R.string.settings_wide_layout_desktop_hint,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_wide_layout)) },
+        text = {
+            Column {
+                options.forEach { (mode, hint) ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { onSelect(mode) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = mode == selected, onClick = { onSelect(mode) })
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text(stringResource(wideLayoutName(mode)), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(hint), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 /** "System default" and every language the app is translated into. */

@@ -8,6 +8,23 @@ import kotlinx.coroutines.flow.StateFlow
 
 enum class ThemeMode { SYSTEM, DARK, LIGHT }
 
+/**
+ * Layout of wide windows (Settings → Appearance): [AUTO] gives the desktop
+ * layout only to tablets, unfolded foldables and Chromebooks (an Expanded
+ * width and a height that isn't Compact); [PHONE] never; [DESKTOP] whenever
+ * the window is ≥ 840 dp wide (phones in landscape too).
+ */
+enum class WideLayout {
+    AUTO, PHONE, DESKTOP;
+
+    /** Does a window with an Expanded width ([expandedWidth], ≥ 840 dp) and [compactHeight] (< 480 dp) get the desktop layout? */
+    fun desktop(expandedWidth: Boolean, compactHeight: Boolean): Boolean = when (this) {
+        AUTO -> expandedWidth && !compactHeight
+        PHONE -> false
+        DESKTOP -> expandedWidth
+    }
+}
+
 /** App preferences (not synced: they belong to this device). */
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -80,6 +97,24 @@ class Prefs(context: Context) {
     fun setKeyBarWithKeyboard(on: Boolean) {
         _keyBar.value = on
         sp.edit { putBoolean("key_bar_with_keyboard", on) }
+    }
+
+    private val _telnetAutoLogin = MutableStateFlow(sp.getBoolean("telnet_auto_login", true))
+    /** The host's username and password answer the first login prompts of a Telnet host (the desktop's setting). */
+    val telnetAutoLogin: StateFlow<Boolean> = _telnetAutoLogin
+    fun setTelnetAutoLogin(on: Boolean) {
+        _telnetAutoLogin.value = on
+        sp.edit { putBoolean("telnet_auto_login", on) }
+    }
+
+    private val _wideLayout = MutableStateFlow(
+        runCatching { WideLayout.valueOf(sp.getString("wide_layout", null) ?: "") }.getOrDefault(WideLayout.AUTO),
+    )
+    /** Which layout wide windows get (Settings → Appearance). */
+    val wideLayout: StateFlow<WideLayout> = _wideLayout
+    fun setWideLayout(mode: WideLayout) {
+        _wideLayout.value = mode
+        sp.edit { putString("wide_layout", mode.name) }
     }
 
     private val _sidebarCollapsed = MutableStateFlow(sp.getBoolean("sidebar_collapsed", false))

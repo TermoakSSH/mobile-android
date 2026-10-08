@@ -309,7 +309,7 @@ private fun SwipeToClose(icon: ImageVector, resetAfter: Boolean = false, onSwipe
 @Composable
 private fun StatusTile(host: SshHost?, label: String, dot: Color) {
     Box {
-        HostTile(host?.label ?: label, host?.os, host?.color, size = 44.dp)
+        HostTile(host?.label ?: label, host?.os, host?.color, size = 44.dp, icon = host?.icon)
         Box(
             Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp).size(14.dp).clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface).padding(2.dp).clip(CircleShape).background(dot),
@@ -322,7 +322,13 @@ private fun LocalSessionRow(s: TermSession, host: SshHost?, onClick: () -> Unit,
     val state by s.state.collectAsState()
     val title by s.title.collectAsState()
     val status = when (val st = state) {
-        TermState.Running -> stringResource(if (s.persistent) R.string.sessions_connected_server else R.string.sessions_connected_ssh)
+        TermState.Running -> stringResource(
+            when {
+                s.persistent -> R.string.sessions_connected_server
+                s is com.termoak.app.term.LocalTerminal && s.telnet -> R.string.sessions_connected_telnet
+                else -> R.string.sessions_connected_ssh
+            },
+        )
         is TermState.Connecting -> st.message.asString()
         is TermState.Closed -> st.message.asString()
         TermState.Asleep -> stringResource(R.string.sessions_asleep)

@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.data.isTelnet
 import com.termoak.app.userMessage
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.Turn
@@ -342,7 +343,9 @@ fun NewAiTaskScreen(app: TermoakApp, nav: NavHostController) {
     val account = remember { app.accounts.aiAccount() }
     val hosts = remember {
         account?.let { a ->
-            runCatching { app.core.listHosts(app.accounts.scopeFilter(a.id)) }.getOrDefault(emptyList()).filter { it.accountId == a.id }
+            // The AI's tools reach hosts over SSH: not Telnet hosts.
+            runCatching { app.core.listHosts(app.accounts.scopeFilter(a.id)) }.getOrDefault(emptyList())
+                .filter { it.accountId == a.id && !it.isTelnet }
         }.orEmpty().sortedBy { it.label.lowercase() }
     }
     var prompt by remember { mutableStateOf("") }

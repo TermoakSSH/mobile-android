@@ -21,10 +21,20 @@ What it does:
   sections; hosts as cards with a context menu and the editor in a side
   panel; the terminal with the desktop's toolbar, the split view and the
   copilot on the right. Folding or unfolding switches layouts and keeps the
-  terminals.
-- **Vault**: hosts with search, groups as folders, favorites, tags and the
-  logo of the detected OS, a full editor (password, key or identity, group,
-  tags, notes, only on this phone) and pull-to-refresh sync. The "+" creates
+  terminals. Settings → Appearance → "Layout on wide screens": Automatic
+  (the desktop layout only with an Expanded width and a height that isn't
+  Compact, so not on phones in landscape), Phone layout, or Desktop layout
+  (whenever the window is ≥ 840 dp wide).
+- **Vault**: hosts with search, groups as folders, favorites, tags and a
+  logo (the one chosen in the editor, with the desktop's ids, else the
+  detected OS's, else the initial), a full editor (SSH or Telnet, password,
+  key or identity, group, tags, logo, notes, only on this phone) and
+  pull-to-refresh sync. Typing `user@host:port` or `telnet://host:port` in
+  the search (or the desktop layout's quick connect) connects to it.
+- **Telnet hosts**: a normal terminal tab (`connectTerminal`), with the
+  host's username and password typed at its first login prompts (Settings →
+  Terminal, on by default); marked "Telnet" and unencrypted; no SFTP,
+  tunnels, server sessions, jump hosts or AI host tools. The "+" creates
   hosts, groups and keys, or imports an OpenSSH config. Its sections also
   hold the keychain (generate and import keys, copy the public key,
   identities), tunnels (port forwarding rules, synced and started by the
@@ -35,7 +45,8 @@ What it does:
 - **Terminal**: the desktop emulator (`TerminalScreen`) with several tabs,
   pinch to zoom, two rows of extra keys (Esc, Ctrl, Alt, Tab, arrows…),
   snippets with variables, copy/paste, reconnect, and dialogs for the
-  fingerprint and passwords. A foreground service keeps the connections
+  fingerprint and passwords. Terminals from the phone show their latency
+  (every 5 s while on screen: gray, amber from 150 ms, red from 400 ms). A foreground service keeps the connections
   alive while the app is in the background.
 - **Server sessions**: open a host as a persistent session, attach to the
   active ones or to those shared with you, and end them.
@@ -58,7 +69,8 @@ What it does:
   does `termoak://join`.
 
 The OS logos come from [Simple Icons](https://simpleicons.org) (CC0); they
-are trademarks of their owners.
+are trademarks of their owners. The generic host logos are
+[Lucide](https://lucide.dev) icons (ISC), the desktop app's.
 
 ## Building
 

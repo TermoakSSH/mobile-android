@@ -56,7 +56,9 @@ class Copilot(private val context: Context, private val core: TermoakCore, priva
     fun send(session: TermSession, where: String?, text: String) {
         val chat = chat(session)
         // The host is known to the AI when it is on that server.
-        val hosts = listOfNotNull(session.hostId).takeIf { session.accountId != null && session.accountId == chat.accountId }.orEmpty()
+        // Not a Telnet host: the AI's host tools (commands, files) are SSH; it uses the shared terminal.
+        val telnet = session is LocalTerminal && session.telnet
+        val hosts = listOfNotNull(session.hostId).takeIf { session.accountId != null && session.accountId == chat.accountId && !telnet }.orEmpty()
         chat.send(text, hosts) { first ->
             var sid = when (session) {
                 is ServerTerminal -> session.sessionId

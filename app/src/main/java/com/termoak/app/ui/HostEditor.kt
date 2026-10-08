@@ -97,6 +97,10 @@ import com.termoak.app.data.canWrite
 import com.termoak.app.data.place
 import com.termoak.app.data.uid
 import com.termoak.app.data.useOnly
+import com.termoak.app.data.HostLogos
+import com.termoak.app.data.HostProtocol
+import com.termoak.app.data.isTelnet
+import androidx.compose.material.icons.outlined.Warning
 import com.termoak.app.userMessage
 import androidx.compose.runtime.collectAsState
 import com.termoak.ffi.HostSettings
@@ -185,6 +189,12 @@ fun HostEditor(
     val groups = allGroups.filter { it.accountId == place.account && (place.vault == null || it.vaultId == place.vault) }
     val snippets = allSnippets.filter { place.reaches(it.accountId, it.vaultId) }
 
+    // SSH or Telnet (a later version's protocol is kept as it is).
+    var protocol by remember { mutableStateOf(original?.protocol?.ifBlank { null } ?: HostProtocol.SSH) }
+    val telnet = HostProtocol.isTelnet(protocol)
+    // The chosen logo (`null`: automatic; an id this version doesn't know is kept).
+    var icon by remember { mutableStateOf(original?.icon) }
+    var choosingLogo by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf(original?.label ?: "") }
     var address by remember { mutableStateOf(original?.address ?: "") }
     var port by remember { mutableStateOf(s0.port?.toString() ?: "") }
@@ -193,7 +203,8 @@ fun HostEditor(
         mutableStateOf(
             when {
                 s0.identityId != null -> Auth.IDENTITY
-                s0.keyId != null -> Auth.KEY
+                // Telnet has no keys (a key kept from when it was SSH stays hidden).
+                s0.keyId != null && !HostProtocol.isTelnet(original?.protocol) -> Auth.KEY
                 else -> Auth.PASSWORD
             },
         )
@@ -254,10 +265,11 @@ fun HostEditor(
         val portValue = port.trim().takeIf { it.isNotEmpty() }?.let { HostForm.port(it) }
         if (port.isNotBlank() && portValue == null) e[HostField.PORT] = resources.getString(R.string.editor_error_port)
         val keepaliveValue = keepalive.trim().takeIf { it.isNotEmpty() }?.toUIntOrNull()
-        if (keepalive.isNotBlank() && keepaliveValue == null) e[HostField.KEEPALIVE] = resources.getString(R.string.editor_error_keepalive)
+        if (keepalive.isNotBlank() && keepaliveValue == null && !telnet) e[HostField.KEEPALIVE] = resources.getString(R.string.editor_error_keepalive)
+        // Hidden for Telnet (SSH only): kept as it was if it doesn't read.
         val envValue = HostForm.env(env).getOrElse {
-            e[HostField.ENV] = resources.getString(R.string.editor_error_env, it.message ?: "")
-            emptyMap()
+            if (!telnet) e[HostField.ENV] = resources.getString(R.string.editor_error_env, it.message ?: "")
+            s0.env
         }
         var proxyPortValue: UInt? = null
         if (proxyKind != null) {
@@ -277,6 +289,8 @@ fun HostEditor(
         return base.copy(
             label = label.trim().ifEmpty { addr },
             address = addr,
+            protocol = protocol,
+            icon = icon,
             groupId = groupId,
             tags = HostForm.tags(tags),
             notes = notes.trim(),
@@ -294,13 +308,15 @@ fun HostEditor(
             settings = s0.copy(
                 port = portValue,
                 username = user.trim().ifEmpty { null },
-                keyId = if (auth == Auth.KEY) keyId else null,
+                // Telnet: the key isn't used, it is kept as it was (the desktop does the same).
+                keyId = if (telnet) s0.keyId.takeIf { auth == Auth.PASSWORD } else if (auth == Auth.KEY) keyId else null,
                 identityId = if (auth == Auth.IDENTITY) identityId else null,
-                jumpHostIds = jumps.ifEmpty { null },
+                // Telnet can't go through jump hosts or forward the agent.
+                jumpHostIds = jumps.ifEmpty { null }?.takeIf { !telnet },
                 startupSnippetId = startupSnippet,
                 env = envValue,
                 keepaliveSecs = keepaliveValue,
-                agentForwarding = if (agentForwarding) true else null,
+                agentForwarding = if (agentForwarding && !telnet) true else null,
                 term = term.trim().ifEmpty { null },
                 theme = theme,
                 recordSessions = if (record) true else null,
@@ -366,14 +382,17 @@ fun HostEditor(
         ) {
             // ----- Address (big) and label, like the desktop's editor -----
             Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                HostTile(label.ifBlank { address.ifBlank { "?" } }, original?.os, color, size = 52.dp)
+                HostTile(label.ifBlank { address.ifBlank { "?" } }, original?.os, color, size = 52.dp, icon = icon)
                 Column(Modifier.padding(start = 16.dp).weight(1f)) {
                     Text(
                         label.ifBlank { address.ifBlank { stringResource(R.string.hosts_new_host) } },
                         style = MaterialTheme.typography.titleLarge, maxLines = 1,
                     )
                     Text(
-                        listOfNotNull("ssh", user.ifBlank { null }, port.takeIf { it.isNotBlank() && it != "22" }?.let { ":$it" })
+                        listOfNotNull(
+                            protocol.lowercase(), user.ifBlank { null },
+                            port.takeIf { it.isNotBlank() && it != HostProtocol.defaultPort(protocol).toString() }?.let { ":$it" },
+                        )
                             .joinToString(", "),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -404,6 +423,41 @@ fun HostEditor(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { runCatching { focusUser.requestFocus() } }),
                 )
+                // ----- Protocol: SSH or Telnet (the port follows, 22 ↔ 23) -----
+                val protocols = listOf(HostProtocol.SSH, HostProtocol.TELNET).let { known ->
+                    if (known.any { it.equals(protocol, ignoreCase = true) }) known else known + protocol
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.editor_protocol), Modifier.padding(start = 4.dp, end = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
+                        protocols.forEachIndexed { i, p ->
+                            SegmentedButton(
+                                selected = p.equals(protocol, ignoreCase = true),
+                                onClick = {
+                                    if (useOnly || p.equals(protocol, ignoreCase = true)) return@SegmentedButton
+                                    port = HostProtocol.portAfterSwitch(protocol, p, port)
+                                    protocol = p
+                                    clearError(HostField.PORT)
+                                    // Telnet has no keys: its username and password (or an identity's).
+                                    if (HostProtocol.isTelnet(p) && auth == Auth.KEY) auth = Auth.PASSWORD
+                                },
+                                shape = SegmentedButtonDefaults.itemShape(i, protocols.size),
+                            ) { Text(HostProtocol.displayName(p)) }
+                        }
+                    }
+                }
+                if (telnet) {
+                    Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Warning, null, Modifier.size(16.dp), tint = Brand.Amber)
+                        Text(
+                            stringResource(R.string.editor_telnet_warning), Modifier.padding(start = 8.dp),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
 
             if (useOnly) UseOnlyNote()
@@ -428,8 +482,9 @@ fun HostEditor(
                 }
             }
 
-            // ----- SSH: user, port and the credential -----
-            FormSection("SSH") {
+            // ----- SSH (or Telnet): user, port and the credential -----
+            val auths = if (telnet) listOf(Auth.PASSWORD, Auth.IDENTITY) else Auth.entries
+            FormSection(HostProtocol.displayName(protocol)) {
                 Row {
                     Box(Modifier.weight(1f)) {
                         FormField(
@@ -442,7 +497,7 @@ fun HostEditor(
                         FormField(
                             stringResource(R.string.common_port), port,
                             { port = it.filter(Char::isDigit).take(5); clearError(HostField.PORT) },
-                            placeholder = "22", keyboard = KeyboardType.Number,
+                            placeholder = HostProtocol.defaultPort(protocol).toString(), keyboard = KeyboardType.Number,
                             modifier = Modifier.focusRequester(focusPort),
                             error = errors[HostField.PORT],
                             imeAction = if (auth == Auth.PASSWORD) ImeAction.Next else ImeAction.Done,
@@ -452,10 +507,10 @@ fun HostEditor(
                 }
                 FormDivider()
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(12.dp)) {
-                    Auth.entries.forEachIndexed { i, a ->
+                    auths.forEachIndexed { i, a ->
                         SegmentedButton(
                             selected = auth == a, onClick = { auth = a },
-                            shape = SegmentedButtonDefaults.itemShape(i, Auth.entries.size),
+                            shape = SegmentedButtonDefaults.itemShape(i, auths.size),
                         ) { Text(stringResource(a.label)) }
                     }
                 }
@@ -508,6 +563,9 @@ fun HostEditor(
                     }
                 }
             }
+            if (telnet) {
+                FormHint(stringResource(if (auth == Auth.IDENTITY) R.string.editor_identity_hint_telnet else R.string.editor_telnet_login_hint))
+            }
 
             // ----- Group, tags and color -----
             FormSection(stringResource(R.string.editor_section_group)) {
@@ -526,6 +584,29 @@ fun HostEditor(
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 ColorChoice(color) { color = it }
+                FormDivider()
+                val auto = HostLogos.forOs(original?.os)
+                val chosen = HostLogos.byId(icon)
+                ListItem(
+                    modifier = Modifier.clickable(enabled = !useOnly) { choosingLogo = true },
+                    leadingContent = { HostTile(label.ifBlank { address.ifBlank { "?" } }, original?.os, color, size = 36.dp, icon = icon) },
+                    overlineContent = { Text(stringResource(R.string.editor_logo)) },
+                    headlineContent = {
+                        Text(
+                            when {
+                                chosen != null -> logoName(chosen)
+                                // A later version's logo: kept as it is.
+                                icon != null -> icon.orEmpty()
+                                auto != null -> stringResource(R.string.editor_logo_automatic_with, logoName(auto))
+                                else -> stringResource(R.string.editor_logo_automatic)
+                            },
+                        )
+                    },
+                    trailingContent = if (useOnly) null else {
+                        { TextButton(onClick = { choosingLogo = true }) { Text(stringResource(R.string.editor_logo_change)) } }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
             }
 
             // ----- Advanced (collapsible) -----
@@ -551,7 +632,7 @@ fun HostEditor(
             }
             AnimatedVisibility(advancedOpen) {
                 Column {
-                    FormSection(stringResource(R.string.host_section_jumps)) {
+                    if (!telnet) FormSection(stringResource(R.string.host_section_jumps)) {
                         if (jumps.isEmpty()) FormNote(stringResource(R.string.host_no_jumps))
                         jumps.forEachIndexed { i, id ->
                             val h = otherHosts.firstOrNull { it.id == id }
@@ -567,7 +648,8 @@ fun HostEditor(
                             )
                             FormDivider()
                         }
-                        val candidates = otherHosts.filter { it.id !in jumps }
+                        // A Telnet host is not an SSH server to jump through.
+                        val candidates = otherHosts.filter { it.id !in jumps && !it.isTelnet }
                         if (candidates.isNotEmpty()) {
                             FormPicker(
                                 stringResource(R.string.host_add_jump), stringResource(R.string.host_choose_host),
@@ -631,7 +713,7 @@ fun HostEditor(
                     }
                     FormHint(stringResource(R.string.host_proxy_note))
 
-                    FormSection(stringResource(R.string.editor_section_connection)) {
+                    if (!telnet) FormSection(stringResource(R.string.editor_section_connection)) {
                         FormSwitch(
                             stringResource(R.string.editor_agent_forwarding), stringResource(R.string.editor_agent_forwarding_hint),
                             agentForwarding,
@@ -648,19 +730,22 @@ fun HostEditor(
                     }
 
                     FormSection(stringResource(R.string.editor_section_terminal)) {
-                        FormPicker(
-                            stringResource(R.string.editor_startup_snippet),
-                            snippets.firstOrNull { it.id == startupSnippet }?.name
-                                ?: if (startupSnippet == null) none else stringResource(R.string.editor_deleted_snippet),
-                            listOf<Pair<String?, String>>(null to none) + snippets.map { it.id to it.name },
-                        ) { startupSnippet = it }
-                        FormDivider()
-                        FormField(
-                            stringResource(R.string.editor_env), env, { env = it; clearError(HostField.ENV) },
-                            placeholder = stringResource(R.string.editor_env_placeholder), singleLine = false,
-                            error = errors[HostField.ENV], mono = true,
-                        )
-                        FormDivider()
+                        // SSH only: the startup snippet and the environment.
+                        if (!telnet) {
+                            FormPicker(
+                                stringResource(R.string.editor_startup_snippet),
+                                snippets.firstOrNull { it.id == startupSnippet }?.name
+                                    ?: if (startupSnippet == null) none else stringResource(R.string.editor_deleted_snippet),
+                                listOf<Pair<String?, String>>(null to none) + snippets.map { it.id to it.name },
+                            ) { startupSnippet = it }
+                            FormDivider()
+                            FormField(
+                                stringResource(R.string.editor_env), env, { env = it; clearError(HostField.ENV) },
+                                placeholder = stringResource(R.string.editor_env_placeholder), singleLine = false,
+                                error = errors[HostField.ENV], mono = true,
+                            )
+                            FormDivider()
+                        }
                         FormField(
                             stringResource(R.string.editor_term), term, { term = it.trim() }, placeholder = "xterm-256color",
                             error = stringResource(R.string.editor_term_hint), isError = false,
@@ -717,6 +802,15 @@ fun HostEditor(
         }
     }
 
+    if (choosingLogo) {
+        LogoPicker(
+            label.ifBlank { address.ifBlank { "?" } }, original?.os, color, icon,
+            onDismiss = { choosingLogo = false },
+        ) {
+            icon = it
+            choosingLogo = false
+        }
+    }
     if (deleting && original != null) {
         ConfirmDialog(
             title = stringResource(R.string.hosts_delete_title, original.label),

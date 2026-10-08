@@ -106,6 +106,10 @@ import com.termoak.app.UiText
 import com.termoak.app.asString
 import com.termoak.app.data.Prefs
 import com.termoak.app.term.InitialConnecting
+import com.termoak.app.term.Latency
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.termoak.app.term.LiveShare
 import com.termoak.app.term.KeyStroke
 import com.termoak.app.term.Shortcut
@@ -284,7 +288,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
 
     // Files over this terminal's connection (or through the server for a server session).
     val canBrowse = when (session) {
-        is LocalTerminal -> state == TermState.Running
+        // Telnet has no SFTP.
+        is LocalTerminal -> state == TermState.Running && !session.telnet
         is ServerTerminal -> live.isOwner && session.hostId != null
         else -> false
     }
@@ -411,10 +416,18 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                             title ?: session.label, color = KeyFg, style = MaterialTheme.typography.titleSmall,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text(
-                            terminalStatus(session, state, live),
-                            color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                terminalStatus(session, state, live), Modifier.weight(1f, fill = false),
+                                color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            // The round trip to the host (terminals from the phone).
+                            if (session is LocalTerminal) {
+                                Text(" · ", color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
+                                LatencyText(session, state)
+                            }
+                        }
                     }
                     if (live.others.isNotEmpty() || live.pendingRequests > 0) {
                         ParticipantsChip(live) { showParticipants = true }
@@ -561,7 +574,11 @@ private fun terminalStatus(session: TermSession, state: TermState, live: LiveSha
             R.plurals.share_watching, live.others.size, live.others.size,
         )
         else -> stringResource(
-            if (session.persistent) R.string.term_server_session else R.string.term_ssh_from_phone,
+            when {
+                session.persistent -> R.string.term_server_session
+                session is LocalTerminal && session.telnet -> R.string.term_telnet_from_phone
+                else -> R.string.term_ssh_from_phone
+            },
         )
     }
     is TermState.Closed -> stringResource(R.string.term_disconnected)
@@ -613,7 +630,10 @@ private fun DesktopTerminalToolbar(
                 else -> stringResource(R.string.term_kind_local) to Brand.Blue
             }
             Pill(kind, kindColor, Modifier.padding(start = 8.dp))
+            if (session is LocalTerminal && session.telnet) Pill("Telnet", Brand.Amber, Modifier.padding(start = 4.dp))
             if (sharedLocally != null) Pill(stringResource(R.string.term_kind_shared), Brand.Green, Modifier.padding(start = 4.dp))
+            // The round trip to the host, next to the kind (terminals from this device).
+            if (session is LocalTerminal) LatencyPill(session, state, Modifier.padding(start = 4.dp))
             Text(
                 terminalStatus(session, state, live), Modifier.weight(1f).padding(horizontal = 10.dp),
                 color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -646,6 +666,59 @@ private fun DesktopTerminalToolbar(
         }
     }
 }
+
+/**
+ * The latency of a terminal from the phone, measured every few seconds
+ * while it is on screen (the app in the foreground) and connected; `null`
+ * while unknown.
+ */
+@Composable
+private fun rememberLatency(session: LocalTerminal, state: TermState): Double? {
+    var ms by remember(session) { mutableStateOf<Double?>(null) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val running = state == TermState.Running
+    LaunchedEffect(session, running) {
+        ms = null
+        if (!running) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                ms = session.latencyMs()
+                kotlinx.coroutines.delay(Latency.INTERVAL_MS)
+            }
+        }
+    }
+    return ms
+}
+
+/** Color of a latency: gray when fine (or unknown), amber from 150 ms, red from 400 ms. */
+private fun latencyColor(ms: Double?): Color = when (Latency.level(ms)) {
+    Latency.Level.UNKNOWN, Latency.Level.GOOD -> KeyFg.copy(alpha = 0.6f)
+    Latency.Level.FAIR -> Brand.Amber
+    Latency.Level.POOR -> Brand.Red
+}
+
+/** "42 ms" in the phone's terminal bar. */
+@Composable
+private fun LatencyText(session: LocalTerminal, state: TermState) {
+    val ms = rememberLatency(session, state)
+    val description = latencyDescription(ms)
+    Text(
+        Latency.format(ms), Modifier.semantics { contentDescription = description },
+        color = latencyColor(ms), style = MaterialTheme.typography.labelSmall, maxLines = 1,
+    )
+}
+
+/** "42 ms" as a badge of the desktop toolbar. */
+@Composable
+private fun LatencyPill(session: LocalTerminal, state: TermState, modifier: Modifier = Modifier) {
+    val ms = rememberLatency(session, state)
+    val description = latencyDescription(ms)
+    Pill(Latency.format(ms), latencyColor(ms).copy(alpha = 1f), modifier.semantics { contentDescription = description })
+}
+
+/** For TalkBack: "Latency: 42 ms". */
+@Composable
+private fun latencyDescription(ms: Double?): String = stringResource(R.string.term_latency, Latency.format(ms))
 
 /** Server sessions in the toolbar (the desktop's "info" color). */
 private val ServerKindColor = Color(0xFF2BA6B5)
@@ -903,7 +976,7 @@ private fun androidx.compose.foundation.layout.BoxScope.ConnectingPanel(
             .background(BarBg, RoundedCornerShape(20.dp)).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        HostTile(session.label, host?.os, host?.color, size = 64.dp)
+        HostTile(session.label, host?.os, host?.color, size = 64.dp, icon = host?.icon)
         Text(session.label, Modifier.padding(top = 14.dp), color = KeyFg, style = MaterialTheme.typography.titleLarge)
         Text(
             (host?.settings?.username?.let { "$it@" } ?: "") +

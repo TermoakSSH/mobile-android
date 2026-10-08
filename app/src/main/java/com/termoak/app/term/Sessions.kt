@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.termoak.app.R
 import com.termoak.app.data.Accounts
+import com.termoak.app.data.isTelnet
 import com.termoak.app.localized
 import com.termoak.ffi.ServerSession
 import com.termoak.ffi.ServerSessionState
@@ -52,9 +53,12 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
         (it is ServerTerminal && it.sessionId == sessionId) || (it is LocalTerminal && it.sharedId.value == sessionId)
     }
 
-    /** SSH from the phone ([activate]: it becomes the terminal on screen). */
+    /** Settings → Terminal: log in to Telnet hosts automatically (set by the app). */
+    @Volatile var telnetAutoLogin: () -> Boolean = { true }
+
+    /** SSH (or Telnet) from the phone ([activate]: it becomes the terminal on screen). */
     fun openLocal(host: SshHost, activate: Boolean = true): TermSession =
-        add(LocalTerminal(core, host.label, host.id, host.address, host.accountId), activate)
+        add(LocalTerminal(core, host.label, host.id, host.address, host.accountId, host.isTelnet, telnetAutoLogin), activate)
 
     /** An open terminal of [hostId] from the phone that is connected or connecting (to reuse it). */
     fun liveLocal(hostId: String, accountId: String? = null): TermSession? = _list.value.firstOrNull {
