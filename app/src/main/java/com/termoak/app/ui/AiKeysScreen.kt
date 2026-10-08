@@ -63,6 +63,8 @@ import com.termoak.app.UiText
 import com.termoak.app.aiSetupError
 import com.termoak.app.asString
 import com.termoak.app.toUiText
+import com.termoak.app.data.AccountAiKeys
+import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.AiAccessInfo
 import com.termoak.ffi.AiKeyInfo
 import com.termoak.ffi.AiKeyProvider
@@ -105,25 +107,48 @@ fun AiKeysScreen(app: TermoakApp, nav: NavHostController) {
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     val loggedIn by app.accounts.loggedIn.collectAsState()
+    val accountList by app.accounts.list.collectAsState()
+    // The keys of the account picked in the AI section (the current one by default), like its tasks.
+    var accountId by remember { mutableStateOf(app.accounts.aiAccount()?.id) }
+    val api = remember(accountId) { accountId?.let { app.accounts.handle(it) }?.let { AccountAiKeys(it) } }
     var access by remember { mutableStateOf<AiAccessInfo?>(null) }
     var keys by remember { mutableStateOf<List<AiKeyInfo>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     suspend fun load() {
+        val handle = accountId?.let { app.accounts.handle(it) }
+        if (handle == null) {
+            loading = false
+            return
+        }
         loading = true
         try {
-            access = app.core.aiAccess()
-            keys = app.core.listAiKeys()
+            access = handle.aiAccess()
+            keys = AccountAiKeys(handle).list()
         } catch (e: TermoakException) {
             snackbar.showSnackbar(e.message?.takeIf { it.isNotBlank() } ?: resources.getString(R.string.ai_keys_load_failed))
         } finally {
             loading = false
         }
     }
-    LaunchedEffect(loggedIn) { if (loggedIn == true) load() }
+    LaunchedEffect(loggedIn, accountId) {
+        if (app.accounts.account(accountId)?.status != AccountStatus.ACTIVE) accountId = app.accounts.aiAccount()?.id
+        if (loggedIn == true) load()
+    }
+    val active = accountList.filter { it.status == AccountStatus.ACTIVE }
 
     ScreenScaffold(
         title = stringResource(R.string.section_ai),
+        header = if (active.size > 1) {
+            {
+                AiAccountPicker(active, accountId) {
+                    accountId = it
+                    app.accounts.aiAccountId = it
+                    access = null
+                    keys = emptyList()
+                }
+            }
+        } else null,
         navigationIcon = {
             IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back)) }
         },
@@ -149,7 +174,9 @@ fun AiKeysScreen(app: TermoakApp, nav: NavHostController) {
             AccessCard(info)
             SectionLabel(stringResource(R.string.ai_keys_providers))
             info.providers.forEach { p ->
-                key(p.provider) { ProviderKeyCard(app, p, keys.firstOrNull { it.provider == p.provider }) { load() } }
+                if (api != null) {
+                    key(accountId, p.provider) { ProviderKeyCard(api, p, keys.firstOrNull { it.provider == p.provider }) { load() } }
+                }
             }
             Row(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                 Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -213,7 +240,7 @@ private data class Feedback(val text: UiText, val ok: Boolean)
 /** One provider: its saved key (if any), a field for a new one, the model and Test · Save · Delete. */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun ProviderKeyCard(app: TermoakApp, provider: AiKeyProvider, saved: AiKeyInfo?, onChanged: suspend () -> Unit) {
+private fun ProviderKeyCard(api: AccountAiKeys, provider: AiKeyProvider, saved: AiKeyInfo?, onChanged: suspend () -> Unit) {
     val scope = rememberCoroutineScope()
     var key by remember(provider.provider) { mutableStateOf("") }
     var model by remember(provider.provider, saved?.updatedAt) { mutableStateOf(saved?.model.orEmpty()) }
@@ -298,7 +325,7 @@ private fun ProviderKeyCard(app: TermoakApp, provider: AiKeyProvider, saved: AiK
                         testing = true
                         act {
                             try {
-                                val r = app.core.testAiKey(provider.provider, key.trim().ifEmpty { null })
+                                val r = api.test(provider.provider, key.trim().ifEmpty { null })
                                 val reason = r.error?.takeIf { it.isNotBlank() } ?: r.status?.let { "HTTP $it" }
                                 when {
                                     r.ok -> Feedback(UiText.Res(R.string.ai_keys_test_ok), true)
@@ -317,7 +344,7 @@ private fun ProviderKeyCard(app: TermoakApp, provider: AiKeyProvider, saved: AiK
                         act {
                             try {
                                 // Empty field with a saved key: only the model changes.
-                                app.core.setAiKey(provider.provider, key.trim().ifEmpty { null }, model.trim().ifEmpty { null })
+                                api.set(provider.provider, key.trim().ifEmpty { null }, model.trim().ifEmpty { null })
                                 key = ""
                                 onChanged()
                                 Feedback(UiText.Res(R.string.ai_keys_saved_ok), true)
@@ -359,7 +386,7 @@ private fun ProviderKeyCard(app: TermoakApp, provider: AiKeyProvider, saved: AiK
         ) {
             act {
                 try {
-                    app.core.deleteAiKey(provider.provider)
+                    api.delete(provider.provider)
                     key = ""
                     onChanged()
                     Feedback(UiText.Res(R.string.ai_keys_deleted), true)

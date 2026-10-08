@@ -624,7 +624,7 @@ fun FollowKeyboard(list: LazyListState) {
 
 /** Which account the AI section shows (with several signed in). */
 @Composable
-private fun AiAccountPicker(accounts: List<com.termoak.ffi.AccountInfo>, selected: String?, onSelect: (String) -> Unit) {
+internal fun AiAccountPicker(accounts: List<com.termoak.ffi.AccountInfo>, selected: String?, onSelect: (String) -> Unit) {
     androidx.compose.foundation.layout.Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import com.termoak.app.MainActivity
 import com.termoak.app.R
 import com.termoak.app.localized
@@ -24,42 +23,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.Locale
-
-/** An invitation link: `termoak://join?server=…&token=…` or `https://<server>/join/<token>`. */
-data class JoinLinkRef(val server: String, val token: String) {
-    companion object {
-        private val TOKEN = Regex("^[A-Za-z0-9_-]+$")
-
-        fun parse(text: String?): JoinLinkRef? {
-            val uri = runCatching { (text?.trim() ?: return null).toUri() }.getOrNull() ?: return null
-            val scheme = uri.scheme?.lowercase(Locale.ROOT)
-            return when {
-                scheme == "termoak" && uri.host == "join" -> {
-                    val server = uri.getQueryParameter("server")?.trim()?.trimEnd('/')
-                    val token = uri.getQueryParameter("token")?.trim()
-                    if (server.isNullOrEmpty() || token == null || !TOKEN.matches(token)) null else JoinLinkRef(server, token)
-                }
-                (scheme == "https" || scheme == "http") && uri.host != null -> {
-                    // /join/<token> (web page) or /api/v1/join/<token>.
-                    val seg = uri.pathSegments
-                    val i = seg.indexOf("join")
-                    val token = seg.getOrNull(i + 1)
-                    if (i < 0 || token == null || !TOKEN.matches(token)) return null
-                    val port = if (uri.port > 0) ":${uri.port}" else ""
-                    JoinLinkRef("$scheme://${uri.host}$port", token)
-                }
-                else -> null
-            }
-        }
-
-        /** Same server, whatever the trailing slash or letter case. */
-        fun sameServer(a: String?, b: String?): Boolean {
-            fun norm(s: String?) = s?.trim()?.trimEnd('/')?.lowercase(Locale.ROOT)
-            return a != null && b != null && norm(a) == norm(b)
-        }
-    }
-}
 
 /**
  * Sharing notices for the whole app: join and keyboard requests (from the

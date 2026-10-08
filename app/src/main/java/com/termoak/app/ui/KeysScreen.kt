@@ -447,7 +447,8 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
             LazyColumn(contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp)) {
                 items(identities, key = { it.uid }) { idn ->
                     ListItem(
-                        modifier = Modifier.clickable { editing = idn },
+                        // A Use-only identity can't be changed (its secrets are hidden too): no editor.
+                        modifier = if (idn.access.canWrite()) Modifier.clickable { editing = idn } else Modifier,
                         headlineContent = { Text(idn.label) },
                         supportingContent = {
                             Text(
@@ -530,6 +531,7 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
             stringResource(R.string.common_delete), true, onDismiss = { deleting = null },
         ) {
             runCatching { app.core.deleteIdentity(idn.id, idn.accountId) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
             onChanged()
             app.accounts.sync()
         }
@@ -542,6 +544,9 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
     var list by remember { mutableStateOf(runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList())) }
     LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { list = runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList()) } }
     var deleting by remember { mutableStateOf<KnownHost?>(null) }
+    val resources = LocalResources.current
+    val snackbar = LocalSnackbar.current
+    val scope = rememberCoroutineScope()
     VaultScaffold(VaultSection.KNOWN_HOSTS, nav) { padding ->
         if (list.isEmpty()) {
             EmptyState(
@@ -580,6 +585,7 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
             stringResource(R.string.known_hosts_forget), true, onDismiss = { deleting = null },
         ) {
             runCatching { app.core.deleteKnownHost(k.id, k.accountId) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
             list = runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList())
             app.accounts.sync()
         }
