@@ -67,6 +67,13 @@ What it does:
   account names and "Hide email addresses"; changed host keys asked with
   both fingerprints; files: real cancel, several at once, folders as .zip,
   photos, and files shared from other apps.
+- **0.6.2** (fixes): touch in the terminal works as documented again (it
+  took only the first finger of a touch, so every touch ended in the copy
+  and paste menu): hold and drag moves the cursor, a swipe scrolls, a tap
+  shows the keyboard, double and triple tap select, held still the menu
+  opens at 600 ms, in every cursor gesture mode; the on-screen keyboard
+  closes when leaving the terminal for Home or another screen; Home from
+  the terminal no longer brings it straight back.
 - **Push**: wired per account and off by default. Build with
   `-PtermoakPush=true` once a Firebase project and its
   `google-services.json` exist; the Firebase messaging service then hands

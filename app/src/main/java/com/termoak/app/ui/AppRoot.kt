@@ -728,6 +728,9 @@ fun stateColor(state: TermState) = when (state) {
 
 /** Switches to a main tab, keeping the state of each one. */
 fun NavHostController.goTab(route: String, clear: Boolean = false) {
+    // The terminal belongs to no tab: left first, or it was saved as part of the Vault's state
+    // (it sits over the hosts) and Home (Ctrl+Shift+H, the palette, +) brought it straight back.
+    if (!clear && currentDestination?.route == Routes.TERMINAL) popBackStack()
     navigate(route) {
         if (clear) {
             popUpTo(graph.id) { inclusive = true }

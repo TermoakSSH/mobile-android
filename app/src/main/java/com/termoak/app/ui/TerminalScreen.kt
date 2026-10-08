@@ -125,6 +125,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
@@ -168,6 +169,29 @@ internal val TermBarBg: Color get() = BarBg
 internal val TermKeyBg: Color get() = KeyBg
 internal val TermKeyFg: Color get() = KeyFg
 
+/**
+ * The on-screen keyboard leaves with the terminal: back, Home (a phone's tab
+ * or the desktop layout's) or any other screen hides it, which Android
+ * otherwise leaves open over the next screen. Switching tabs or panes
+ * happens inside the terminal screen, so the next terminal keeps it.
+ */
+@Composable
+internal fun KeyboardLeavesWithTerminal(nav: NavController, views: List<TerminalView>) {
+    DisposableEffect(nav, views) {
+        // A copy: releasing a view's focus can move it to another one.
+        val release = { views.toList().forEach { it.releaseKeyboard() } }
+        // At once, not when the screen's fade-out ends (by then the next screen may have its own keyboard).
+        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+            if (destination.route != Routes.TERMINAL) release()
+        }
+        nav.addOnDestinationChangedListener(listener)
+        onDispose {
+            nav.removeOnDestinationChangedListener(listener)
+            release()
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
@@ -191,6 +215,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     // The terminal views on screen (one, or one per pane): the keyboard goes to the focused one.
     val views = remember { mutableListOf<TerminalView>() }
+    KeyboardLeavesWithTerminal(nav, views)
     var showSnippets by remember { mutableStateOf(false) }
     var showSplitPicker by remember { mutableStateOf(false) }
     var terminating by remember { mutableStateOf<ServerTerminal?>(null) }

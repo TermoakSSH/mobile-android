@@ -24,6 +24,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import androidx.annotation.VisibleForTesting
 import androidx.core.graphics.withTranslation
 import com.termoak.ffi.KeyModifiers
 import com.termoak.ffi.MouseMode
@@ -440,38 +441,56 @@ class TerminalView(context: Context) : View(context) {
             onFontSizeChanged(fontSp)
         }
     })
-    private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-            // Not after holding (the cursor or the menu).
-            if (!cursor.tapped) return true
-            // Double tap: the word; triple tap: the line (with the copy menu).
-            val cell = cellAt(e.x, e.y)
-            val last = lastTapCell
-            taps = if (last != null && e.eventTime - lastTapAt < ViewConfiguration.getDoubleTapTimeout() &&
-                last.second == cell.second && abs(last.first - cell.first) <= 2
-            ) taps + 1 else 1
-            lastTapAt = e.eventTime
-            lastTapCell = cell
-            if (taps >= 2) {
-                if (if (taps == 2) selectWordAt(cell) else selectLineAt(cell)) onContextMenu(e.x, e.y)
-                return true
-            }
-            // A tap while text is selected only lets go of it.
-            if (hasSelection) {
-                clearSelection()
-                return true
-            }
-            // The program asked for the mouse (htop, mc, vim with mouse=a...): a tap is a click.
-            if (clickRemote(cell)) {
-                showKeyboard()
-                return true
-            }
-            // A tap on a link opens it; otherwise it shows the keyboard.
-            if (openLinkAt(e.x, e.y)) return true
-            showKeyboard()
-            return true
-        }
 
+    /**
+     * A tap (the cursor gestures said so: one finger, still, let go before
+     * holding did anything). Double tap: the word; triple tap: the line (with
+     * the copy menu). Counted here rather than by GestureDetector, whose
+     * double tap listener swallows the second tap's single tap.
+     */
+    private fun tap(e: MotionEvent) {
+        val cell = cellAt(e.x, e.y)
+        val last = lastTapCell
+        taps = if (last != null && e.eventTime - lastTapAt < ViewConfiguration.getDoubleTapTimeout() &&
+            last.second == cell.second && abs(last.first - cell.first) <= 2
+        ) taps + 1 else 1
+        lastTapAt = e.eventTime
+        lastTapCell = cell
+        if (taps >= 2) {
+            if (select(cell, taps > 2)) onContextMenu(e.x, e.y)
+            return
+        }
+        // A tap while text is selected only lets go of it.
+        if (hasSelection) {
+            clearSelection()
+            return
+        }
+        // The program asked for the mouse (htop, mc, vim with mouse=a...): a tap is a click.
+        if (clickRemote(cell)) {
+            showKeyboard()
+            return
+        }
+        // A tap on a link opens it; otherwise it shows the keyboard.
+        if (openLinkAt(e.x, e.y)) return
+        showKeyboard()
+    }
+
+    /** Selects the word (or, with [line], the line) at a cell: double and triple tap, holding. Tests listen here. */
+    @VisibleForTesting
+    internal var select: (cell: Pair<Int, Int>, line: Boolean) -> Boolean = { cell, line ->
+        if (line) selectLineAt(cell) else selectWordAt(cell)
+    }
+
+    /** Where the cursor gestures' arrows go: the session (it encodes and broadcasts them). Tests listen here. */
+    @VisibleForTesting
+    internal var sendArrow: (TerminalKey) -> Unit = { key -> session?.arrow(key) }
+
+    /** What the finger on the terminal is doing now (tests). */
+    @VisibleForTesting
+    internal val gesturePhase: CursorGesture.Phase get() = cursor.phase
+
+    // Only scrolling: taps, holding and the menu come from the cursor gestures (CursorGesture).
+    private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
             val s = session ?: return false
             // The fingers move the cursor (or held to open the menu).
@@ -501,8 +520,11 @@ class TerminalView(context: Context) : View(context) {
             return true
         }
     }).apply {
-        // The long-press menu comes from the cursor gestures (later when holding moves the cursor).
+        // The long-press menu comes from the cursor gestures (later when holding moves the cursor),
+        // and taps are counted in tap(): no double tap listener, which would also keep a quick
+        // swipe right after a tap from scrolling.
         setIsLongpressEnabled(false)
+        setOnDoubleTapListener(null)
     }
 
     // ----- Cursor gestures: arrows by dragging (CursorGesture) -----
@@ -555,7 +577,7 @@ class TerminalView(context: Context) : View(context) {
     private fun cursorActions(actions: List<CursorGesture.Action>) {
         for (a in actions) {
             when (a) {
-                is CursorGesture.Action.Arrow -> if (!readOnly) session?.arrow(
+                is CursorGesture.Action.Arrow -> if (!readOnly) sendArrow(
                     when (a.direction) {
                         ArrowDirection.UP -> TerminalKey.Up
                         ArrowDirection.DOWN -> TerminalKey.Down
@@ -573,7 +595,7 @@ class TerminalView(context: Context) : View(context) {
                 is CursorGesture.Action.Menu -> {
                     performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                     // Held on text: its word is selected, with handles to change the selection.
-                    if (!hasSelection) selectWordAt(cellAt(a.x, a.y))
+                    if (!hasSelection) select(cellAt(a.x, a.y), false)
                     onContextMenu(a.x, a.y)
                 }
             }
@@ -653,7 +675,12 @@ class TerminalView(context: Context) : View(context) {
             scaling = false
             onTouched()
         }
-        return gestures.onTouchEvent(event) || super.onTouchEvent(event)
+        gestures.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP && cursor.tapped && !scaling) tap(event)
+        // Every touch is ours, from its first finger: a view that doesn't take the ACTION_DOWN gets
+        // nothing more of the gesture (neither from Android nor from Compose's AndroidView), and the
+        // cursor gestures, waiting for a finger that never moves nor lifts, opened the menu.
+        return true
     }
 
     /**
@@ -675,6 +702,18 @@ class TerminalView(context: Context) : View(context) {
 
     fun hideKeyboard() {
         context.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(windowToken, 0)
+    }
+
+    /**
+     * Leaving the terminal for another screen: if the keyboard is this
+     * view's, it is hidden and the view lets go of the focus. Whether it was.
+     */
+    fun releaseKeyboard(): Boolean {
+        val imm = context.getSystemService(InputMethodManager::class.java) ?: return false
+        if (!hasFocus() && !imm.isActive(this)) return false
+        imm.hideSoftInputFromWindow(windowToken, 0)
+        clearFocus()
+        return true
     }
 
     // ----- Keyboard -----
