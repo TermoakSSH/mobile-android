@@ -120,6 +120,7 @@ import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
 import com.termoak.app.asString
+import com.termoak.app.data.AccountView
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.isTelnet
 import com.termoak.app.data.uid
@@ -140,6 +141,7 @@ import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
 import com.termoak.app.term.TerminalFont
 import com.termoak.app.term.TerminalView
+import com.termoak.app.userMessage
 import com.termoak.ffi.Snippet
 import com.termoak.ffi.TerminalKey
 import com.termoak.ffi.snippetVariables
@@ -687,6 +689,22 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             session, live,
             onShare = if (sharable) ({ showParticipants = false; showShare = true }) else null,
             onDismiss = { showParticipants = false },
+            onStopSharing = {
+                scope.launch {
+                    runCatching {
+                        when (session) {
+                            is ServerTerminal -> session.sessionId?.let { id ->
+                                // Sharing goes through the current account (like the share sheet).
+                                session.accountId?.takeIf { it != app.accounts.current.value?.id }
+                                    ?.let { app.accounts.setView(AccountView.One(it)) }
+                                app.core.stopSharingServerSession(id)
+                            }
+                            is LocalTerminal -> session.stopSharingByHand()
+                            else -> Unit
+                        }
+                    }.onFailure { snackbar.showSnackbar(it.userMessage(resources, R.string.share_update_failed)) }
+                }
+            },
         )
     }
     terminating?.let { s ->

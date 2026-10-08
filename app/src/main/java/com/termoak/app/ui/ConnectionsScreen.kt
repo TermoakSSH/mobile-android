@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.LinkOff
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Terminal
@@ -59,9 +60,9 @@ import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
-import com.termoak.app.userMessage
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
+import com.termoak.app.userMessage
 import com.termoak.ffi.AccountInfo
 import com.termoak.ffi.ItemFilter
 import com.termoak.ffi.ParticipantKind
@@ -94,6 +95,8 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     var joining by remember { mutableStateOf(false) }
     // Session whose activity (who typed) is open: id and title.
     var activity by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // One of your server sessions being shared (invitations), as on iOS.
+    var sharing by remember { mutableStateOf<ServerSession?>(null) }
     // Hosts of every account (and This device), by account and id.
     val hosts = remember { runCatching { app.core.listHosts(ItemFilter()) }.getOrDefault(emptyList()).associateBy { it.accountId to it.id } }
     val sessionAccount = remember(lists) {
@@ -182,6 +185,7 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                             ServerSessionRow(
                                 s, hostOf(s), onClick = { attach(s) }, onClose = { closing = s },
                                 onActivity = { activity = s.id to s.title.ifBlank { hostOf(s)?.label ?: untitled } },
+                                onShare = { sharing = s },
                                 account = accountLabel(s.id),
                             )
                         }
@@ -262,6 +266,12 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     }
     activity?.let { (id, title) ->
         ActivitySheet(app, id, title, onDismiss = { activity = null }, accountId = sessionAccount[id])
+    }
+    sharing?.let { s ->
+        val people = s.participants.size.takeIf { it > 0 } ?: s.viewers.size
+        ServerSessionShareSheet(
+            app, s.id, sessionAccount[s.id], s.title.ifBlank { hostOf(s)?.label ?: untitled }, othersInside = people > 1,
+        ) { sharing = null }
     }
     if (joining) {
         JoinLinkDialog(onDismiss = { joining = false }) { link ->
@@ -379,6 +389,8 @@ private fun ServerSessionRow(
     onClick: () -> Unit,
     onClose: (() -> Unit)?,
     onActivity: (() -> Unit)? = null,
+    /** Share it (invitations), without opening it. */
+    onShare: (() -> Unit)? = null,
     /** The account it is on, with several accounts. */
     account: String? = null,
 ) {
@@ -421,6 +433,14 @@ private fun ServerSessionRow(
         leadingContent = { StatusTile(host, title, color) },
         trailingContent = {
             Row {
+                if (onShare != null) {
+                    IconButton(onClick = onShare) {
+                        Icon(
+                            Icons.Outlined.PersonAdd, stringResource(R.string.share_action), Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 if (onActivity != null) {
                     IconButton(onClick = onActivity) {
                         Icon(

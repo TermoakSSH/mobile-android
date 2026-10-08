@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.QrCode2
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,9 +68,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.termoak.app.R
+import com.termoak.app.TermoakApp
 import com.termoak.app.data.AccountView
 import com.termoak.app.data.Accounts
-import com.termoak.app.TermoakApp
 import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.TermSession
@@ -142,7 +143,10 @@ fun canShare(session: TermSession, loggedIn: Boolean, isOwner: Boolean): Boolean
 private enum class Target { PEOPLE, TEAM, LINK }
 
 /** Expiry choices, in minutes (`null`: never). */
-private val Expiries = listOf<Long?>(null, 60, 24 * 60, 7 * 24 * 60)
+private val Expiries = listOf<Long?>(null, 30, 60, 24 * 60, 7 * 24 * 60)
+
+/** A new invitation expires in a day unless chosen otherwise (as on iOS). */
+private const val DEFAULT_EXPIRY = 24L * 60
 
 /** Time limits for automatic grants of the keyboard, in minutes. */
 private val ControlLimits = listOf(5u, 15u, 30u, 60u, 120u, 240u)
@@ -180,6 +184,7 @@ private fun ControlLimitPicker(limit: UInt?, last: UInt, enabled: Boolean, inDia
 @Composable
 private fun expiryLabel(minutes: Long?): String = when (minutes) {
     null -> stringResource(R.string.share_expiry_never)
+    30L -> stringResource(R.string.share_expiry_half_hour)
     60L -> stringResource(R.string.share_expiry_hour)
     24L * 60 -> stringResource(R.string.share_expiry_day)
     else -> stringResource(R.string.share_expiry_week)
@@ -190,12 +195,8 @@ private fun expiryLabel(minutes: Long?): String = when (minutes) {
  * (view only or can ask for the keyboard, expiry, waiting room, automatic
  * keyboard), the active invitations (edit or revoke) and "Stop sharing".
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val resources = LocalResources.current
-    val scope = rememberCoroutineScope()
     val backend = remember(session) {
         when (session) {
             is ServerTerminal -> ServerShareBackend(app.core, session.sessionId ?: "", session.accountId, app.accounts)
@@ -203,6 +204,37 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
             else -> null
         }
     } ?: return
+    val live by session.live.collectAsState()
+    ShareSheetContent(app, backend, title, local = session is LocalTerminal, othersInside = live.others.isNotEmpty(), onDismiss = onDismiss)
+}
+
+/** Sharing a session of the server from the Connections list, without opening it (as on iOS). */
+@Composable
+fun ServerSessionShareSheet(
+    app: TermoakApp,
+    sessionId: String,
+    accountId: String?,
+    title: String,
+    othersInside: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val backend = remember(sessionId) { ServerShareBackend(app.core, sessionId, accountId, app.accounts) }
+    ShareSheetContent(app, backend, title, local = false, othersInside = othersInside, onDismiss = onDismiss)
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun ShareSheetContent(
+    app: TermoakApp,
+    backend: ShareBackend,
+    title: String,
+    local: Boolean,
+    othersInside: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
     var ready by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -213,7 +245,7 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
     var email by remember { mutableStateOf("") }
     var teamId by remember { mutableStateOf<String?>(null) }
     var control by remember { mutableStateOf(false) }
-    var expiry by remember { mutableStateOf<Long?>(null) }
+    var expiry by remember { mutableStateOf<Long?>(DEFAULT_EXPIRY) }
     var approval by remember { mutableStateOf(true) }
     var autoGrant by remember { mutableStateOf(false) }
     // Time limit of automatic grants (`null`: none); [lastLimit] is what the switch turns on.
@@ -224,7 +256,7 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
     var editing by remember { mutableStateOf<SessionShareInfo?>(null) }
     var revoking by remember { mutableStateOf<SessionShareInfo?>(null) }
     var stopping by remember { mutableStateOf(false) }
-    val live by session.live.collectAsState()
+    var showingQr by remember { mutableStateOf<String?>(null) }
 
     fun fail(e: Throwable, fallback: Int) {
         error = e.message?.takeIf { it.isNotBlank() && e !is IllegalStateException } ?: resources.getString(fallback)
@@ -280,7 +312,7 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
                 Text(stringResource(R.string.share_title, title), style = MaterialTheme.typography.titleLarge, maxLines = 2,
                     overflow = TextOverflow.Ellipsis)
                 Text(
-                    stringResource(if (session is LocalTerminal) R.string.share_subtitle_local else R.string.share_subtitle_server),
+                    stringResource(if (local) R.string.share_subtitle_local else R.string.share_subtitle_server),
                     Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -415,6 +447,21 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
                                 Text(stringResource(R.string.share_send), Modifier.padding(start = 8.dp))
                             }
                         }
+                        // The termoak:// link opens the app directly; the QR code, to join from another phone.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val appLink = invite.appLink
+                            if (appLink != null && appLink != link) {
+                                TextButton(onClick = {
+                                    context.getSystemService(ClipboardManager::class.java)
+                                        ?.setPrimaryClip(ClipData.newPlainText("link", appLink))
+                                    done = resources.getString(R.string.share_link_copied)
+                                }) { Text(stringResource(R.string.share_copy_app_link)) }
+                            }
+                            TextButton(onClick = { showingQr = link }) {
+                                Icon(Icons.Outlined.QrCode2, null, Modifier.size(18.dp))
+                                Text(stringResource(R.string.share_show_qr), Modifier.padding(start = 8.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -426,8 +473,7 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
                     ShareRow(s, onClick = { editing = s }, onRevoke = { revoking = s })
                 }
             }
-            val others = live.others.isNotEmpty()
-            if (shares.isNotEmpty() || others) {
+            if (shares.isNotEmpty() || othersInside) {
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = { stopping = true }, Modifier.padding(horizontal = 12.dp)) {
                     Text(stringResource(R.string.share_stop), color = MaterialTheme.colorScheme.error)
@@ -436,6 +482,7 @@ fun ShareSheet(app: TermoakApp, session: TermSession, title: String, onDismiss: 
         }
     }
 
+    showingQr?.let { link -> QrCodeDialog(stringResource(R.string.share_link_ready), link) { showingQr = null } }
     editing?.let { s ->
         EditShareDialog(s, onDismiss = { editing = null }) { changes ->
             scope.launch {

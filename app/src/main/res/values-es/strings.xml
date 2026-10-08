@@ -553,6 +553,7 @@
     <string name="share_perm_control">Puede pedir el control</string>
     <string name="share_expiry">Caduca</string>
     <string name="share_expiry_never">Nunca</string>
+    <string name="share_expiry_half_hour">En 30 minutos</string>
     <string name="share_expiry_hour">En 1 hora</string>
     <string name="share_expiry_day">En 1 día</string>
     <string name="share_expiry_week">En 7 días</string>
@@ -575,6 +576,8 @@
     <string name="share_link_copied">Enlace copiado</string>
     <string name="share_link_subject">Únete a «%1$s» en Termoak</string>
     <string name="share_copy">Copiar</string>
+    <string name="share_copy_app_link">Copiar enlace de la app</string>
+    <string name="share_show_qr">Mostrar código QR</string>
     <string name="share_send">Enviar</string>
     <string name="share_active">Invitaciones activas</string>
     <string name="share_kind_link">Enlace</string>
@@ -677,6 +680,7 @@
     <string name="join_approval_hint">Esperarás un momento hasta que te deje pasar.</string>
     <string name="join_as_account">Entrarás como %1$s</string>
     <string name="join_your_name">Tu nombre</string>
+    <string name="join_as_guest_instead">Entrar como invitado</string>
     <string name="join_name_hint">Lo verán los demás en la sesión.</string>
     <string name="join_join">Entrar</string>
     <string name="join_ask_to_join">Pedir entrar</string>

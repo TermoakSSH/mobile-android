@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Timer
@@ -63,10 +66,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.termoak.app.R
 import com.termoak.app.term.LiveShare
 import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.ShareEnd
+import com.termoak.app.term.ShareNotice
 import com.termoak.app.term.ShareWaiting
 import com.termoak.app.term.TermSession
 import com.termoak.ffi.ParticipantKind
@@ -190,8 +196,16 @@ private fun GiveControlButton(onPick: (UInt?) -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParticipantsSheet(session: TermSession, live: LiveShare, onShare: (() -> Unit)?, onDismiss: () -> Unit) {
+fun ParticipantsSheet(
+    session: TermSession,
+    live: LiveShare,
+    onShare: (() -> Unit)?,
+    onDismiss: () -> Unit,
+    /** The owner stops sharing: every invitation is revoked and everyone else leaves (as on iOS). */
+    onStopSharing: (() -> Unit)? = null,
+) {
     var kicking by remember { mutableStateOf<Pair<SessionParticipant, Boolean>?>(null) }
+    var stopping by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.share_participants), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
@@ -223,6 +237,25 @@ fun ParticipantsSheet(session: TermSession, live: LiveShare, onShare: (() -> Uni
                 }
             }
             items(list, key = { it.id }) { p -> ParticipantRow(session, live, p) { block -> kicking = p to block } }
+            if (onStopSharing != null && live.isOwner && live.others.isNotEmpty()) {
+                item {
+                    TextButton(onClick = { stopping = true }, Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        Text(stringResource(R.string.share_stop), color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+    }
+    if (stopping && onStopSharing != null) {
+        ConfirmDialog(
+            title = stringResource(R.string.share_stop_title),
+            text = stringResource(R.string.share_stop_text),
+            confirm = stringResource(R.string.share_stop),
+            destructive = true,
+            onDismiss = { stopping = false },
+        ) {
+            onStopSharing()
+            onDismiss()
         }
     }
     kicking?.let { (p, block) ->
@@ -518,5 +551,54 @@ fun BoxScope.EndPanel(end: ShareEnd, onClose: () -> Unit) {
         Text(stringResource(text), Modifier.padding(top = 8.dp), color = TermKeyFg.copy(alpha = 0.75f),
             style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
         Button(onClick = onClose, Modifier.padding(top = 20.dp)) { Text(stringResource(R.string.share_close_tab)) }
+    }
+}
+
+/**
+ * Join and keyboard requests of the terminals open here, on top of any
+ * screen, with the answer right there (Let in / Give control, Deny) and
+ * Open, like the iOS app's toasts. They go away after a while.
+ */
+@Composable
+fun RequestNotices(requests: List<ShareNotice>, answer: (ShareNotice, Boolean) -> Unit, open: (ShareNotice) -> Unit) {
+    if (requests.isEmpty()) return
+    Popup(alignment = Alignment.TopCenter, properties = PopupProperties(focusable = false)) {
+        Column(
+            Modifier.statusBarsPadding().padding(12.dp).widthIn(max = 520.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            requests.forEach { n ->
+                val join = n.kind == ShareNotice.Kind.JOIN_REQUEST
+                val title = n.title.ifBlank { stringResource(R.string.common_session) }
+                Surface(
+                    shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface, shadowElevation = 6.dp,
+                ) {
+                    Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (join) Icons.Outlined.PersonAdd else Icons.Outlined.Keyboard, null, Modifier.size(18.dp))
+                            Text(
+                                stringResource(if (join) R.string.share_notice_join else R.string.share_notice_control, n.name, title),
+                                Modifier.weight(1f).padding(horizontal = 10.dp), style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { open(n) }) {
+                                Text(stringResource(R.string.common_open), color = MaterialTheme.colorScheme.inverseOnSurface)
+                            }
+                            TextButton(onClick = { answer(n, false) }) {
+                                Text(stringResource(R.string.share_deny), color = MaterialTheme.colorScheme.inverseOnSurface)
+                            }
+                            TextButton(onClick = { answer(n, true) }) {
+                                Text(
+                                    stringResource(if (join) R.string.share_let_in else R.string.share_give_control),
+                                    color = MaterialTheme.colorScheme.inversePrimary,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

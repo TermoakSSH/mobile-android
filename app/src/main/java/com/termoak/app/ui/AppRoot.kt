@@ -1,8 +1,8 @@
 package com.termoak.app.ui
 
 import android.net.Uri
-import androidx.annotation.StringRes
 import androidx.activity.compose.LocalActivity
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -78,6 +78,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -100,13 +101,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.termoak.app.MainActivity
 import com.termoak.app.R
-import com.termoak.app.term.Shortcut
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.JoinLinkRef
 import com.termoak.app.term.ShareNotice
+import com.termoak.app.term.Shortcut
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
 import com.termoak.ffi.AccountStatus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object Routes {
@@ -507,6 +509,8 @@ fun AppRoot(app: TermoakApp) {
         app.pendingLink.value = null
         nav.navigate(Routes.join(l)) { launchSingleTop = true }
     }
+    // Join and keyboard requests of open terminals, answered from any screen.
+    val requests = remember { mutableStateListOf<ShareNotice>() }
     // Sharing notices: snackbars (unless that terminal is on screen) and taps on notifications.
     fun openNotice(n: ShareNotice) {
         val tab = n.tabId?.let { app.sessions.get(it) } ?: n.sessionId?.let { app.sessions.bySessionId(it) }
@@ -521,6 +525,22 @@ fun AppRoot(app: TermoakApp) {
         }
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
+    RequestNotices(
+        requests,
+        answer = { n, yes ->
+            requests.remove(n)
+            val tab = n.tabId?.let { app.sessions.get(it) } ?: n.sessionId?.let { app.sessions.bySessionId(it) }
+            val id = n.participantId
+            if (tab != null && id != null) {
+                when (n.kind) {
+                    ShareNotice.Kind.JOIN_REQUEST -> if (yes) tab.allowJoin(id) else tab.denyJoin(id)
+                    ShareNotice.Kind.CONTROL_REQUEST -> if (yes) tab.grantControl(id) else tab.denyControl(id)
+                    else -> Unit
+                }
+            }
+        },
+        open = { n -> requests.remove(n); openNotice(n) },
+    )
     LaunchedEffect(Unit) {
         app.shareNotices.notices.collect { n ->
             val active = app.sessions.active.value?.let { app.sessions.get(it) }
@@ -534,6 +554,19 @@ fun AppRoot(app: TermoakApp) {
                 ShareNotice.Kind.SHARED_WITH_YOU -> resources.getString(R.string.share_notice_shared, n.name, title)
                 ShareNotice.Kind.CONTROL_GRANTED -> resources.getString(R.string.share_notice_granted, title)
                 ShareNotice.Kind.CONTROL_REVOKED -> resources.getString(R.string.share_notice_revoked, title)
+            }
+            // A request of a terminal open here: answered right there (Let in / Give control / Deny), as on iOS.
+            val tab = n.tabId?.let { app.sessions.get(it) } ?: n.sessionId?.let { app.sessions.bySessionId(it) }
+            val request = n.kind == ShareNotice.Kind.JOIN_REQUEST || n.kind == ShareNotice.Kind.CONTROL_REQUEST
+            if (request && tab != null && n.participantId != null) {
+                requests.removeAll { it.kind == n.kind && it.participantId == n.participantId }
+                requests.add(n)
+                while (requests.size > 3) requests.removeAt(0)
+                scope.launch {
+                    delay(30_000)
+                    requests.remove(n)
+                }
+                return@collect
             }
             val action = if (n.kind == ShareNotice.Kind.CONTROL_REVOKED) null else resources.getString(R.string.common_open)
             scope.launch {

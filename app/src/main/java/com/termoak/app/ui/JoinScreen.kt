@@ -76,7 +76,9 @@ fun JoinScreen(app: TermoakApp, nav: NavHostController, server: String, token: S
     var info by remember { mutableStateOf<LinkInvite?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf(app.prefs.guestName.orEmpty()) }
-    val asAccount = match != null
+    // Signed in to that server, but joining as a guest anyway (as on iOS).
+    var asGuest by remember { mutableStateOf(false) }
+    val asAccount = match != null && !asGuest
     val fallback = stringResource(R.string.join_invalid)
     val untitled = stringResource(R.string.common_session)
 
@@ -93,7 +95,7 @@ fun JoinScreen(app: TermoakApp, nav: NavHostController, server: String, token: S
         val guestName = name.trim().take(40).ifEmpty { null }
         if (!asAccount) app.prefs.guestName = guestName
         // Joining with an account goes through the current one: make it current.
-        if (match != null && !match.isCurrent) app.accounts.setView(AccountView.One(match.id))
+        if (match != null && !asGuest && !match.isCurrent) app.accounts.setView(AccountView.One(match.id))
         app.sessions.joinLink(
             LinkJoin(server, token, asAccount, if (asAccount) null else guestName),
             i.title.ifBlank { untitled },
@@ -161,6 +163,7 @@ fun JoinScreen(app: TermoakApp, nav: NavHostController, server: String, token: S
                                 Icon(Icons.Outlined.Person, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(stringResource(R.string.join_as_account, user ?: ""), Modifier.padding(start = 12.dp))
                             }
+                            TextButton(onClick = { asGuest = true }) { Text(stringResource(R.string.join_as_guest_instead)) }
                         } else {
                             OutlinedTextField(
                                 name, { name = it.take(40) }, Modifier.fillMaxWidth(),
