@@ -4,11 +4,7 @@ import com.termoak.app.R
 import com.termoak.app.UiText
 import com.termoak.app.data.uid
 import com.termoak.app.toUiText
-import com.termoak.app.uiText
 import com.termoak.ffi.ActiveForward
-import com.termoak.ffi.AuthHandler
-import com.termoak.ffi.AuthPromptKind
-import com.termoak.ffi.AuthRequest
 import com.termoak.ffi.ForwardKind
 import com.termoak.ffi.ForwardStats
 import com.termoak.ffi.ItemFilter
@@ -16,7 +12,6 @@ import com.termoak.ffi.PortForward
 import com.termoak.ffi.SshSession
 import com.termoak.ffi.TermoakCore
 import com.termoak.ffi.TermoakException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,8 +23,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Running tunnels (port forwarding), as on iOS. They go over an SSH
@@ -51,9 +44,9 @@ class Tunnels(private val core: TermoakCore, private val sessions: Sessions) {
     private val _starting = MutableStateFlow<Set<String>>(emptySet())
     /** Tunnels being started (connecting first). */
     val starting: StateFlow<Set<String>> = _starting
-    private val _pending = MutableStateFlow<Pending?>(null)
+    private val auth = PromptAuth()
     /** A host key or a password asked by an own connection. */
-    val pending: StateFlow<Pending?> = _pending
+    val pending: StateFlow<Pending?> = auth.pending
     private val _errors = MutableSharedFlow<UiText>(extraBufferCapacity = 8)
     val errors: SharedFlow<UiText> = _errors
 
@@ -158,7 +151,7 @@ class Tunnels(private val core: TermoakCore, private val sessions: Sessions) {
             connections[key] = Connection(s, own = false)
             return s
         }
-        val s = core.connect(hostId, Auth(), accountId)
+        val s = core.connect(hostId, auth, accountId)
         connections[key] = Connection(s, own = true)
         return s
     }
@@ -206,26 +199,6 @@ class Tunnels(private val core: TermoakCore, private val sessions: Sessions) {
             sessions.updateService()
         }
         _stats.value = stats
-    }
-
-    /** Questions of an own connection (each on its own thread; they may block). */
-    private inner class Auth : AuthHandler {
-        override fun onHostKey(host: String, port: UInt, keyType: String, fingerprint: String): Boolean {
-            val answer = CompletableDeferred<Boolean>()
-            _pending.value = Pending.HostKey(if (port == 22u) host else "$host:$port", keyType, fingerprint) { answer.complete(it) }
-            return runBlocking { withTimeoutOrNull(30_000) { answer.await() } ?: false }.also { _pending.value = null }
-        }
-
-        override fun onPrompt(request: AuthRequest): List<String>? {
-            val answer = CompletableDeferred<List<String>?>()
-            val title = request.title.takeIf { it.isNotBlank() }?.let { UiText.Raw(it) } ?: when (request.kind) {
-                AuthPromptKind.PASSWORD -> uiText(R.string.term_password_for, request.host)
-                AuthPromptKind.PASSPHRASE -> uiText(R.string.term_key_passphrase)
-                AuthPromptKind.KEYBOARD_INTERACTIVE -> UiText.Raw(request.host)
-            }
-            _pending.value = Pending.Credentials(title, request.instructions, request.fields) { answer.complete(it) }
-            return runBlocking { answer.await() }.also { _pending.value = null }
-        }
     }
 }
 

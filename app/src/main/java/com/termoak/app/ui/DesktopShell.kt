@@ -310,7 +310,7 @@ private enum class SideItem(val route: String, @StringRes val label: Int, val ic
 /** The sidebar section a screen belongs to (`null`: none, like the file browser). */
 private fun sideItemOf(route: String?): SideItem? = when (route) {
     Routes.HOSTS, Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT -> SideItem.HOSTS
-    Routes.KEYS -> SideItem.KEYCHAIN
+    Routes.KEYS, Routes.KEY -> SideItem.KEYCHAIN
     Routes.SNIPPETS -> SideItem.SNIPPETS
     Routes.FORWARDS -> SideItem.TUNNELS
     Routes.KNOWN_HOSTS -> SideItem.KNOWN_HOSTS

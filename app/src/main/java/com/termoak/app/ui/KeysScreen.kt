@@ -2,6 +2,8 @@ package com.termoak.app.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
@@ -41,9 +44,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -73,6 +74,7 @@ import com.termoak.app.data.canWrite
 import com.termoak.app.data.uid
 import com.termoak.app.data.useOnly
 import com.termoak.app.userMessage
+import com.termoak.ffi.KeyDetails
 import com.termoak.ffi.KeyType
 import com.termoak.ffi.KnownHost
 import com.termoak.ffi.SecretChange
@@ -81,7 +83,10 @@ import com.termoak.ffi.SshIdentity
 import com.termoak.ffi.SshKey
 import com.termoak.ffi.SyncMode
 import com.termoak.ffi.TermoakException
+import com.termoak.ffi.inspectPrivateKey
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Whether there is any account (This-device items then show a phone). */
 private fun hasAccounts(app: TermoakApp) = app.accounts.list.value.isNotEmpty()
@@ -172,7 +177,8 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp)) {
                 items(keys, key = { it.uid }) { k ->
                     CardBox {
-                        Column(Modifier.padding(16.dp)) {
+                        // A tap opens its page: details, QR code, install on a host, export.
+                        Column(Modifier.clickable { nav.navigate(Routes.key(k.id, k.accountId)) }.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Key, null, tint = MaterialTheme.colorScheme.primary)
                                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
@@ -232,10 +238,13 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
     if (creating) {
         var label by remember { mutableStateOf("") }
         var type by remember { mutableStateOf(KeyType.ED25519) }
+        var comment by remember { mutableStateOf("") }
         var passphrase by remember { mutableStateOf("") }
-        // Where it goes (This device or a vault), as on iOS.
-        var place by remember { mutableStateOf(app.accounts.defaultPlace()) }
+        var storePassphrase by remember { mutableStateOf(true) }
+        // Where it goes: a private key stays on this phone unless you choose a vault (as on iOS).
+        var place by remember { mutableStateOf(com.termoak.app.data.Place.DEVICE) }
         var busy by remember { mutableStateOf(false) }
+        val defaultName = android.os.Build.MODEL
         AlertDialog(
             onDismissRequest = { if (!busy) creating = false },
             title = { Text(stringResource(R.string.keys_generate_title)) },
@@ -243,14 +252,15 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(label, { label = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true,
                         placeholder = { Text(stringResource(R.string.keys_name_placeholder)) })
-                    val types = listOf(KeyType.ED25519 to "Ed25519", KeyType.ECDSA_P256 to "ECDSA", KeyType.RSA4096 to "RSA 4096")
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        types.forEachIndexed { i, (t, n) ->
-                            SegmentedButton(type == t, { type = t }, SegmentedButtonDefaults.itemShape(i, types.size)) { Text(n, fontSize = 12.sp) }
-                        }
-                    }
+                    // Every type the engine makes (as on iOS).
+                    Picker(stringResource(R.string.keys_detail_type), KeyTypes.firstOrNull { it.first == type }?.second, null, KeyTypes) { type = it }
+                    OutlinedTextField(
+                        comment, { comment = it }, singleLine = true,
+                        label = { Text(stringResource(R.string.keys_comment_placeholder, label.trim().ifEmpty { defaultName })) },
+                    )
                     OutlinedTextField(passphrase, { passphrase = it }, label = { Text(stringResource(R.string.keys_passphrase_optional)) },
                         singleLine = true, visualTransformation = PasswordVisualTransformation())
+                    if (passphrase.isNotEmpty()) StorePassphraseSwitch(storePassphrase) { storePassphrase = it }
                     PlacePicker(app, place) { place = it }
                 }
             },
@@ -259,9 +269,9 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                     busy = true
                     scope.launch {
                         try {
-                            val name = label.trim().ifEmpty { android.os.Build.MODEL }
-                            app.core.generateKey(name, type, "$name (Termoak)", passphrase.ifEmpty { null },
-                                passphrase.isNotEmpty(), if (place.device) SyncMode.DEVICE_ONLY else SyncMode.SYNCED,
+                            val name = label.trim().ifEmpty { defaultName }
+                            app.core.generateKey(name, type, comment.trim().ifEmpty { "$name (Termoak)" }, passphrase.ifEmpty { null },
+                                passphrase.isNotEmpty() && storePassphrase, if (place.device) SyncMode.DEVICE_ONLY else SyncMode.SYNCED,
                                 place.account, place.vault)
                             app.accounts.rememberPlace(place)
                             reload()
@@ -285,19 +295,82 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
         var label by remember { mutableStateOf("") }
         var pem by remember { mutableStateOf("") }
         var passphrase by remember { mutableStateOf("") }
+        var storePassphrase by remember { mutableStateOf(true) }
         var place by remember { mutableStateOf(app.accounts.defaultPlace()) }
+        // What the key is (type, fingerprint...), checked without saving it.
+        var details by remember { mutableStateOf<KeyDetails?>(null) }
+        var checking by remember { mutableStateOf(false) }
+        var problem by remember { mutableStateOf<String?>(null) }
         val importedLabel = stringResource(R.string.keys_imported_label)
+        fun check() {
+            checking = true
+            problem = null
+            scope.launch {
+                try {
+                    details = inspectPrivateKey(pem.trim(), passphrase.ifEmpty { null })
+                    if (label.isBlank()) details?.comment?.takeIf { it.isNotBlank() }?.let { label = it }
+                } catch (e: TermoakException) {
+                    details = null
+                    problem = e.userMessage(resources, R.string.keys_import_not_a_key)
+                } finally {
+                    checking = false
+                }
+            }
+        }
+        val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            scope.launch {
+                // A private key is small: anything big is not one.
+                val text = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val bytes = input.readBytes()
+                            if (bytes.size > 64 * 1024 || bytes.contains(0)) null else String(bytes, Charsets.UTF_8)
+                        }
+                    }.getOrNull()
+                }
+                if (text == null) {
+                    problem = resources.getString(R.string.keys_import_not_a_key)
+                } else {
+                    pem = text
+                    if (label.isBlank()) {
+                        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                            ?.use { c -> if (c.moveToFirst()) label = c.getString(0).substringBeforeLast('.') }
+                    }
+                    check()
+                }
+            }
+        }
         AlertDialog(
             onDismissRequest = { importing = false },
             title = { Text(stringResource(R.string.keys_import_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(label, { label = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
-                    OutlinedTextField(pem, { pem = it }, label = { Text(stringResource(R.string.keys_private_key)) },
+                    TextButton(onClick = { pickFile.launch(arrayOf("*/*")) }) {
+                        Icon(Icons.Outlined.FolderOpen, null, Modifier.padding(end = 6.dp))
+                        Text(stringResource(R.string.keys_import_choose_file))
+                    }
+                    OutlinedTextField(pem, { pem = it; details = null }, label = { Text(stringResource(R.string.keys_private_key)) },
                         placeholder = { Text("-----BEGIN OPENSSH PRIVATE KEY-----") }, minLines = 4, maxLines = 8,
                         textStyle = Mono.copy(fontSize = 11.sp))
-                    OutlinedTextField(passphrase, { passphrase = it }, label = { Text(stringResource(R.string.keys_passphrase_if_any)) },
+                    OutlinedTextField(passphrase, { passphrase = it; details = null }, label = { Text(stringResource(R.string.keys_passphrase_if_any)) },
                         singleLine = true, visualTransformation = PasswordVisualTransformation())
+                    if (passphrase.isNotEmpty()) StorePassphraseSwitch(storePassphrase) { storePassphrase = it }
+                    TextButton(onClick = { check() }, enabled = pem.isNotBlank() && !checking) {
+                        Icon(Icons.Outlined.VerifiedUser, null, Modifier.padding(end = 6.dp))
+                        Text(stringResource(R.string.keys_import_check))
+                    }
+                    details?.let { d ->
+                        Column {
+                            Text(d.algorithm, style = MaterialTheme.typography.titleSmall)
+                            Text(d.fingerprint, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                            if (d.comment.isNotBlank()) Text(d.comment, style = MaterialTheme.typography.bodySmall)
+                            if (d.encrypted) Text(stringResource(R.string.keys_import_encrypted), style = MaterialTheme.typography.bodySmall,
+                                color = Brand.Amber)
+                        }
+                    }
+                    problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     PlacePicker(app, place) { place = it }
                 }
             },
@@ -306,7 +379,7 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                     scope.launch {
                         try {
                             app.core.importKey(label.trim().ifEmpty { importedLabel }, pem.trim(), passphrase.ifEmpty { null },
-                                passphrase.isNotEmpty(), if (place.device) SyncMode.DEVICE_ONLY else SyncMode.SYNCED, place.account, place.vault)
+                                passphrase.isNotEmpty() && storePassphrase, if (place.device) SyncMode.DEVICE_ONLY else SyncMode.SYNCED, place.account, place.vault)
                             app.accounts.rememberPlace(place)
                             reload()
                             app.accounts.sync()
@@ -512,6 +585,7 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
         var password by remember(idn) { mutableStateOf("") }
         var keyId by remember(idn) { mutableStateOf(idn.keyId) }
         var place by remember(idn) { mutableStateOf(com.termoak.app.data.Place(idn.accountId, idn.vaultId)) }
+        var forgetPassword by remember(idn) { mutableStateOf(false) }
         val noKey = stringResource(R.string.common_no_key)
         AlertDialog(
             onDismissRequest = { editing = null },
@@ -529,8 +603,18 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
                                 ),
                             )
                         },
-                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true, visualTransformation = PasswordVisualTransformation(), enabled = !forgetPassword,
                     )
+                    // Forget the saved password (as on iOS).
+                    if (idn.hasPassword) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { forgetPassword = !forgetPassword },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            androidx.compose.material3.Checkbox(forgetPassword, { forgetPassword = it })
+                            Text(stringResource(R.string.identities_clear_password), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                     if (idn.id.isEmpty()) PlacePicker(app, place) { place = it; keyId = null }
                     // Keys of the identity's own place (or This device).
                     val usable = keys.filter { place.reaches(it.accountId, it.vaultId) }
@@ -550,7 +634,11 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
                                     it.copy(accountId = place.account, vaultId = place.vault, syncMode = place.syncMode(hasAccounts(app)))
                                 } else it
                             },
-                            if (password.isEmpty()) SecretChange.Keep else SecretChange.Set(password),
+                            when {
+                                forgetPassword -> SecretChange.Clear
+                                password.isEmpty() -> SecretChange.Keep
+                                else -> SecretChange.Set(password)
+                            },
                         )
                     }.onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
                     editing = null
@@ -639,6 +727,30 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
                 .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
             list = runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList())
             app.accounts.sync()
+        }
+    }
+}
+
+/** Every key type the engine generates, as on iOS. */
+private val KeyTypes = listOf(
+    KeyType.ED25519 to "Ed25519", KeyType.ECDSA_P256 to "ECDSA P-256", KeyType.ECDSA_P384 to "ECDSA P-384",
+    KeyType.ECDSA_P521 to "ECDSA P-521", KeyType.RSA4096 to "RSA 4096", KeyType.RSA3072 to "RSA 3072", KeyType.RSA2048 to "RSA 2048",
+)
+
+/** "Save the passphrase": off, it is asked every time the key is used. */
+@Composable
+private fun StorePassphraseSwitch(on: Boolean, onChange: (Boolean) -> Unit) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { onChange(!on) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.keys_store_passphrase), Modifier.weight(1f))
+            androidx.compose.material3.Switch(on, onChange)
+        }
+        if (!on) {
+            Text(stringResource(R.string.keys_store_passphrase_off), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

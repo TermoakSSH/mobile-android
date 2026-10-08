@@ -128,6 +128,8 @@ object Routes {
     const val AI_NEW = "ai-new"
     /** The keychain; `action` opens the generate (`generate`) or import (`import`) dialog. */
     const val KEYS = "keys?action={action}"
+    /** A key's page: details, QR code, install on a host, export. */
+    const val KEY = "key/{id}?account={account}"
     const val SNIPPETS = "snippets"
     const val KNOWN_HOSTS = "known-hosts"
     const val FORWARDS = "forwards"
@@ -157,6 +159,7 @@ object Routes {
     fun join(link: JoinLinkRef) = "join?server=${Uri.encode(link.server)}&token=${Uri.encode(link.token)}"
     fun files(sourceId: String) = "files/$sourceId"
     fun keys(action: String? = null) = if (action == null) "keys" else "keys?action=$action"
+    fun key(id: String, account: String?) = "key/$id" + (account?.let { "?account=$it" } ?: "")
 }
 
 /** The app's main destinations: bottom bar on phones, navigation rail on tablets. */
@@ -181,12 +184,12 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
-    Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.KEYBOARD, Routes.LOGIN, Routes.JOIN,
+    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.KEYBOARD, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES,
 )
 
 private fun tabOf(route: String?): Tab? = when (route) {
-    in VaultRoutes, Routes.HOST_EDIT, Routes.IMPORT -> Tab.VAULT
+    in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW -> Tab.AI
     Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
@@ -446,6 +449,10 @@ fun AppRoot(app: TermoakApp) {
                             arguments = listOf(navArgument("action") { type = NavType.StringType; nullable = true; defaultValue = null }),
                         ) { e -> KeysScreen(app, nav, e.arguments?.getString("action")) }
                         composable(Routes.SNIPPETS) { SnippetsScreen(app, nav) }
+                        composable(
+                            Routes.KEY,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e -> KeyDetailScreen(app, nav, e.arguments?.getString("id").orEmpty(), e.arguments?.getString("account")) }
                         composable(Routes.KNOWN_HOSTS) { KnownHostsScreen(app, nav) }
                         composable(Routes.FORWARDS) { ForwardsScreen(app, nav) }
                         composable(Routes.IMPORT) { ImportScreen(app) { nav.popBackStack() } }
