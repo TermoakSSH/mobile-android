@@ -1229,6 +1229,9 @@
     <string name="kb_move_tab">Mover la pestaña a la izquierda o a la derecha</string>
     <string name="kb_home">Inicio (el Vault)</string>
     <string name="kb_new_host">Nuevo host</string>
+    <string name="kb_delete_host">Borrar el host (en la lista)</string>
+    <string name="kb_editor_save">Guardar el host (en su editor)</string>
+    <string name="kb_editor_connect">Guardar y conectar (en el editor)</string>
     <string name="kb_scroll_up">Subir una página en el historial</string>
     <string name="kb_scroll_down">Bajar una página en el historial</string>
     <string name="kb_search_hosts">Buscar hosts</string>
@@ -1244,6 +1247,8 @@
     <string name="key_page_up">RePág</string>
     <string name="key_page_down">AvPág</string>
     <string name="key_insert">Insert</string>
+    <string name="key_delete">Supr</string>
+    <string name="key_enter">Intro</string>
     <string name="settings_key_bar_keyboard">Barra de teclas con teclado físico</string>
     <string name="settings_key_bar_keyboard_hint">Mantener la fila de teclas extra (Esc, Ctrl, flechas…) cuando hay un teclado conectado</string>
     <string name="settings_shortcuts_hint">Para teclados físicos. Ctrl+/ los muestra en cualquier sitio</string>

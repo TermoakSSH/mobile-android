@@ -120,7 +120,8 @@ object Routes {
     /** Settings → Terminal → Keys above the keyboard (also the quick panel's Customize). */
     const val KEYBOARD = "settings/keys"
     const val TERMINAL = "terminal"
-    const val HOST_EDIT = "host/{id}?account={account}"
+    /** A host's editor (`new`: a new one, in [group] when made inside a group). */
+    const val HOST_EDIT = "host/{id}?account={account}&group={group}"
     const val AI_TASK = "ai/{id}?account={account}"
     const val AI_NEW = "ai-new"
     /** The keychain; `action` opens the generate (`generate`) or import (`import`) dialog. */
@@ -142,7 +143,9 @@ object Routes {
     /** Joining a shared session with an invitation link. */
     const val JOIN = "join?server={server}&token={token}"
 
-    fun hostEdit(id: String?, account: String? = null) = "host/${id ?: "new"}" + (account?.let { "?account=$it" } ?: "")
+    fun hostEdit(id: String?, account: String? = null, group: String? = null) =
+        "host/${id ?: "new"}" + listOfNotNull(account?.let { "account=$it" }, group?.let { "group=$it" })
+            .joinToString("&").let { if (it.isEmpty()) "" else "?$it" }
     fun group(id: String, account: String? = null) = "group/$id" + (account?.let { "?account=$it" } ?: "")
     fun aiTask(id: String, account: String? = null) = "ai/$id" + (account?.let { "?account=$it" } ?: "")
     fun vault(account: String, id: String) = "vault/$account/$id"
@@ -254,7 +257,8 @@ fun AppRoot(app: TermoakApp) {
                     KeyShortcuts.hostSearch.value = true
                 }
                 // Desktop layout, on Home: a new tab, or to the terminal tabs.
-                Shortcut.NEW_TAB -> if (desktop) DesktopUi.quickConnect.value = true else return@ShortcutHandler false
+                // A new tab: quick connect (also on phones, with a hardware keyboard).
+                Shortcut.NEW_TAB -> DesktopUi.quickConnect.value = true
                 Shortcut.NEXT_TAB, Shortcut.PREV_TAB -> {
                     val list = app.sessions.list.value
                     if (!desktop || list.isEmpty() || route == Routes.TERMINAL) return@ShortcutHandler false
@@ -268,7 +272,7 @@ fun AppRoot(app: TermoakApp) {
             true
         }
         val quickConnecting by DesktopUi.quickConnect.collectAsState()
-        if (quickConnecting && desktop) {
+        if (quickConnecting) {
             val activity = LocalActivity.current
             QuickConnectDialog(app, onDismiss = { DesktopUi.quickConnect.value = false }) { host ->
                 DesktopUi.quickConnect.value = false
@@ -412,11 +416,15 @@ fun AppRoot(app: TermoakApp) {
                         ) { TerminalScreen(app, nav) }
                         composable(
                             Routes.HOST_EDIT,
-                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                            arguments = listOf(
+                                navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("group") { type = NavType.StringType; nullable = true; defaultValue = null },
+                            ),
                         ) { e ->
                             val activity = LocalActivity.current
                             HostEditor(
                                 app, e.arguments?.getString("id")?.takeIf { it != "new" }, e.arguments?.getString("account"),
+                                newInGroup = e.arguments?.getString("group"),
                                 onClose = { nav.popBackStack() },
                                 onConnect = { host ->
                                     (activity as? MainActivity)?.askNotificationPermission()

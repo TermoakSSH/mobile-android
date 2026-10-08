@@ -37,16 +37,19 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FormatColorReset
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -61,6 +64,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,7 +76,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -86,29 +98,28 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
-import com.termoak.ffi.AccountInfo
-import com.termoak.ffi.HostProxy
-import com.termoak.ffi.ItemFilter
-import com.termoak.ffi.TransferMode
-import com.termoak.ffi.VaultInfo
+import com.termoak.app.data.AddressSplit
+import com.termoak.app.data.HostLogos
+import com.termoak.app.data.HostProtocol
 import com.termoak.app.data.Place
 import com.termoak.app.data.canEdit
 import com.termoak.app.data.canWrite
+import com.termoak.app.data.isTelnet
 import com.termoak.app.data.place
 import com.termoak.app.data.uid
 import com.termoak.app.data.useOnly
-import com.termoak.app.data.HostLogos
-import com.termoak.app.data.HostProtocol
-import com.termoak.app.data.isTelnet
-import androidx.compose.material.icons.outlined.Warning
 import com.termoak.app.userMessage
-import androidx.compose.runtime.collectAsState
+import com.termoak.ffi.AccountInfo
+import com.termoak.ffi.HostProxy
 import com.termoak.ffi.HostSettings
+import com.termoak.ffi.ItemFilter
 import com.termoak.ffi.ProxyKind
 import com.termoak.ffi.SecretChange
 import com.termoak.ffi.SshHost
 import com.termoak.ffi.SyncMode
 import com.termoak.ffi.TermoakException
+import com.termoak.ffi.TransferMode
+import com.termoak.ffi.VaultInfo
 import kotlinx.coroutines.launch
 
 private enum class Auth(@StringRes val label: Int) {
@@ -166,6 +177,8 @@ fun HostEditor(
     onConnect: (SshHost) -> Unit,
     /** In a panel beside the hosts (desktop layout): it closes with ✕ instead of going back. */
     panel: Boolean = false,
+    /** A new host made inside this group (of [accountId]): it starts there. */
+    newInGroup: String? = null,
 ) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
@@ -175,7 +188,6 @@ fun HostEditor(
     val accountList by app.accounts.list.collectAsState()
     val vaults by app.accounts.vaults.collectAsState()
     // Where it is (or, for a new one, where it goes): This device or a vault.
-    var place by remember { mutableStateOf(original?.place ?: app.accounts.defaultPlace()) }
     val useOnly = original?.access.useOnly()
     var moving by remember { mutableStateOf(false) }
     // References stay in the host's vault (or This device).
@@ -183,6 +195,9 @@ fun HostEditor(
     val allKeys = remember { runCatching { app.core.listKeys(all) }.getOrDefault(emptyList()) }
     val allIdentities = remember { runCatching { app.core.listIdentities(all) }.getOrDefault(emptyList()) }
     val allGroups = remember { runCatching { app.core.listGroups(all) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
+    // A new host inside a group: in that group and its vault.
+    val startGroup = remember { if (original == null) allGroups.firstOrNull { it.id == newInGroup && it.accountId == accountId } else null }
+    var place by remember { mutableStateOf(original?.place ?: startGroup?.let { Place(it.accountId, it.vaultId) } ?: app.accounts.defaultPlace()) }
     val allSnippets = remember { runCatching { app.core.listSnippets(all) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
     val keys = allKeys.filter { place.reaches(it.accountId, it.vaultId) }
     val identities = allIdentities.filter { place.reaches(it.accountId, it.vaultId) }
@@ -214,7 +229,7 @@ fun HostEditor(
     var showPassword by remember { mutableStateOf(false) }
     var keyId by remember { mutableStateOf(s0.keyId) }
     var identityId by remember { mutableStateOf(s0.identityId) }
-    var groupId by remember { mutableStateOf(original?.groupId) }
+    var groupId by remember { mutableStateOf(original?.groupId ?: startGroup?.id) }
     var tags by remember { mutableStateOf(original?.tags?.joinToString(", ") ?: "") }
     var color by remember { mutableStateOf(original?.color) }
     var notes by remember { mutableStateOf(original?.notes ?: "") }
@@ -243,6 +258,7 @@ fun HostEditor(
     var deleting by remember { mutableStateOf(false) }
 
     val focusAddress = remember { FocusRequester() }
+    var addressFocused by remember { mutableStateOf(false) }
     val focusLabel = remember { FocusRequester() }
     val focusUser = remember { FocusRequester() }
     val focusPort = remember { FocusRequester() }
@@ -254,8 +270,24 @@ fun HostEditor(
         if (field in errors) errors = errors - field
     }
 
+    /** `user@host:port` or `telnet://…` typed in the address fills the user, the port and the protocol (as on iOS). */
+    fun splitAddress() {
+        if (useOnly) return
+        val split = AddressSplit.of(address, user, port)
+        split.protocol?.let { p ->
+            if (!p.equals(protocol, ignoreCase = true)) {
+                port = HostProtocol.portAfterSwitch(protocol, p, port)
+                protocol = p
+            }
+        }
+        split.user?.let { user = it }
+        split.port?.let { port = it }
+        if (split.address != address) address = split.address
+    }
+
     /** Checks the form; with errors, shows them and returns `null`. */
     fun build(): SshHost? {
+        splitAddress()
         val e = linkedMapOf<HostField, String>()
         val addr = address.trim()
         when {
@@ -378,6 +410,19 @@ fun HostEditor(
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).imePadding()
+                // Hardware keyboard, as on iOS: Ctrl+S saves, Ctrl+Enter saves and connects, Esc closes.
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when {
+                        e.isCtrlPressed && !e.isShiftPressed && e.key == Key.S && !useOnly -> { save(connect = false); true }
+                        e.isCtrlPressed && (e.key == Key.Enter || e.key == Key.NumPadEnter) -> {
+                            if (useOnly && original != null) onConnect(original) else save(connect = true)
+                            true
+                        }
+                        e.key == Key.Escape && !e.isCtrlPressed -> { onClose(); true }
+                        else -> false
+                    }
+                }
                 .verticalScroll(rememberScrollState()).padding(bottom = 32.dp),
         ) {
             // ----- Address (big) and label, like the desktop's editor -----
@@ -401,7 +446,12 @@ fun HostEditor(
             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     address, { address = it.trim(); clearError(HostField.ADDRESS) },
-                    Modifier.fillMaxWidth().focusRequester(focusAddress),
+                    Modifier.fillMaxWidth().focusRequester(focusAddress)
+                        .onFocusChanged {
+                            // Leaving the field (not the first time it is laid out).
+                            if (addressFocused && !it.isFocused) splitAddress()
+                            addressFocused = it.isFocused
+                        },
                     label = { Text(stringResource(R.string.host_address)) },
                     placeholder = { Text(stringResource(R.string.host_address_placeholder)) },
                     leadingIcon = { Icon(Icons.Outlined.Dns, null) },
@@ -412,7 +462,7 @@ fun HostEditor(
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next, autoCorrectEnabled = false,
                     ),
-                    keyboardActions = KeyboardActions(onNext = { runCatching { focusLabel.requestFocus() } }),
+                    keyboardActions = KeyboardActions(onNext = { splitAddress(); runCatching { focusLabel.requestFocus() } }),
                 )
                 OutlinedTextField(
                     label, { label = it },
@@ -640,8 +690,22 @@ fun HostEditor(
                                 headlineContent = { Text("${i + 1}. ${h?.label ?: stringResource(R.string.host_deleted_host)}") },
                                 supportingContent = { h?.let { Text(it.address) } },
                                 trailingContent = {
-                                    IconButton(onClick = { jumps = jumps.filterIndexed { j, _ -> j != i } }) {
-                                        Icon(Icons.Outlined.Close, stringResource(R.string.host_remove))
+                                    Row {
+                                        // The order is the chain's: the first one is reached first.
+                                        if (jumps.size > 1) {
+                                            IconButton(onClick = { jumps = jumps.toMutableList().also { l -> l.add(i - 1, l.removeAt(i)) } }, enabled = i > 0) {
+                                                Icon(Icons.Outlined.KeyboardArrowUp, stringResource(R.string.keyboard_editor_move_up))
+                                            }
+                                            IconButton(
+                                                onClick = { jumps = jumps.toMutableList().also { l -> l.add(i + 1, l.removeAt(i)) } },
+                                                enabled = i < jumps.lastIndex,
+                                            ) {
+                                                Icon(Icons.Outlined.KeyboardArrowDown, stringResource(R.string.keyboard_editor_move_down))
+                                            }
+                                        }
+                                        IconButton(onClick = { jumps = jumps.filterIndexed { j, _ -> j != i } }) {
+                                            Icon(Icons.Outlined.Close, stringResource(R.string.host_remove))
+                                        }
                                     }
                                 },
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),

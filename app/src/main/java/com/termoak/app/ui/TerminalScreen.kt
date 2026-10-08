@@ -314,7 +314,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             if (i >= 0 && sessions.size > 1) app.sessions.select(sessions[(i + step + sessions.size) % sessions.size].id)
         }
         when (shortcut) {
-            Shortcut.NEW_TAB -> if (desktop) DesktopUi.quickConnect.value = true else nav.goTab(Routes.HOSTS)
+            Shortcut.NEW_TAB -> DesktopUi.quickConnect.value = true
             Shortcut.CLOSE_TAB -> app.sessions.close(session.id)
             Shortcut.NEXT_TAB -> neighbour(1)
             Shortcut.PREV_TAB -> neighbour(-1)

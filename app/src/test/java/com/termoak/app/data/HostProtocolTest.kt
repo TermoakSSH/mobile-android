@@ -94,3 +94,23 @@ class HostProtocolTest {
         assertNull(QuickTarget.parse("two words.com"))
     }
 }
+
+/** The host editor's address field (iOS `splitAddress`). */
+class AddressSplitTest {
+    @Test
+    fun userHostAndPort() {
+        assertEquals(AddressSplit("web.example.com", "root", "2222", null), AddressSplit.of(" root@web.example.com:2222 ", "", ""))
+        // A user or port already written stays; the address keeps what wasn't taken.
+        assertEquals(AddressSplit("root@web:2222", null, null, null), AddressSplit.of("root@web:2222", "admin", "22"))
+        assertEquals(AddressSplit("web:2222", "root", null, null), AddressSplit.of("root@web:2222", "", "22"))
+        // IPv6 has several colons: no port taken.
+        assertEquals(AddressSplit("fe80::1", null, null, null), AddressSplit.of("fe80::1", "", ""))
+        assertEquals(AddressSplit("web:99999", null, null, null), AddressSplit.of("web:99999", "", ""))
+    }
+
+    @Test
+    fun schemes() {
+        assertEquals(AddressSplit("router", "admin", "2323", HostProtocol.TELNET), AddressSplit.of("telnet://admin@router:2323/", "", ""))
+        assertEquals(AddressSplit("box", null, null, HostProtocol.SSH), AddressSplit.of("SSH://box", "", ""))
+    }
+}

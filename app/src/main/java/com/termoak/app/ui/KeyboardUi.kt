@@ -156,6 +156,9 @@ private val Groups = listOf(
             Help(R.string.kb_home, ctrlShift(KeyEvent.KEYCODE_H)),
             Help(R.string.section_settings, Combo(KeyEvent.KEYCODE_COMMA, ctrl = true)),
             Help(R.string.kb_new_host, ctrlShift(KeyEvent.KEYCODE_N)),
+            Help(R.string.kb_delete_host, Combo(KeyEvent.KEYCODE_FORWARD_DEL)),
+            Help(R.string.kb_editor_save, Combo(KeyEvent.KEYCODE_S, ctrl = true)),
+            Help(R.string.kb_editor_connect, Combo(KeyEvent.KEYCODE_ENTER, ctrl = true)),
             Help(R.string.kb_vault_search, Combo(KeyEvent.KEYCODE_F, ctrl = true)),
             Help(R.string.kb_shortcuts, Combo(KeyEvent.KEYCODE_SLASH, ctrl = true)),
             Help(R.string.kb_back, Combo(KeyEvent.KEYCODE_ESCAPE)),
@@ -191,6 +194,8 @@ private fun keyName(context: Context, keyCode: Int): String = when (keyCode) {
     KeyEvent.KEYCODE_DPAD_LEFT -> "←"
     KeyEvent.KEYCODE_DPAD_RIGHT -> "→"
     KeyEvent.KEYCODE_F5 -> "F5"
+    KeyEvent.KEYCODE_FORWARD_DEL -> context.getString(R.string.key_delete)
+    KeyEvent.KEYCODE_ENTER -> context.getString(R.string.key_enter)
     else -> KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD).getDisplayLabel(keyCode).toString()
 }
 

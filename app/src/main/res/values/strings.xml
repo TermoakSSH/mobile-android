@@ -1179,6 +1179,9 @@
     <string name="kb_move_tab">Move the tab left or right</string>
     <string name="kb_home">Home (the Vault)</string>
     <string name="kb_new_host">New host</string>
+    <string name="kb_delete_host">Delete the host (on the list)</string>
+    <string name="kb_editor_save">Save the host (in its editor)</string>
+    <string name="kb_editor_connect">Save and connect (in the editor)</string>
     <string name="kb_scroll_up">Scroll the history up a page</string>
     <string name="kb_scroll_down">Scroll the history down a page</string>
     <string name="kb_search_hosts">Search hosts</string>
@@ -1198,6 +1201,8 @@
     <string name="key_page_up">PgUp</string>
     <string name="key_page_down">PgDn</string>
     <string name="key_insert">Insert</string>
+    <string name="key_delete">Delete</string>
+    <string name="key_enter">Enter</string>
     <string name="settings_key_bar_keyboard">Key bar with a hardware keyboard</string>
     <string name="settings_key_bar_keyboard_hint">Keep the row of extra keys (Esc, Ctrl, arrows…) when a keyboard is attached</string>
     <string name="settings_shortcuts_hint">For hardware keyboards. Ctrl+/ shows them anywhere</string>

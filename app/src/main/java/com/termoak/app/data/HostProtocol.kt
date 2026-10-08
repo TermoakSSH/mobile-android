@@ -42,6 +42,45 @@ object HostProtocol {
     }
 }
 
+/**
+ * The host editor's address field, as on iOS (`splitAddress`): `user@host`
+ * and `host:port` typed there fill the user and the port when those are
+ * empty, and `ssh://` or `telnet://` in front choose the protocol.
+ */
+data class AddressSplit(val address: String, val user: String?, val port: String?, val protocol: String?) {
+    companion object {
+        fun of(text: String, user: String, port: String): AddressSplit {
+            var addr = text.trim()
+            var protocol: String? = null
+            for ((scheme, proto) in listOf("telnet://" to HostProtocol.TELNET, "ssh://" to HostProtocol.SSH)) {
+                if (addr.lowercase().startsWith(scheme)) {
+                    addr = addr.substring(scheme.length).trimEnd('/')
+                    protocol = proto
+                }
+            }
+            var newUser: String? = null
+            val at = addr.lastIndexOf('@')
+            if (at >= 0) {
+                val u = addr.substring(0, at)
+                val rest = addr.substring(at + 1)
+                if (u.isNotEmpty() && rest.isNotEmpty() && user.isBlank()) {
+                    newUser = u
+                    addr = rest
+                }
+            }
+            var newPort: String? = null
+            // Only one colon: an IPv6 address has several.
+            val parts = addr.split(':')
+            val p = parts.getOrNull(1)?.trim()?.toUIntOrNull()?.takeIf { it in 1u..65535u }
+            if (parts.size == 2 && p != null && parts[0].isNotEmpty() && port.isBlank()) {
+                newPort = p.toString()
+                addr = parts[0]
+            }
+            return AddressSplit(addr, newUser, newPort, protocol)
+        }
+    }
+}
+
 /** A Telnet host: no keys, jump hosts, SFTP, tunnels or server sessions, and unencrypted. */
 val SshHost.isTelnet: Boolean get() = HostProtocol.isTelnet(protocol)
 

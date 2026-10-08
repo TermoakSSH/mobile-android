@@ -210,6 +210,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     val desktop = desktopWindow && groupId == null
     // The host in the editor panel: its id ("new" for a new one) and account.
     var editing by rememberSaveable { mutableStateOf<Pair<String, String?>?>(null) }
+    // The group of a new host in the desktop layout's editor (the chip chosen).
+    var newInGroup by remember { mutableStateOf<HostGroup?>(null) }
     // The group chip of the desktop view: "all", "fav", "none" or a group's uid.
     var chip by rememberSaveable { mutableStateOf(CHIP_ALL) }
     // Keyboard: Ctrl+F (and Ctrl+Shift+K from anywhere) goes to the search box.
@@ -268,8 +270,15 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     }
     /** The host's editor: a panel on the right in the desktop layout, a screen otherwise. */
     fun edit(host: SshHost?) {
-        if (desktop) editing = (host?.id ?: NEW_HOST) to host?.accountId
-        else nav.navigate(Routes.hostEdit(host?.id, host?.accountId))
+        if (desktop) {
+            // A new host while a group's chip is chosen: in that group.
+            newInGroup = if (host == null) groups.firstOrNull { it.uid == chip } else null
+            editing = (host?.id ?: NEW_HOST) to (host?.accountId ?: newInGroup?.accountId)
+        } else nav.navigate(Routes.hostEdit(host?.id, host?.accountId))
+    }
+    /** A new host: inside the group on screen, if any. */
+    fun newHost() {
+        if (groupId != null) nav.navigate(Routes.hostEdit(null, groupAccount, groupId)) else edit(null)
     }
     /** A new terminal for [host] beside the one on screen (or in the split view already open). */
     fun connectInSplit(host: SshHost) {
@@ -481,7 +490,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                             stringResource(if (loggedIn == true) R.string.hosts_empty_text_synced else R.string.hosts_empty_text_local),
                             Modifier.height(420.dp),
                             action = stringResource(R.string.hosts_new_host),
-                            onAction = { nav.navigate(Routes.hostEdit(null)) },
+                            onAction = { newHost() },
                         )
                     }
                 } else if (groupId != null && visibleGroups.isEmpty() && visibleHosts.isEmpty() && !searching) {
@@ -489,7 +498,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                         EmptyState(
                             Icons.Outlined.Folder, stringResource(R.string.hosts_group_empty_title),
                             stringResource(R.string.hosts_group_empty_text), Modifier.height(360.dp),
-                            action = stringResource(R.string.hosts_new_host), onAction = { nav.navigate(Routes.hostEdit(null)) },
+                            action = stringResource(R.string.hosts_new_host), onAction = { newHost() },
                         )
                     }
                 }
@@ -525,6 +534,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                                 onClick = { if (selecting) toggle(host) else connect(host, false) },
                                 onLongClick = { toggle(host) },
                                 onMore = { actionsFor = host }, onTag = { query = it },
+                                onDelete = if (host.access.canWrite()) ({ deleting = host }) else null,
                                 vault = if (!showVaults) null else if (host.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) },
                                 vaultColor = if (host.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
                                 account = if (showAccounts) accountList.firstOrNull { it.id == host.accountId } else null,
@@ -613,7 +623,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 @Composable {
                     key(id, account) {
                         HostEditor(
-                            app, id.takeIf { it != NEW_HOST }, account, panel = true,
+                            app, id.takeIf { it != NEW_HOST }, account, panel = true, newInGroup = newInGroup?.id?.takeIf { id == NEW_HOST },
                             onClose = { editing = null; reload() },
                             onConnect = { host -> editing = null; reload(); connect(host, false) },
                         )
@@ -629,6 +639,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 onClick = { if (selecting) toggle(host) else connect(host, false) },
                 onCtrlClick = { toggle(host) },
                 onTag = { query = it },
+                onDelete = if (host.access.canWrite()) ({ deleting = host }) else null,
                 vault = if (!showVaults) null else if (host.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) },
                 vaultColor = if (host.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
                 account = if (showAccounts) accountList.firstOrNull { it.id == host.accountId } else null,
@@ -672,7 +683,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     if (creating) {
         ModalBottomSheet(onDismissRequest = { creating = false }) {
             SheetAction(Icons.Outlined.Dns, stringResource(R.string.hosts_new_host)) {
-                creating = false; nav.navigate(Routes.hostEdit(null))
+                creating = false; newHost()
             }
             SheetAction(Icons.Outlined.CreateNewFolder, stringResource(R.string.hosts_new_group)) {
                 creating = false; newGroup()
@@ -939,6 +950,8 @@ private fun HostRow(
     onLongClick: () -> Unit,
     onMore: () -> Unit,
     onTag: (String) -> Unit,
+    /** Delete (or Backspace) on the focused row asks to delete it; `null`: it can't be. */
+    onDelete: (() -> Unit)? = null,
     /** Its vault (or "This device"), when there is more than one. */
     vault: String? = null,
     vaultColor: Color = MaterialTheme.colorScheme.primary,
@@ -951,9 +964,13 @@ private fun HostRow(
             .background(if (selected == true) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             // Keyboard: Enter connects (the click); the Menu key or Shift+F10 opens the host's actions.
             .onKeyEvent { e ->
-                val menu = e.type == KeyEventType.KeyDown && (e.key == Key.Menu || (e.key == Key.F10 && e.isShiftPressed))
+                val down = e.type == KeyEventType.KeyDown
+                val menu = down && (e.key == Key.Menu || (e.key == Key.F10 && e.isShiftPressed))
                 if (menu) onMore()
-                menu
+                // Delete: the host's delete confirmation (as on iOS).
+                val delete = down && onDelete != null && (e.key == Key.Delete || e.key == Key.Backspace)
+                if (delete) onDelete?.invoke()
+                menu || delete
             }
             .combinedClickable(onClick = onClick, onLongClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1494,6 +1511,7 @@ private fun DesktopHostCard(
     onClick: () -> Unit,
     onCtrlClick: () -> Unit,
     onTag: (String) -> Unit,
+    onDelete: (() -> Unit)?,
     vault: String?,
     vaultColor: Color,
     account: AccountInfo?,
@@ -1519,9 +1537,13 @@ private fun DesktopHostCard(
                     )
                     // Keyboard: Enter connects (the click); the Menu key or Shift+F10 opens the menu.
                     .onKeyEvent { e ->
-                        val key = e.type == KeyEventType.KeyDown && (e.key == Key.Menu || (e.key == Key.F10 && e.isShiftPressed))
+                        val down = e.type == KeyEventType.KeyDown
+                        val key = down && (e.key == Key.Menu || (e.key == Key.F10 && e.isShiftPressed))
                         if (key) { menuAt = null; menuOpen = true }
-                        key
+                        // Delete: the host's delete confirmation (as on iOS).
+                        val delete = down && onDelete != null && (e.key == Key.Delete || e.key == Key.Backspace)
+                        if (delete) onDelete?.invoke()
+                        key || delete
                     }
                     .combinedClickable(onClick = onClick, onLongClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)

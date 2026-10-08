@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -98,6 +100,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -769,6 +776,9 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
             .sortedWith(compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() })
     }
     var query by remember { mutableStateOf("") }
+    // The row Enter opens (↑ and ↓ move it, as on iOS).
+    var highlight by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
     val focus = remember { FocusRequester() }
     val q = query.trim().lowercase()
     val shown = if (q.isEmpty()) hosts else hosts.filter { h ->
@@ -784,6 +794,8 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
         }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(query) { highlight = 0 }
+    LaunchedEffect(highlight) { if (shown.isNotEmpty()) listState.animateScrollToItem(highlight.coerceIn(0, shown.lastIndex)) }
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             Modifier.widthIn(max = 560.dp).fillMaxWidth().heightIn(max = 560.dp),
@@ -796,13 +808,26 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
                 )
                 OutlinedTextField(
                     query, { query = it },
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focus),
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focus)
+                        .onPreviewKeyEvent { e ->
+                            if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (e.key) {
+                                Key.DirectionDown -> { if (shown.isNotEmpty()) highlight = (highlight + 1).coerceAtMost(shown.lastIndex); true }
+                                Key.DirectionUp -> { highlight = (highlight - 1).coerceAtLeast(0); true }
+                                Key.Escape -> { onDismiss(); true }
+                                Key.Enter, Key.NumPadEnter -> {
+                                    if (target != null) connectTo(target) else shown.getOrNull(highlight)?.let(onConnect)
+                                    true
+                                }
+                                else -> false
+                            }
+                        },
                     placeholder = { Text(stringResource(R.string.quick_connect_placeholder)) },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
                     keyboardActions = KeyboardActions(onGo = {
-                        if (target != null) connectTo(target) else shown.firstOrNull()?.let(onConnect)
+                        if (target != null) connectTo(target) else shown.getOrNull(highlight)?.let(onConnect)
                     }),
                 )
                 if (target != null) {
@@ -831,10 +856,12 @@ fun QuickConnectDialog(app: TermoakApp, onDismiss: () -> Unit, onConnect: (SshHo
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                LazyColumn {
-                    items(shown, key = { it.uid }) { h ->
+                LazyColumn(state = listState) {
+                    itemsIndexed(shown, key = { _, h -> h.uid }) { i, h ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { onConnect(h) }.padding(horizontal = 20.dp, vertical = 8.dp),
+                            Modifier.fillMaxWidth()
+                                .background(if (i == highlight) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                                .clickable { onConnect(h) }.padding(horizontal = 20.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             HostTile(h, size = 34.dp, twoInitials = true)
