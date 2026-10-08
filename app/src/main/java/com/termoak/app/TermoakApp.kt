@@ -23,10 +23,12 @@ import java.io.File
 class TermoakApp : Application() {
     val core: TermoakCore by lazy {
         TermoakCore(File(filesDir, "termoak").path, Vault.key(this)).also {
-            it.setDeviceName("${Build.MANUFACTURER} ${Build.MODEL}")
+            it.setDeviceName(prefs.deviceName ?: systemDeviceName)
         }
     }
     val prefs: Prefs by lazy { Prefs(this) }
+    /** The phone's name when none was chosen: its maker and model. */
+    val systemDeviceName: String get() = "${Build.MANUFACTURER} ${Build.MODEL}"
     /** The accounts on this device (servers), the Vault's view and their sync. */
     val accounts: Accounts by lazy { Accounts(this, core, prefs) }
     val sessions: Sessions by lazy {

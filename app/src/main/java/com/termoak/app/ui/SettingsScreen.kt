@@ -20,7 +20,10 @@ import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Keyboard
@@ -28,6 +31,8 @@ import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.ManageAccounts
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -81,6 +86,7 @@ import com.termoak.app.term.SuggestionMode
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.TwoFactorStatus
 import com.termoak.ffi.libraryVersion
+import com.termoak.ffi.serverInfo
 import kotlinx.coroutines.launch
 
 @Composable
@@ -112,6 +118,9 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     val lockDelay by app.appLock.delay.collectAsState()
     var choosingLockDelay by remember { mutableStateOf(false) }
     val deviceAuth = rememberDeviceAuth()
+    var showingLicenses by remember { mutableStateOf(false) }
+    var renamingDevice by remember { mutableStateOf(false) }
+    var serverDetails by remember { mutableStateOf<ServerDetails?>(null) }
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
     val checkUpdates by app.prefs.checkUpdates.collectAsState()
     val latest by app.updates.latest.collectAsState()
@@ -125,6 +134,8 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
 
     LaunchedEffect(server) {
         twoFactor = if (server != null) runCatching { app.core.twoFactorStatus() }.getOrNull() else null
+        val url = server ?: officialServer
+        serverDetails = runCatching { ServerDetails.parse(url, serverInfo(url)) }.getOrNull()
     }
 
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -139,6 +150,12 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             if (accountList.any { it.vaultsSupported }) {
                 Row0(Icons.Outlined.Lock, stringResource(R.string.vaults_title), stringResource(R.string.vaults_hint)) {
                     nav.navigate(Routes.VAULTS)
+                }
+            }
+            // Teams in the phone layout too (as on iOS).
+            if (loggedIn == true) {
+                Row0(Icons.Outlined.Groups, stringResource(R.string.teams_title), stringResource(R.string.teams_settings_hint)) {
+                    nav.navigate(Routes.TEAMS)
                 }
             }
             if (loggedIn == true) {
@@ -308,6 +325,13 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             ) {
                 open(server ?: officialServer)
             }
+            // Its server's terms and privacy, the licenses and this phone's name (as on iOS).
+            serverDetails?.termsUrl?.let { url -> Row0(Icons.Outlined.Description, stringResource(R.string.about_terms), "") { open(url) } }
+            serverDetails?.privacyUrl?.let { url -> Row0(Icons.Outlined.PrivacyTip, stringResource(R.string.about_privacy), "") { open(url) } }
+            Row0(Icons.Outlined.Gavel, stringResource(R.string.about_licenses), "") { showingLicenses = true }
+            Row0(Icons.Outlined.PhoneAndroid, stringResource(R.string.about_device_name), app.prefs.deviceName ?: app.systemDeviceName) {
+                renamingDevice = true
+            }
         }
     }
 
@@ -317,6 +341,8 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             app.prefs.setWideLayout(it)
         }
     }
+    if (showingLicenses) LicensesDialog { showingLicenses = false }
+    if (renamingDevice) DeviceNameDialog(app) { renamingDevice = false }
     if (choosingLockDelay) {
         AlertDialog(
             onDismissRequest = { choosingLockDelay = false },

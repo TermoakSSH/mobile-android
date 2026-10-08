@@ -1310,7 +1310,8 @@
     <string name="hosts_select">Select</string>
     <string name="common_refresh">Refresh</string>
     <string name="teams_title">Teams</string>
-    <string name="teams_explain">The teams you belong to on your servers. Share sessions and vaults with them; create teams and manage their members in the desktop app.</string>
+    <string name="teams_settings_hint">Create teams, add people and share with them</string>
+    <string name="teams_explain">The teams you belong to on your servers. Open one to see its members: admins add people and owners also appoint owners. Sessions and vaults can be shared with a whole team at once.</string>
     <string name="teams_role_owner">Owner</string>
     <string name="teams_role_admin">Admin</string>
     <string name="teams_role_member">Member</string>
@@ -1318,6 +1319,27 @@
     <string name="teams_load_failed">Couldn\'t load the teams</string>
     <string name="teams_signed_out_title">Teams live on a server</string>
     <string name="teams_signed_out_text">Sign in to a Termoak server to see your teams.</string>
+    <string name="teams_new">New team</string>
+    <string name="teams_new_hint">You will be its owner. Then you can add other users of this server by their email and share sessions and vaults with the whole team.</string>
+    <string name="teams_name_placeholder">Operations, Support, Customers…</string>
+    <string name="teams_create">Create</string>
+    <string name="teams_rename">Rename team</string>
+    <string name="teams_delete">Delete team</string>
+    <string name="teams_delete_title">Delete the team “%1$s”?</string>
+    <string name="teams_delete_text">Its members will lose access to the sessions shared with it, and its vaults are deleted with their items.</string>
+    <string name="teams_leave">Leave team</string>
+    <string name="teams_leave_title">Leave “%1$s”?</string>
+    <string name="teams_leave_text">You will no longer see the sessions shared with the team. If you are its only owner, appoint another one or delete the team first.</string>
+    <string name="teams_add_member">Add member</string>
+    <string name="teams_add_member_hint">They must have an account on this server. Team admins manage the members; only owners appoint owners and delete the team.</string>
+    <string name="teams_added">%1$s is now in the team.</string>
+    <string name="teams_email_placeholder">email@example.com</string>
+    <string name="teams_role">Role</string>
+    <string name="teams_remove">Remove from team</string>
+    <string name="teams_remove_title">Remove %1$s from the team?</string>
+    <string name="teams_remove_text">They will immediately lose access to the sessions shared with it.</string>
+    <string name="teams_you">you</string>
+    <string name="teams_action_failed">Couldn\'t change the team</string>
     <!-- Telnet, host logos, latency and the layout of wide screens (0.6) -->
     <string name="logo_server">Server</string>
     <string name="logo_database">Database</string>
@@ -1476,4 +1498,10 @@
     <string name="settings_lock_after_hour">1 hour in the background</string>
     <string name="settings_lock_after_minutes">%1$d min in the background</string>
     <string name="settings_lock_now">Lock now</string>
+    <string name="about_licenses">Licenses</string>
+    <string name="about_licenses_footer">Termoak is free software: its code is on GitHub. The fonts come with their license.</string>
+    <string name="about_privacy">Privacy policy</string>
+    <string name="about_terms">Terms of use</string>
+    <string name="about_device_name">Device name</string>
+    <string name="about_device_name_footer">How this device appears in your accounts\' device lists and activity, from the next sign-in. Empty: the system\'s name.</string>
 </resources>

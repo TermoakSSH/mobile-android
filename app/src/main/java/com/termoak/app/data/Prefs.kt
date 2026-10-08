@@ -195,6 +195,11 @@ class Prefs(context: Context) {
         get() = sp.getString("guest_name", null)
         set(v) = sp.edit { putString("guest_name", v) }
 
+    /** How this phone appears in the accounts (Settings → About; empty: the system's name). */
+    var deviceName: String?
+        get() = sp.getString("device_name", null)?.trim()?.takeIf { it.isNotEmpty() }
+        set(v) = sp.edit { putString("device_name", v?.trim()?.take(64)) }
+
     /** Already used without a server: don't show the welcome screen again. */
     var skippedLogin: Boolean
         get() = sp.getBoolean("skipped_login", false)

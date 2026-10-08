@@ -1358,7 +1358,8 @@
     <string name="hosts_select">Seleccionar</string>
     <string name="common_refresh">Actualizar</string>
     <string name="teams_title">Equipos</string>
-    <string name="teams_explain">Los equipos a los que perteneces en tus servidores. Comparte con ellos sesiones y bóvedas; crea equipos y gestiona sus miembros en la app de escritorio.</string>
+    <string name="teams_settings_hint">Crea equipos, añade personas y comparte con ellos</string>
+    <string name="teams_explain">Los equipos a los que perteneces en tus servidores. Abre uno para ver sus miembros: los administradores añaden personas y los propietarios también nombran propietarios. Las sesiones y los vaults se pueden compartir con todo un equipo a la vez.</string>
     <string name="teams_role_owner">Propietario</string>
     <string name="teams_role_admin">Administrador</string>
     <string name="teams_role_member">Miembro</string>
@@ -1366,6 +1367,27 @@
     <string name="teams_load_failed">No se pudieron cargar los equipos</string>
     <string name="teams_signed_out_title">Los equipos están en un servidor</string>
     <string name="teams_signed_out_text">Inicia sesión en un servidor de Termoak para ver tus equipos.</string>
+    <string name="teams_new">Nuevo equipo</string>
+    <string name="teams_new_hint">Serás su propietario. Después podrás añadir a otros usuarios de este servidor por su correo y compartir sesiones y vaults con todo el equipo.</string>
+    <string name="teams_name_placeholder">Operaciones, Soporte, Clientes…</string>
+    <string name="teams_create">Crear</string>
+    <string name="teams_rename">Renombrar equipo</string>
+    <string name="teams_delete">Eliminar equipo</string>
+    <string name="teams_delete_title">¿Eliminar el equipo «%1$s»?</string>
+    <string name="teams_delete_text">Sus miembros perderán el acceso a las sesiones compartidas con él, y se eliminan sus vaults con sus elementos.</string>
+    <string name="teams_leave">Salir del equipo</string>
+    <string name="teams_leave_title">¿Salir de «%1$s»?</string>
+    <string name="teams_leave_text">Dejarás de ver las sesiones compartidas con el equipo. Si eres su único propietario, nombra a otro o elimina el equipo antes.</string>
+    <string name="teams_add_member">Añadir miembro</string>
+    <string name="teams_add_member_hint">Tiene que tener cuenta en este servidor. Los administradores del equipo gestionan los miembros; solo los propietarios nombran propietarios y borran el equipo.</string>
+    <string name="teams_added">%1$s ya está en el equipo.</string>
+    <string name="teams_email_placeholder">correo@ejemplo.com</string>
+    <string name="teams_role">Rol</string>
+    <string name="teams_remove">Quitar del equipo</string>
+    <string name="teams_remove_title">¿Quitar a %1$s del equipo?</string>
+    <string name="teams_remove_text">Perderá al momento el acceso a las sesiones compartidas con él.</string>
+    <string name="teams_you">tú</string>
+    <string name="teams_action_failed">No se pudo cambiar el equipo</string>
     <!-- Telnet, host logos, latency and the layout of wide screens (0.6) -->
     <string name="logo_server">Servidor</string>
     <string name="logo_database">Base de datos</string>
@@ -1525,4 +1547,10 @@
     <string name="settings_lock_after_hour">1 hora en segundo plano</string>
     <string name="settings_lock_after_minutes">%1$d min en segundo plano</string>
     <string name="settings_lock_now">Bloquear ahora</string>
+    <string name="about_licenses">Licencias</string>
+    <string name="about_licenses_footer">Termoak es software libre: su código está en GitHub. Las fuentes vienen con su licencia.</string>
+    <string name="about_privacy">Política de privacidad</string>
+    <string name="about_terms">Condiciones de uso</string>
+    <string name="about_device_name">Nombre del dispositivo</string>
+    <string name="about_device_name_footer">Cómo aparece este dispositivo en la lista de dispositivos y la actividad de tus cuentas, desde el próximo inicio de sesión. Vacío: el nombre del sistema.</string>
 </resources>
