@@ -1,5 +1,6 @@
 package com.termoak.app.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,23 +29,31 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Business
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.Work
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -82,6 +91,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -111,20 +122,50 @@ import org.json.JSONArray
 /** Colors offered for a vault (the hosts' palette). */
 private val VaultColors = listOf("#4f7cff", "#30a46c", "#f5a524", "#e5484d", "#8e4ec6", "#0ea5e9", "#d6409f", "#12a594")
 
-/** Icons offered for a vault, by the name stored in it. */
-private val VaultIcons = linkedMapOf(
+/** An icon offered for a vault: the name stored in it (the iOS app's), its picture and its label. */
+private class VaultIconChoice(val name: String, val icon: ImageVector, @param:StringRes val label: Int)
+
+/** Icons offered for a vault, in the iOS app's order and with its names. */
+private val VaultIconChoices = listOf(
+    VaultIconChoice("vault", Icons.Outlined.Security, R.string.vault_icon_vault),
+    VaultIconChoice("folder", Icons.Outlined.Folder, R.string.vault_icon_folder),
+    VaultIconChoice("server", Icons.Outlined.Dns, R.string.vault_icon_server),
+    VaultIconChoice("cloud", Icons.Outlined.Cloud, R.string.vault_icon_cloud),
+    VaultIconChoice("briefcase", Icons.Outlined.Work, R.string.vault_icon_briefcase),
+    VaultIconChoice("house", Icons.Outlined.Home, R.string.vault_icon_house),
+    VaultIconChoice("star", Icons.Outlined.StarOutline, R.string.vault_icon_star),
+    VaultIconChoice("key", Icons.Outlined.Key, R.string.vault_icon_key),
+    VaultIconChoice("terminal", Icons.Outlined.Terminal, R.string.vault_icon_terminal),
+    VaultIconChoice("globe", Icons.Outlined.Public, R.string.vault_icon_globe),
+    VaultIconChoice("bolt", Icons.Outlined.Bolt, R.string.vault_icon_bolt),
+    VaultIconChoice("person", Icons.Outlined.Group, R.string.vault_icon_person),
+)
+
+/**
+ * Pictures of the icon names other apps store (the desktop's Lucide names, the
+ * web's, and this app's earlier ones), so a vault looks the same everywhere.
+ */
+private val VaultIconAliases = mapOf(
     "lock" to Icons.Outlined.Lock,
-    "server" to Icons.Outlined.Storage,
-    "cloud" to Icons.Outlined.Cloud,
     "work" to Icons.Outlined.Work,
     "home" to Icons.Outlined.Home,
     "code" to Icons.Outlined.Code,
     "shield" to Icons.Outlined.Security,
+    "shield-check" to Icons.Outlined.VerifiedUser,
     "team" to Icons.Outlined.Groups,
+    "users" to Icons.Outlined.Groups,
     "business" to Icons.Outlined.Business,
+    "building-2" to Icons.Outlined.Business,
+    "database" to Icons.Outlined.Storage,
+    "key-round" to Icons.Outlined.Key,
+    "box" to Icons.Outlined.Inventory2,
+    "zap" to Icons.Outlined.Bolt,
 )
 
-fun vaultIcon(v: VaultInfo): ImageVector = v.icon?.let { VaultIcons[it] } ?: when (v.kind) {
+private fun iconNamed(name: String?): ImageVector? =
+    name?.let { n -> VaultIconChoices.firstOrNull { it.name == n }?.icon ?: VaultIconAliases[n] }
+
+fun vaultIcon(v: VaultInfo): ImageVector = iconNamed(v.icon) ?: when (v.kind) {
     VaultKind.PERSONAL -> Icons.Outlined.Person
     VaultKind.TEAM -> Icons.Outlined.Groups
     else -> Icons.Outlined.Folder
@@ -261,7 +302,11 @@ private suspend fun teamsOf(app: TermoakApp, accountId: String): List<TeamRef> =
     }
 }.getOrDefault(emptyList())
 
-/** New vault: account (with several), name, color, owned by you or by a team. */
+/**
+ * New vault, like the iOS app's: account (with several), name, description,
+ * owner (you or a team you manage, with the team members' role), color
+ * (automatic or one of the palette), icon, and Strict from the start.
+ */
 @Composable
 private fun NewVaultDialog(app: TermoakApp, onDismiss: () -> Unit, onCreated: (VaultInfo) -> Unit) {
     val resources = LocalResources.current
@@ -269,9 +314,13 @@ private fun NewVaultDialog(app: TermoakApp, onDismiss: () -> Unit, onCreated: (V
     val accounts = remember { app.accounts.active().filter { it.vaultsSupported } }
     var accountId by remember { mutableStateOf(app.accounts.current.value?.id?.takeIf { c -> accounts.any { it.id == c } } ?: accounts.firstOrNull()?.id) }
     var name by remember { mutableStateOf("") }
-    var color by remember { mutableStateOf<String?>(VaultColors.first()) }
+    var description by remember { mutableStateOf("") }
+    var color by remember { mutableStateOf<String?>(null) }
+    var icon by remember { mutableStateOf<String?>(null) }
+    var strict by remember { mutableStateOf(false) }
     var teams by remember { mutableStateOf<List<TeamRef>>(emptyList()) }
     var teamId by remember { mutableStateOf<String?>(null) }
+    var teamRole by remember { mutableStateOf(VaultRole.EDITOR) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(accountId) {
@@ -290,15 +339,36 @@ private fun NewVaultDialog(app: TermoakApp, onDismiss: () -> Unit, onCreated: (V
                     ) { accountId = it }
                 }
                 OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
+                OutlinedTextField(
+                    description, { description = it }, Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.vault_description)) }, singleLine = true,
+                )
                 if (teams.isNotEmpty()) {
                     Picker(
                         stringResource(R.string.vault_owner),
                         teams.firstOrNull { it.id == teamId }?.name ?: stringResource(R.string.vault_owner_me), null,
                         listOf<Pair<String?, String>>(null to stringResource(R.string.vault_owner_me)) + teams.map { it.id to it.name },
                     ) { teamId = it }
+                    if (teamId != null) {
+                        Picker(
+                            stringResource(R.string.vault_team_members_role), roleText(teamRole), null,
+                            listOf(VaultRole.EDITOR to roleText(VaultRole.EDITOR), VaultRole.USE_ONLY to roleText(VaultRole.USE_ONLY)),
+                        ) { teamRole = it }
+                    }
+                    Text(stringResource(R.string.vault_owner_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(stringResource(R.string.editor_color), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                ColorDots(color) { color = it }
+                ColorDots(color, automatic = true) { color = it }
+                Text(stringResource(R.string.vault_icon), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                VaultIconGrid(icon) { icon = it }
+                Row(
+                    Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { strict = !strict },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.vault_strict), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Switch(strict, { strict = it })
+                }
+                Text(stringResource(R.string.vault_strict_new_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
@@ -309,7 +379,12 @@ private fun NewVaultDialog(app: TermoakApp, onDismiss: () -> Unit, onCreated: (V
                 error = null
                 scope.launch {
                     try {
-                        val v = app.accounts.handle(id)!!.createVault(NewVault(name = name.trim(), color = color, teamId = teamId))
+                        val v = app.accounts.handle(id)!!.createVault(
+                            NewVault(
+                                name = name.trim(), description = description.trim().ifEmpty { null }, color = color, icon = icon,
+                                teamId = teamId, teamMemberRole = teamRole.takeIf { teamId != null }, strict = strict,
+                            ),
+                        )
                         app.accounts.refreshNow()
                         onCreated(v)
                     } catch (e: TermoakException) {
@@ -324,10 +399,23 @@ private fun NewVaultDialog(app: TermoakApp, onDismiss: () -> Unit, onCreated: (V
     )
 }
 
+/** The palette; with [automatic], a dashed circle first for no color (the vault's default). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ColorDots(selected: String?, onSelect: (String) -> Unit) {
+private fun ColorDots(selected: String?, automatic: Boolean = false, onSelect: (String?) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (automatic) {
+            val auto = stringResource(R.string.vault_color_auto)
+            Box(
+                Modifier.size(32.dp).clip(CircleShape)
+                    .border(2.dp, if (selected == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape)
+                    .clickable(onClickLabel = auto) { onSelect(null) }
+                    .semantics { contentDescription = auto },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected == null) Icon(Icons.Outlined.Check, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        }
         VaultColors.forEach { hex ->
             val c = Color(hex.toColorInt())
             Box(
@@ -335,6 +423,28 @@ private fun ColorDots(selected: String?, onSelect: (String) -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 if (hex.equals(selected, ignoreCase = true)) Icon(Icons.Outlined.Check, null, Modifier.size(18.dp), tint = Color.White)
+            }
+        }
+    }
+}
+
+/** The vault icons as a grid of tiles, the chosen one highlighted. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun VaultIconGrid(selected: String?, onSelect: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        VaultIconChoices.forEach { choice ->
+            val on = choice.name == selected
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                    .background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest)
+                    .clickable { onSelect(choice.name) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    choice.icon, stringResource(choice.label), Modifier.size(20.dp),
+                    tint = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
     }
@@ -406,13 +516,27 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                 Box {
                     Box(Modifier.clip(RoundedCornerShape(14.dp)).clickable(enabled = manager) { iconMenu = true }) { VaultTile(v, 56.dp) }
                     DropdownMenu(iconMenu, { iconMenu = false }) {
-                        VaultIcons.forEach { (key, icon) ->
-                            DropdownMenuItem({ Text(key) }, { iconMenu = false; update(VaultChanges(icon = key)) }, leadingIcon = { Icon(icon, null) })
+                        DropdownMenuItem(
+                            { Text(stringResource(R.string.vault_icon_default)) },
+                            { iconMenu = false; update(VaultChanges(clearIcon = true)) },
+                            leadingIcon = { Icon(vaultIcon(v.copy(icon = null)), null) },
+                            trailingIcon = { if (v.icon == null) Icon(Icons.Outlined.Check, null) },
+                        )
+                        VaultIconChoices.forEach { choice ->
+                            DropdownMenuItem(
+                                { Text(stringResource(choice.label)) },
+                                { iconMenu = false; update(VaultChanges(icon = choice.name)) },
+                                leadingIcon = { Icon(choice.icon, null) },
+                                trailingIcon = { if (v.icon == choice.name) Icon(Icons.Outlined.Check, null) },
+                            )
                         }
                     }
                 }
                 Column(Modifier.padding(start = 16.dp).weight(1f)) {
                     Text(vaultName(v), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (v.description.isNotBlank()) {
+                        Text(v.description, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
                     Text(
                         listOfNotNull(
                             roleText(v.role),
@@ -423,12 +547,14 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                     )
                 }
                 if (manager) {
-                    IconButton(onClick = { renaming = true }) { Icon(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.hosts_rename)) }
+                    IconButton(onClick = { renaming = true }) { Icon(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.vault_edit)) }
                 }
             }
             if (manager) {
                 FormSection(stringResource(R.string.editor_color)) {
-                    Box(Modifier.padding(16.dp)) { ColorDots(v.color) { update(VaultChanges(color = it)) } }
+                    Box(Modifier.padding(16.dp)) {
+                        ColorDots(v.color, automatic = true) { update(if (it == null) VaultChanges(clearColor = true) else VaultChanges(color = it)) }
+                    }
                 }
             }
             if (v.role == VaultRole.USE_ONLY) UseOnlyNote()
@@ -502,13 +628,31 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
 
     val vault = v ?: return
     if (renaming) {
+        // Name and (not for the personal vault) description.
+        val personalVault = vault.kind == VaultKind.PERSONAL
         var name by remember { mutableStateOf(vault.name) }
+        var description by remember { mutableStateOf(vault.description) }
         AlertDialog(
             onDismissRequest = { renaming = false },
-            title = { Text(stringResource(R.string.hosts_rename)) },
-            text = { OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true) },
+            title = { Text(stringResource(R.string.vault_edit)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
+                    if (!personalVault) {
+                        OutlinedTextField(
+                            description, { description = it }, label = { Text(stringResource(R.string.vault_description)) },
+                            singleLine = true,
+                        )
+                    }
+                }
+            },
             confirmButton = {
-                TextButton(enabled = name.isNotBlank(), onClick = { renaming = false; update(VaultChanges(name = name.trim())) }) {
+                TextButton(enabled = name.isNotBlank(), onClick = {
+                    renaming = false
+                    val newName = name.trim().takeIf { it != vault.name }
+                    val newDescription = description.trim().takeIf { !personalVault && it != vault.description }
+                    if (newName != null || newDescription != null) update(VaultChanges(name = newName, description = newDescription))
+                }) {
                     Text(stringResource(R.string.common_save))
                 }
             },
