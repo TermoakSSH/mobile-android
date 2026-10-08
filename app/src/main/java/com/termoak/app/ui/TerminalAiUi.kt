@@ -110,7 +110,7 @@ internal fun TerminalAiOverlay(app: TermoakApp, session: TermSession, modifier: 
 
 /** "Command failed (exit 2) · Explain · Fix ×". */
 @Composable
-private fun FailedCommandChip(last: LastCommandInfo, onExplain: () -> Unit, onFix: () -> Unit, onDismiss: () -> Unit) {
+internal fun FailedCommandChip(last: LastCommandInfo, onExplain: () -> Unit, onFix: () -> Unit, onDismiss: () -> Unit) {
     val shape = RoundedCornerShape(50)
     Row(
         Modifier.background(TermBarBg, shape).border(1.dp, Brand.Amber.copy(alpha = 0.5f), shape).padding(start = 12.dp, end = 2.dp),
@@ -138,7 +138,7 @@ private fun FailedCommandChip(last: LastCommandInfo, onExplain: () -> Unit, onFi
 
 /** The command the AI proposes: asking, ready ("Type it", Copy) with its risk and explanation, typed, or an error. */
 @Composable
-private fun AiProposalCard(p: AiProposal, onType: (AiCommandSuggestion) -> Unit, onDismiss: () -> Unit) {
+internal fun AiProposalCard(p: AiProposal, onType: (AiCommandSuggestion) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val shape = RoundedCornerShape(14.dp)
     Column(

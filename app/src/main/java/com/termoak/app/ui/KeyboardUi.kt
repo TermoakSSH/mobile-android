@@ -146,6 +146,7 @@ private val Groups = listOf(
             Help(R.string.section_snippets, ctrlShift(KeyEvent.KEYCODE_S)),
             Help(R.string.term_reconnect, ctrlShift(KeyEvent.KEYCODE_R)),
             Help(R.string.kb_find, ctrlShift(KeyEvent.KEYCODE_F)),
+            Help(R.string.kb_ai_request, Combo(KeyEvent.KEYCODE_ENTER, ctrl = true)),
             Help(R.string.kb_scroll_up, Combo(KeyEvent.KEYCODE_PAGE_UP, shift = true)),
             Help(R.string.kb_scroll_down, Combo(KeyEvent.KEYCODE_PAGE_DOWN, shift = true)),
         ),

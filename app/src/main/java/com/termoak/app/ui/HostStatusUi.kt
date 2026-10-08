@@ -38,7 +38,7 @@ import kotlinx.coroutines.delay
  * or the host isn't checked.
  */
 @Composable
-internal fun HostStatusDot(host: SshHost, latency: Boolean = false, modifier: Modifier = Modifier) {
+internal fun HostStatusDot(host: SshHost, modifier: Modifier = Modifier, latency: Boolean = false) {
     if (!HostStatusStore.enabled) return
     when (val d = HostStatusStore.dot(host)) {
         is HostDot.Up -> {

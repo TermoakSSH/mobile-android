@@ -147,7 +147,6 @@
     <string name="hosts_favorite_add">Añadir a favoritos</string>
     <string name="hosts_duplicate">Duplicar</string>
     <string name="hosts_copy_label">%1$s (copia)</string>
-    <string name="hosts_rename">Cambiar nombre</string>
     <string name="hosts_delete_group">Borrar grupo</string>
     <string name="hosts_delete_title">¿Borrar %1$s?</string>
     <string name="hosts_delete_text">Se borra de este móvil y, al sincronizar, de tus otros dispositivos.</string>
@@ -1418,7 +1417,6 @@
     <string name="settings_wide_layout_auto_hint">El diseño de escritorio en tablets, plegables abiertos y Chromebooks; el de móvil en los móviles, también en horizontal</string>
     <string name="settings_wide_layout_phone_hint">Siempre el diseño de móvil: barra inferior o raíl de navegación</string>
     <string name="settings_wide_layout_desktop_hint">El diseño de escritorio siempre que la ventana mida al menos 840 dp de ancho, también móviles en horizontal</string>
-    <string name="quick_connect_placeholder">Busca hosts, o escribe usuario@host:puerto o telnet://host</string>
     <string name="quick_connect_to">Conectar a %1$s</string>
     <string name="quick_connect_detail">Se guarda como host nuevo la primera vez</string>
     <string name="quick_connect_detail_telnet">Telnet, sin cifrar · se guarda como host nuevo la primera vez</string>
@@ -1937,4 +1935,5 @@
     <string name="group_defaults_on">Activado</string>
     <string name="group_defaults_off">Desactivado</string>
     <string name="group_defaults_credential">Identidad o clave</string>
+    <string name="kb_ai_request">Una línea # se convierte en comando (IA)</string>
 </resources>

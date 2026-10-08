@@ -784,7 +784,7 @@ private fun FileRow(
 
 /** Selecting: how many, all, and what can be done with them. */
 @Composable
-private fun SelectionBar(
+internal fun SelectionBar(
     count: Int,
     all: Boolean,
     onAll: (Boolean) -> Unit,
@@ -818,7 +818,7 @@ private fun SelectionBar(
 
 /** Files shared into the app from another one: "N files to upload · Upload here · Cancel". */
 @Composable
-private fun IncomingBar(count: Int, ready: Boolean, onUpload: () -> Unit, onCancel: () -> Unit) {
+internal fun IncomingBar(count: Int, ready: Boolean, onUpload: () -> Unit, onCancel: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
