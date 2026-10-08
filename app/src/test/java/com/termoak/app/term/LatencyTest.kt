@@ -23,3 +23,14 @@ class LatencyTest {
         assertEquals("1200 ms", Latency.format(1200.0))
     }
 }
+
+/** The Connections list's timer. */
+class ElapsedTest {
+    @org.junit.Test
+    fun timer() {
+        org.junit.Assert.assertEquals("0:00", Elapsed.format(0))
+        org.junit.Assert.assertEquals("4:07", Elapsed.format(247_900))
+        org.junit.Assert.assertEquals("1:02:09", Elapsed.format(3_729_000))
+        org.junit.Assert.assertEquals("0:00", Elapsed.format(-5))
+    }
+}

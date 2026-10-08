@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -579,6 +580,7 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
     var list by remember { mutableStateOf(runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList())) }
     LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { list = runCatching { app.core.listKnownHosts(app.accounts.filter()) }.getOrDefault(emptyList()) } }
     var deleting by remember { mutableStateOf<KnownHost?>(null) }
+    var query by remember { mutableStateOf("") }
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
@@ -591,7 +593,19 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
             )
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)) {
-                items(list.sortedBy { it.host }, key = { it.uid }) { k ->
+                // Search by host, key type or fingerprint.
+                item {
+                    OutlinedTextField(
+                        query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        placeholder = { Text(stringResource(R.string.known_hosts_search)) }, singleLine = true,
+                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    )
+                }
+                val q = query.trim().lowercase()
+                val shown = list.sortedBy { it.host }.filter { k ->
+                    q.isEmpty() || listOf(k.host, k.keyType, k.fingerprint, k.port.toString()).any { it.lowercase().contains(q) }
+                }
+                items(shown, key = { it.uid }) { k ->
                     ListItem(
                         headlineContent = { Text(if (k.port == 22u) k.host else "${k.host}:${k.port}") },
                         supportingContent = {

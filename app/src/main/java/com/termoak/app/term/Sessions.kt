@@ -5,19 +5,24 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.termoak.app.R
 import com.termoak.app.data.Accounts
+import com.termoak.app.data.canWrite
 import com.termoak.app.data.isTelnet
 import com.termoak.app.localized
+import com.termoak.ffi.ItemFilter
+import com.termoak.ffi.SecretChange
 import com.termoak.ffi.ServerSession
 import com.termoak.ffi.ServerSessionState
-import com.termoak.ffi.ItemFilter
 import com.termoak.ffi.SessionAccess
 import com.termoak.ffi.SshHost
 import com.termoak.ffi.TermoakCore
 import com.termoak.ffi.TermoakException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Terminals open in the app. They survive navigation; while there is any,
@@ -61,6 +66,32 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     @Volatile var tunnelCount: () -> Int = { 0 }
     /** A terminal from the phone connected (its automatic tunnels start; set by the app). */
     @Volatile var onLocalConnected: (LocalTerminal) -> Unit = {}
+
+    /**
+     * Detects the system of the host a terminal from the phone just connected
+     * to (on its own channel, like the desktop) and saves it on the host if it
+     * changed and can be changed (not Use-only): its logo and suggestions follow it.
+     */
+    fun detectOs(terminal: LocalTerminal) {
+        if (terminal.telnet) return
+        val hostId = terminal.hostId ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            val conn = terminal.connection() ?: return@launch
+            try {
+                val info = runCatching { conn.detectOsInfo() }.getOrNull() ?: return@launch
+                terminal.hostOs = info.id
+                val host = runCatching { core.getHost(hostId, terminal.accountId) }.getOrNull() ?: return@launch
+                if (!host.access.canWrite() || (host.os == info.id && host.osVersion == info.displayName)) return@launch
+                runCatching { core.saveHost(host.copy(os = info.id, osVersion = info.displayName), SecretChange.Keep) }
+                    .onSuccess {
+                        accounts.itemsChangedHere()
+                        host.accountId?.let { accounts.sync(it) }
+                    }
+            } finally {
+                conn.close()
+            }
+        }
+    }
 
     /** Gives a new terminal the suggestions, with its host's system. */
     private fun prepare(session: TermSession, os: String? = null) {

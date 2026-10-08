@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CellTower
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloseFullscreen
 import androidx.compose.material.icons.outlined.CloudQueue
@@ -440,6 +441,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         }
         DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { dismiss(); copyScreen(session) },
             leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+        DropdownMenuItem({ Text(stringResource(R.string.term_clear)) }, { dismiss(); session.clear() },
+            leadingIcon = { Icon(Icons.Outlined.ClearAll, null) })
         DropdownMenuItem({ Text(stringResource(R.string.term_font_bigger)) }, { app.prefs.setFontSize(fontSize + 1) },
             leadingIcon = { Icon(Icons.Outlined.TextIncrease, null) })
         DropdownMenuItem({ Text(stringResource(R.string.term_font_smaller)) }, { app.prefs.setFontSize(fontSize - 1) },

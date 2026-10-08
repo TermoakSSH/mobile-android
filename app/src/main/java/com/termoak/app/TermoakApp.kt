@@ -34,7 +34,10 @@ class TermoakApp : Application() {
             telnetAutoLogin = { prefs.telnetAutoLogin.value }
             assist = CommandAssist(core) { prefs.commandSuggestions.value }
             tunnelCount = { tunnels.running.value.size }
-            onLocalConnected = { tunnels.onTerminalConnected(it) }
+            onLocalConnected = {
+                tunnels.onTerminalConnected(it)
+                detectOs(it)
+            }
         }
     }
     /** Running tunnels (port forwarding). */

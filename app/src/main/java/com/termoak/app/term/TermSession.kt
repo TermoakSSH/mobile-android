@@ -83,6 +83,20 @@ abstract class TermSession(
 
     protected val _state = MutableStateFlow<TermState>(InitialConnecting)
     val state: StateFlow<TermState> = _state
+    /** Since when it is connected (ms), `null` while not (the Connections list's timer, as on iOS). */
+    @Volatile var connectedAt: Long? = null
+        private set
+
+    init {
+        scope.launch {
+            state.collect { st ->
+                when (st) {
+                    TermState.Running -> if (connectedAt == null) connectedAt = System.currentTimeMillis()
+                    else -> connectedAt = null
+                }
+            }
+        }
+    }
     protected val _pending = MutableStateFlow<Pending?>(null)
     val pending: StateFlow<Pending?> = _pending
     protected val _title = MutableStateFlow<String?>(null)
@@ -263,6 +277,21 @@ abstract class TermSession(
         line.reset()
         query.incrementAndGet()
         _suggestions.value = emptyList()
+    }
+
+    /**
+     * "Clear": the scrollback goes and, outside full-screen programs, the
+     * screen too, with Ctrl+L to the shell so it draws its prompt again at
+     * the top (the desktop's Clear). Nothing is typed in a read-only terminal.
+     */
+    fun clear() {
+        val full = screen.alternateScreen()
+        // ED 3 (the scrollback) and, at the shell, home and ED 2: only this screen, not sent anywhere.
+        runCatching { screen.feed((if (full) "\u001b[3J" else "\u001b[H\u001b[2J\u001b[3J").toByteArray()) }
+        line.reset()
+        _suggestions.value = emptyList()
+        if (!full) write(byteArrayOf(0x0c))
+        onScreenChanged()
     }
 
     /** Types the rest of a suggestion (without Enter). */

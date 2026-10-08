@@ -240,6 +240,7 @@
     <string name="known_hosts_empty_title">No known hosts</string>
     <string name="known_hosts_empty_text">When you connect to a server for the first time and trust its fingerprint, it shows up here.</string>
     <string name="known_hosts_forget">Forget</string>
+    <string name="known_hosts_search">Search hosts or fingerprints</string>
     <string name="known_hosts_forget_title">Forget %1$s?</string>
     <string name="known_hosts_forget_text">Next time you connect you\'ll be asked again whether you trust its fingerprint.</string>
 
@@ -286,6 +287,7 @@
     <string name="term_not_connected">Not connected</string>
     <string name="term_keyboard">Keyboard</string>
     <string name="term_copy_screen">Copy screen</string>
+    <string name="term_clear">Clear the screen and history</string>
     <string name="term_select">Select</string>
     <string name="term_select_all">Select all</string>
     <string name="term_font_bigger">Larger text</string>

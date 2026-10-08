@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -54,12 +55,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
+import com.termoak.app.term.Elapsed
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
 import com.termoak.app.userMessage
@@ -364,8 +367,26 @@ private fun LocalSessionRow(s: TermSession, host: SshHost?, onClick: () -> Unit,
         },
         leadingContent = { StatusTile(host, s.label, stateColor(state)) },
         trailingContent = {
-            IconButton(onClick = onClose) {
-                Icon(Icons.Outlined.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Connected for… (a timer, as on iOS).
+                if (state == TermState.Running) {
+                    val since = s.connectedAt
+                    if (since != null) {
+                        val now by produceState(System.currentTimeMillis(), since) {
+                            while (true) {
+                                value = System.currentTimeMillis()
+                                kotlinx.coroutines.delay(1000)
+                            }
+                        }
+                        Text(
+                            Elapsed.format(now - since), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Outlined.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),

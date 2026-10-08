@@ -269,6 +269,11 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         _itemsChanged.tryEmit(Unit)
     }
 
+    /** Items changed on this device (outside a sync): the lists reload. */
+    fun itemsChangedHere() {
+        _itemsChanged.tryEmit(Unit)
+    }
+
     fun setVaultFilter(vault: String?) {
         prefs.vaultFilter = vault
         _vaultFilter.value = vault

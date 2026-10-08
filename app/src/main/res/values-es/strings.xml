@@ -239,6 +239,7 @@
     <string name="known_hosts_empty_title">Sin hosts conocidos</string>
     <string name="known_hosts_empty_text">Al conectarte por primera vez a un servidor y confiar en su huella, aparece aquí.</string>
     <string name="known_hosts_forget">Olvidar</string>
+    <string name="known_hosts_search">Buscar hosts o huellas</string>
     <string name="known_hosts_forget_title">¿Olvidar %1$s?</string>
     <string name="known_hosts_forget_text">La próxima vez que te conectes se te volverá a preguntar si confías en su huella.</string>
 
@@ -285,6 +286,7 @@
     <string name="term_not_connected">Sin conectar</string>
     <string name="term_keyboard">Teclado</string>
     <string name="term_copy_screen">Copiar la pantalla</string>
+    <string name="term_clear">Borrar la pantalla y el historial</string>
     <string name="term_select">Seleccionar</string>
     <string name="term_select_all">Seleccionar todo</string>
     <string name="term_font_bigger">Letra más grande</string>

@@ -55,11 +55,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -399,7 +402,7 @@ fun LoginScreen(
                 Step.SIGN_UP -> {
                     details?.environment?.let { EnvironmentBanner(it) }
                     OutlinedTextField(
-                        name, { name = it }, Modifier.fillMaxWidth(),
+                        name, { name = it }, Modifier.fillMaxWidth().semantics { contentType = ContentType.PersonFullName },
                         label = { Text(stringResource(R.string.common_name)) }, singleLine = true,
                         leadingIcon = { Icon(Icons.Outlined.Badge, null) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -408,7 +411,7 @@ fun LoginScreen(
                     PasswordField(
                         password, showPassword, { password = it }, { showPassword = !showPassword },
                         if (needsInvite) ImeAction.Next else ImeAction.Done,
-                        supporting = stringResource(R.string.signup_password_rules),
+                        supporting = stringResource(R.string.signup_password_rules), new = true,
                     ) { signUp() }
                     if (needsInvite) {
                         OutlinedTextField(
@@ -473,7 +476,8 @@ fun LoginScreen(
 @Composable
 private fun EmailField(email: String, onChange: (String) -> Unit) {
     OutlinedTextField(
-        email, onChange, Modifier.fillMaxWidth(),
+        // Password managers fill it (and save it with the password).
+        email, onChange, Modifier.fillMaxWidth().semantics { contentType = ContentType.Username + ContentType.EmailAddress },
         label = { Text(stringResource(R.string.login_email)) }, singleLine = true,
         leadingIcon = { Icon(Icons.Outlined.Email, null) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next, autoCorrectEnabled = false),
@@ -488,10 +492,12 @@ private fun PasswordField(
     onToggle: () -> Unit,
     imeAction: ImeAction,
     supporting: String? = null,
+    /** A new account's password (password managers suggest a strong one). */
+    new: Boolean = false,
     onIme: () -> Unit,
 ) {
     OutlinedTextField(
-        password, onChange, Modifier.fillMaxWidth(),
+        password, onChange, Modifier.fillMaxWidth().semantics { contentType = if (new) ContentType.NewPassword else ContentType.Password },
         label = { Text(stringResource(R.string.common_password)) }, singleLine = true,
         supportingText = supporting?.let { { Text(it) } },
         leadingIcon = { Icon(Icons.Outlined.Lock, null) },

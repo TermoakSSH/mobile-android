@@ -31,3 +31,15 @@ object Latency {
         else -> "${ms.toLong()} ms"
     }
 }
+
+/** How long a terminal has been connected, as a timer (`4:07`, `1:02:09`), like iOS's `Text(date, style: .timer)`. */
+object Elapsed {
+    fun format(ms: Long): String {
+        val total = (ms / 1000).coerceAtLeast(0)
+        val h = total / 3600
+        val m = (total % 3600) / 60
+        val s = total % 60
+        return if (h > 0) String.format(java.util.Locale.ROOT, "%d:%02d:%02d", h, m, s)
+        else String.format(java.util.Locale.ROOT, "%d:%02d", m, s)
+    }
+}
