@@ -31,10 +31,12 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Visibility
@@ -517,6 +519,15 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                                 }
                             }
                             if (a.status == AccountStatus.ACTIVE) {
+                                // Two-step verification and teams of this account (the engine's per-account calls).
+                                TextButton(onClick = { nav.navigate(Routes.twoFactor(a.id)) }) {
+                                    Icon(Icons.Outlined.Security, null, Modifier.size(16.dp))
+                                    Text(stringResource(R.string.settings_two_factor), Modifier.padding(start = 6.dp))
+                                }
+                                TextButton(onClick = { nav.navigate(Routes.TEAMS) }) {
+                                    Icon(Icons.Outlined.Groups, null, Modifier.size(16.dp))
+                                    Text(stringResource(R.string.teams_title), Modifier.padding(start = 6.dp))
+                                }
                                 TextButton(onClick = { openUrl(context, "${a.serverUrl}/app/account") }) {
                                     Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(16.dp))
                                     Text(stringResource(R.string.settings_my_account), Modifier.padding(start = 6.dp))

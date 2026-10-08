@@ -123,7 +123,8 @@ object Routes {
     const val SETTINGS = "settings"
     const val AI_KEYS = "settings/ai"
     /** Settings → Two-step verification (the current account). */
-    const val TWO_FACTOR = "settings/2fa"
+    const val TWO_FACTOR = "settings/2fa?account={account}"
+    fun twoFactor(account: String? = null) = "settings/2fa" + (account?.let { "?account=$it" } ?: "")
     /** Settings → Terminal → Keys above the keyboard (also the quick panel's Customize). */
     const val KEYBOARD = "settings/keys"
     const val TERMINAL = "terminal"
@@ -423,7 +424,10 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.SETTINGS) { SettingsScreen(app, nav) }
                         composable(Routes.AI_KEYS) { AiKeysScreen(app, nav) }
                         composable(Routes.KEYBOARD) { KeyboardEditorScreen(app, nav) }
-                        composable(Routes.TWO_FACTOR) { TwoFactorScreen(app, nav) }
+                        composable(
+                            Routes.TWO_FACTOR,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e -> TwoFactorScreen(app, nav, e.arguments?.getString("account")) }
                         // The terminal keeps a plain fade, as before.
                         composable(
                             Routes.TERMINAL,

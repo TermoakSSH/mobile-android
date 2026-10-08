@@ -44,6 +44,9 @@ android {
             "DEFAULT_SERVER",
             "\"${providers.gradleProperty("termoakServer").getOrElse("https://termoak.com")}\"",
         )
+        // Push notifications (Firebase Cloud Messaging), off until the owner's Firebase project and
+        // google-services.json exist: -PtermoakPush=true turns the per-account registration on.
+        buildConfigField("boolean", "PUSH_ENABLED", providers.gradleProperty("termoakPush").getOrElse("false"))
     }
 
     signingConfigs {

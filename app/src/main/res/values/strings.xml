@@ -1343,7 +1343,7 @@
     <string name="teams_leave_title">Leave “%1$s”?</string>
     <string name="teams_leave_text">You will no longer see the sessions shared with the team. If you are its only owner, appoint another one or delete the team first.</string>
     <string name="teams_add_member">Add member</string>
-    <string name="teams_add_member_hint">They must have an account on this server. Team admins manage the members; only owners appoint owners and delete the team.</string>
+    <string name="teams_add_member_hint">Someone with an account on this server joins at once; otherwise they get an invitation to sign up. Team admins manage the members; only owners appoint owners and delete the team.</string>
     <string name="teams_added">%1$s is now in the team.</string>
     <string name="teams_email_placeholder">email@example.com</string>
     <string name="teams_role">Role</string>
@@ -1494,7 +1494,6 @@
     <string name="two_factor_copied">Copied</string>
     <string name="two_factor_share_codes">Share the codes</string>
     <string name="two_factor_qr">QR code for the authenticator app</string>
-    <string name="two_factor_current_only">Here for the current account (%1$s). For another one, make it current or use the web.</string>
     <string name="lock_title">Termoak is locked</string>
     <string name="lock_detail">Use your fingerprint, face or screen lock to open it. Your terminals keep running.</string>
     <string name="lock_unlock">Unlock</string>
@@ -1729,4 +1728,12 @@
         <item quantity="one">%d approval</item>
         <item quantity="other">%d approvals</item>
     </plurals>
+    <string name="teams_invited">%1$s has no account yet: an invitation to sign up and join the team was created.</string>
+    <string name="teams_invited_emailed">%1$s has no account yet: an invitation to sign up and join the team was emailed.</string>
+    <string name="teams_invites_waiting">Invitations waiting</string>
+    <string name="teams_invite_anyone">Anyone with the link</string>
+    <string name="teams_invite_until">until %1$s</string>
+    <string name="teams_invite_revoke">Revoke</string>
+    <string name="teams_invite_link_title">Invitation to sign up</string>
+    <string name="teams_invite_link_text">%1$s has no account on this server yet. Send them this link: it opens the sign-up form with the invitation, and they join the team.</string>
 </resources>

@@ -1,59 +1,76 @@
 package com.termoak.app.data
 
 import com.termoak.ffi.AccountHandle
-import com.termoak.ffi.TermoakException
-import org.json.JSONArray
-import org.json.JSONException
-import org.json.JSONObject
+import com.termoak.ffi.Team
+import com.termoak.ffi.TeamMember
+import com.termoak.ffi.TeamRole
 
 /** A team member: their id on the server, email, name and role (`owner`, `admin`, `member`). */
-data class TeamPerson(val userId: String, val email: String, val name: String, val role: String)
+data class TeamPerson(val userId: String, val email: String, val name: String, val role: String) {
+    companion object {
+        fun of(m: TeamMember) = TeamPerson(m.userId, m.email, m.name, AccountTeams.roleKey(m.role))
+    }
+}
 
 /**
- * Managing the teams of **one account** (any signed-in one), with the same
- * endpoints as the engine's team calls, which only work on the current
- * account: create, rename, delete, members (add by email, role, remove) and
- * leave. Owners and admins manage; only owners appoint owners and delete.
+ * What adding someone by email did: added (they have an account) or invited
+ * to sign up (and emailed); [link] is the invitation to hand over when it
+ * wasn't emailed.
+ */
+data class TeamAddResult(val members: List<TeamPerson>, val added: Boolean, val emailed: Boolean, val link: String? = null)
+
+/**
+ * Managing the teams of **one account** (any signed-in one), with the
+ * engine's per-account team calls: list, create, rename, delete, members
+ * (add or invite by email, role, remove) and leave. Owners and admins
+ * manage; only owners appoint owners and delete.
  */
 class AccountTeams(private val handle: AccountHandle) {
+    suspend fun list(): List<Team> = handle.listTeams()
+
     suspend fun create(name: String) {
-        handle.apiPost("/api/v1/teams", JSONObject().put("name", name.trim()).toString())
+        handle.createTeam(name.trim())
     }
 
     suspend fun rename(teamId: String, name: String) {
-        handle.apiPatch(teamPath(teamId), JSONObject().put("name", name.trim()).toString())
+        handle.renameTeam(teamId, name.trim())
     }
 
     suspend fun delete(teamId: String) {
-        handle.apiDelete(teamPath(teamId))
+        handle.deleteTeam(teamId)
     }
 
-    suspend fun members(teamId: String): List<TeamPerson> = parsed { parseMembers(handle.apiGet("${teamPath(teamId)}/members")) }
+    suspend fun members(teamId: String): List<TeamPerson> = handle.listTeamMembers(teamId).map(TeamPerson::of)
 
-    suspend fun add(teamId: String, email: String, role: String): List<TeamPerson> = parsed {
-        parseMembers(handle.apiPost("${teamPath(teamId)}/members", JSONObject().put("email", email.trim()).put("role", role).toString()))
+    /** Adds someone with an account at once; otherwise the server creates an invitation to sign up (emailed when it can). */
+    suspend fun add(teamId: String, email: String, role: String): TeamAddResult {
+        val r = handle.inviteToTeam(teamId, email.trim(), roleOf(role))
+        val link = r.invite?.let { inviteLink(it.server, it.token) }
+        return TeamAddResult(r.members.map(TeamPerson::of), r.added, r.emailed, link)
     }
 
-    suspend fun setRole(teamId: String, userId: String, role: String): List<TeamPerson> = parsed {
-        parseMembers(handle.apiPatch("${teamPath(teamId)}/members/${segment(userId)}", JSONObject().put("role", role).toString()))
+    /** The invitations of the team waiting to be used (not used, revoked or expired). */
+    suspend fun invites(teamId: String): List<com.termoak.ffi.AccountInvite> {
+        val now = System.currentTimeMillis() / 1000
+        return handle.listTeamInvites(teamId).filter { it.usedAt == null && !it.revoked && (it.expiresAt ?: Long.MAX_VALUE) > now }
     }
+
+    suspend fun revokeInvite(teamId: String, inviteId: String) {
+        handle.revokeTeamInvite(teamId, inviteId)
+    }
+
+    suspend fun setRole(teamId: String, userId: String, role: String): List<TeamPerson> =
+        handle.setTeamMemberRole(teamId, userId, roleOf(role)).map(TeamPerson::of)
 
     suspend fun remove(teamId: String, userId: String) {
-        handle.apiDelete("${teamPath(teamId)}/members/${segment(userId)}")
+        handle.removeTeamMember(teamId, userId)
     }
 
-    /** Your own id on that server (to mark you in the list and to leave). */
-    suspend fun myId(): String? = parsed { JSONObject(handle.apiGet("/api/v1/me")).optJSONObject("user")?.optString("id")?.ifEmpty { null } }
+    /** Your own id on that server (to mark you in the list). */
+    suspend fun myId(): String? = handle.currentUser().id.ifEmpty { null }
 
     suspend fun leave(teamId: String) {
-        val me = myId() ?: throw TermoakException.Server("unknown user")
-        remove(teamId, me)
-    }
-
-    private inline fun <T> parsed(block: () -> T): T = try {
-        block()
-    } catch (e: JSONException) {
-        throw TermoakException.Server(e.message ?: "invalid response")
+        handle.leaveTeam(teamId)
     }
 
     companion object {
@@ -62,20 +79,19 @@ class AccountTeams(private val handle: AccountHandle) {
         const val MEMBER = "member"
         val Roles = listOf(MEMBER, ADMIN, OWNER)
 
-        private val Id = Regex("^[A-Za-z0-9-]{1,64}$")
-
-        private fun segment(id: String): String {
-            if (!Id.matches(id)) throw TermoakException.Invalid("invalid id")
-            return id
+        fun roleKey(role: TeamRole): String = when (role) {
+            TeamRole.OWNER -> OWNER
+            TeamRole.ADMIN -> ADMIN
+            TeamRole.MEMBER -> MEMBER
         }
 
-        fun teamPath(teamId: String) = "/api/v1/teams/${segment(teamId)}"
+        /** The web link of an invitation to sign up (it opens the app too, an App Link). */
+        fun inviteLink(server: String, token: String): String = server.trimEnd('/') + "/invite/" + token
 
-        fun parseMembers(json: String): List<TeamPerson> {
-            val a = JSONArray(json)
-            return (0 until a.length()).mapNotNull { a.optJSONObject(it) }.map { m ->
-                TeamPerson(m.optString("user_id"), m.optString("email"), m.optString("name"), m.optString("role"))
-            }
+        fun roleOf(key: String): TeamRole = when (key) {
+            OWNER -> TeamRole.OWNER
+            ADMIN -> TeamRole.ADMIN
+            else -> TeamRole.MEMBER
         }
 
         /** Who can do what: admins manage members (not owners), owners everything. */

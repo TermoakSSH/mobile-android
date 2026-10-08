@@ -221,6 +221,11 @@ class Prefs(context: Context) {
         get() = RecentHosts(sp.getString("recent_hosts", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty())
         set(v) = sp.edit { putString("recent_hosts", v.keys.joinToString("\n")) }
 
+    /** The device's push token (Firebase), when the build has push. */
+    var pushToken: String?
+        get() = sp.getString("push_token", null)
+        set(v) = sp.edit { putString("push_token", v) }
+
     /** Already used without a server: don't show the welcome screen again. */
     var skippedLogin: Boolean
         get() = sp.getBoolean("skipped_login", false)

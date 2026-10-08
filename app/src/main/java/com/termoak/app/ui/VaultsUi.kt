@@ -119,7 +119,6 @@ import com.termoak.ffi.VaultMemberKind
 import com.termoak.ffi.VaultMemberTarget
 import com.termoak.ffi.VaultRole
 import kotlinx.coroutines.launch
-import org.json.JSONArray
 
 /** Colors offered for a vault (the hosts' palette). */
 private val VaultColors = listOf("#4f7cff", "#30a46c", "#f5a524", "#e5484d", "#8e4ec6", "#0ea5e9", "#d6409f", "#12a594")
@@ -297,10 +296,8 @@ fun VaultsScreen(app: TermoakApp, nav: NavHostController) {
 private data class TeamRef(val id: String, val name: String, val admin: Boolean)
 
 private suspend fun teamsOf(app: TermoakApp, accountId: String): List<TeamRef> = runCatching {
-    val arr = JSONArray(app.accounts.handle(accountId)?.apiGet("/api/v1/teams") ?: "[]")
-    (0 until arr.length()).map { i ->
-        val t = arr.getJSONObject(i)
-        TeamRef(t.getString("id"), t.optString("name"), t.optString("role") in setOf("owner", "admin"))
+    (app.accounts.handle(accountId)?.listTeams() ?: emptyList()).map { t ->
+        TeamRef(t.id, t.name, t.role == com.termoak.ffi.TeamRole.OWNER || t.role == com.termoak.ffi.TeamRole.ADMIN)
     }
 }.getOrDefault(emptyList())
 

@@ -173,7 +173,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                                 if (tf.enabled) Brand.Green else Brand.Amber,
                             )
                         },
-                    ) { nav.navigate(Routes.TWO_FACTOR) }
+                    ) { nav.navigate(Routes.twoFactor()) }
                 }
                 server?.let { url ->
                     Row0(Icons.AutoMirrored.Outlined.OpenInNew, stringResource(R.string.settings_my_account), serverHost(url)) {

@@ -1,31 +1,20 @@
 package com.termoak.app.data
 
-import android.app.Application
-import com.termoak.ffi.TermoakException
+import com.termoak.ffi.TeamMember
+import com.termoak.ffi.TeamRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-/** Teams of any account: paths, replies and who manages what. */
-@RunWith(RobolectricTestRunner::class) // org.json is the Android one.
-@Config(sdk = [34], application = Application::class)
+/** Teams of any account: the engine's members and roles, and who manages what. */
 class AccountTeamsTest {
     @Test
-    fun paths() {
-        assertEquals("/api/v1/teams/0193b1c2-aaaa", AccountTeams.teamPath("0193b1c2-aaaa"))
-        assertTrue(runCatching { AccountTeams.teamPath("../me") }.exceptionOrNull() is TermoakException.Invalid)
-    }
-
-    @Test
     fun members() {
-        val list = AccountTeams.parseMembers(
-            """[{"user_id":"u1","email":"ana@x.com","name":"Ana","role":"owner","added_at":1},{"user_id":"u2","email":"bo@x.com","name":"","role":"member"}]""",
-        )
-        assertEquals(listOf(TeamPerson("u1", "ana@x.com", "Ana", "owner"), TeamPerson("u2", "bo@x.com", "", "member")), list)
+        assertEquals(TeamPerson("u1", "ana@x.com", "Ana", "owner"), TeamPerson.of(TeamMember("u1", "ana@x.com", "Ana", TeamRole.OWNER, 1)))
+        assertEquals("member", AccountTeams.roleKey(TeamRole.MEMBER))
+        assertEquals(TeamRole.ADMIN, AccountTeams.roleOf("admin"))
+        assertEquals(TeamRole.MEMBER, AccountTeams.roleOf("whatever"))
     }
 
     @Test

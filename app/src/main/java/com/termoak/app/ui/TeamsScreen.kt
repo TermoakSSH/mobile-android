@@ -61,22 +61,15 @@ import com.termoak.ffi.AccountInfo
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.launch
-import org.json.JSONArray
 
 /** A team you belong to on a server, with your role there (`null`: a server admin who isn't a member). */
 private data class TeamInfo(val id: String, val accountId: String, val name: String, val role: String?, val members: Int)
 
 
-/** The teams of every signed-in account (the server's /api/v1/teams), or `null` for an account that couldn't be read. */
+/** The teams of a signed-in account (the engine's per-account listTeams), or `null` if they couldn't be read. */
 private suspend fun loadTeams(app: TermoakApp, a: AccountInfo): List<TeamInfo>? = runCatching {
-    val arr = JSONArray(app.accounts.handle(a.id)?.apiGet("/api/v1/teams") ?: return null)
-    (0 until arr.length()).map { i ->
-        val t = arr.getJSONObject(i)
-        TeamInfo(
-            t.getString("id"), a.id, t.optString("name"),
-            t.optString("role").takeIf { it.isNotEmpty() && it != "null" }, t.optInt("member_count"),
-        )
-    }.sortedBy { it.name.lowercase() }
+    val teams = teamsOf(app, a.id)?.list() ?: return null
+    teams.map { t -> TeamInfo(t.id, a.id, t.name, t.role?.let(AccountTeams::roleKey), t.memberCount.toInt()) }.sortedBy { it.name.lowercase() }
 }.getOrNull()
 
 private fun teamsOf(app: TermoakApp, accountId: String): AccountTeams? = app.accounts.handle(accountId)?.let { AccountTeams(it) }
@@ -249,11 +242,18 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
     var removing by remember { mutableStateOf<TeamPerson?>(null) }
     val manage = AccountTeams.canManage(team.role)
     val roles = AccountTeams.assignable(team.role)
+    // Invitations to sign up waiting (managers), and the link of one just made that wasn't emailed.
+    var invites by remember { mutableStateOf<List<com.termoak.ffi.AccountInvite>>(emptyList()) }
+    var inviteLink by remember { mutableStateOf<Pair<String, String>?>(null) }
+    suspend fun loadInvites() {
+        if (manage) invites = runCatching { api?.invites(team.id) }.getOrNull().orEmpty()
+    }
     LaunchedEffect(team) {
         val list = runCatching { api?.members(team.id) }.getOrNull()
         failed = list == null
         members = list.orEmpty()
         me = runCatching { api?.myId() }.getOrNull()
+        loadInvites()
     }
     fun act(action: suspend () -> Unit) {
         scope.launch {
@@ -316,6 +316,30 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
                         }
                     }
                 }
+                if (invites.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.teams_invites_waiting), Modifier.padding(top = 12.dp),
+                        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+                    )
+                    invites.forEach { inv ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(inv.email ?: stringResource(R.string.teams_invite_anyone), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    teamRoleText(inv.teamRole?.let(AccountTeams::roleKey) ?: AccountTeams.MEMBER) +
+                                        (inv.expiresAt?.let { " · " + stringResource(R.string.teams_invite_until, formatDay(it)) } ?: ""),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            TextButton(onClick = {
+                                act {
+                                    api?.revokeInvite(team.id, inv.id)
+                                    loadInvites()
+                                }
+                            }) { Text(stringResource(R.string.teams_invite_revoke), color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                }
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (manage) TextButton(onClick = { adding = true }) { Text(stringResource(R.string.teams_add_member)) }
                     if (manage) TextButton(onClick = { renaming = true }) { Text(stringResource(R.string.teams_rename)) }
@@ -366,14 +390,30 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
                 TextButton(enabled = email.contains('@'), onClick = {
                     adding = false
                     act {
-                        members = api?.add(team.id, email, role) ?: members
-                        snackbar.showSnackbar(resources.getString(R.string.teams_added, email))
+                        val r = api?.add(team.id, email, role)
+                        if (r != null) members = r.members
+                        if (r != null && !r.added) {
+                            loadInvites()
+                            // Not emailed: the link to hand over.
+                            if (!r.emailed && r.link != null) inviteLink = email.trim() to r.link
+                        }
+                        snackbar.showSnackbar(
+                            resources.getString(
+                                when {
+                                    r == null || r.added -> R.string.teams_added
+                                    r.emailed -> R.string.teams_invited_emailed
+                                    else -> R.string.teams_invited
+                                },
+                                email.trim(),
+                            ),
+                        )
                     }
                 }) { Text(stringResource(R.string.teams_add_member)) }
             },
             dismissButton = { TextButton(onClick = { adding = false }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
+    inviteLink?.let { (who, link) -> InviteLinkDialog(who, link) { inviteLink = null } }
     if (renaming) {
         var name by remember { mutableStateOf(team.name) }
         AlertDialog(
@@ -404,3 +444,40 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
         ConfirmDialog(title, text, stringResource(R.string.common_continue), destructive = true, onDismiss = { confirming = null }) { act { action() } }
     }
 }
+
+/** An invitation to sign up and join the team that wasn't emailed: its link to copy, share or show as a QR code. */
+@Composable
+private fun InviteLinkDialog(email: String, link: String, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.teams_invite_link_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.teams_invite_link_text, email))
+                QrCodeImage(link, stringResource(R.string.teams_invite_link_title), Modifier.size(200.dp).align(Alignment.CenterHorizontally))
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(link, style = MaterialTheme.typography.bodySmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        context.getSystemService(android.content.ClipboardManager::class.java)
+                            ?.setPrimaryClip(android.content.ClipData.newPlainText("invite", link))
+                    }) { Text(stringResource(R.string.share_copy)) }
+                    TextButton(onClick = {
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                            .putExtra(android.content.Intent.EXTRA_TEXT, link)
+                        runCatching { context.startActivity(android.content.Intent.createChooser(send, null)) }
+                    }) { Text(stringResource(R.string.files_share)) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_done)) } },
+    )
+}
+
+/** A day, as the app shows dates (an invitation's expiry). */
+@Composable
+private fun formatDay(seconds: Long): String =
+    java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, androidx.compose.ui.platform.LocalConfiguration.current.locales[0])
+        .format(java.util.Date(seconds * 1000))

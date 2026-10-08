@@ -60,15 +60,20 @@ import kotlinx.coroutines.launch
  * Two-step verification in the app, as on iOS: its state and recovery codes
  * left; turn it on (QR code or secret for the authenticator app, a code to
  * confirm, then the recovery codes shown once) or off (password and a
- * code). The engine does it for the current account.
+ * code), for any signed-in account (the engine's per-account calls; the
+ * current one first).
  */
 @Composable
-fun TwoFactorScreen(app: TermoakApp, nav: NavHostController) {
+fun TwoFactorScreen(app: TermoakApp, nav: NavHostController, initialAccount: String? = null) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
-    val current by app.accounts.current.collectAsState()
+    val currentAccount by app.accounts.current.collectAsState()
     val accountList by app.accounts.list.collectAsState()
+    val active = accountList.filter { it.status == com.termoak.ffi.AccountStatus.ACTIVE }
+    var accountId by remember { mutableStateOf(initialAccount ?: currentAccount?.id) }
+    val current = active.firstOrNull { it.id == accountId } ?: currentAccount
+    val handle = current?.let { app.accounts.handle(it.id) }
     var status by remember { mutableStateOf<TwoFactorStatus?>(null) }
     var setup by remember { mutableStateOf<TwoFactorSetup?>(null) }
     var code by remember { mutableStateOf("") }
@@ -80,9 +85,18 @@ fun TwoFactorScreen(app: TermoakApp, nav: NavHostController) {
     var disabling by remember { mutableStateOf(false) }
 
     suspend fun load() {
-        status = runCatching { app.core.twoFactorStatus() }.onFailure { error = it.userMessage(resources, R.string.error_save_failed) }.getOrNull()
+        status = runCatching { (handle ?: throw TermoakException.NotLoggedIn("")).twoFactorStatus() }
+            .onFailure { error = it.userMessage(resources, R.string.error_save_failed) }.getOrNull()
     }
-    LaunchedEffect(current?.id) { load() }
+    LaunchedEffect(current?.id) {
+        status = null
+        setup = null
+        recovery = emptyList()
+        code = ""
+        password = ""
+        error = null
+        load()
+    }
     fun run(action: suspend () -> Unit) {
         busy = true
         error = null
@@ -125,11 +139,9 @@ fun TwoFactorScreen(app: TermoakApp, nav: NavHostController) {
             }
             Text(stringResource(R.string.two_factor_explain), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            current?.let { a ->
-                if (accountList.size > 1) {
-                    Text(stringResource(R.string.two_factor_current_only, a.email), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            // Which account (with several signed in).
+            if (active.size > 1) {
+                AiAccountPicker(active, current?.id) { if (!busy) accountId = it }
             }
             val s = setup
             when {
@@ -175,7 +187,7 @@ fun TwoFactorScreen(app: TermoakApp, nav: NavHostController) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             run {
-                                recovery = app.core.enableTwoFactor(code.trim())
+                                recovery = (handle ?: throw TermoakException.NotLoggedIn("")).enableTwoFactor(code.trim())
                                 setup = null
                                 code = ""
                                 load()
@@ -202,7 +214,7 @@ fun TwoFactorScreen(app: TermoakApp, nav: NavHostController) {
                 }
                 st != null -> Button(onClick = {
                     run {
-                        setup = app.core.setupTwoFactor()
+                        setup = (handle ?: throw TermoakException.NotLoggedIn("")).setupTwoFactor()
                         code = ""
                     }
                 }, enabled = !busy) { Text(stringResource(R.string.two_factor_turn_on)) }
@@ -222,7 +234,7 @@ fun TwoFactorScreen(app: TermoakApp, nav: NavHostController) {
             stringResource(R.string.two_factor_turn_off), destructive = true, onDismiss = { disabling = false },
         ) {
             run {
-                app.core.disableTwoFactor(password, code.trim())
+                (handle ?: throw TermoakException.NotLoggedIn("")).disableTwoFactor(password, code.trim())
                 password = ""
                 code = ""
                 load()

@@ -1392,7 +1392,7 @@
     <string name="teams_leave_title">¿Salir de «%1$s»?</string>
     <string name="teams_leave_text">Dejarás de ver las sesiones compartidas con el equipo. Si eres su único propietario, nombra a otro o elimina el equipo antes.</string>
     <string name="teams_add_member">Añadir miembro</string>
-    <string name="teams_add_member_hint">Tiene que tener cuenta en este servidor. Los administradores del equipo gestionan los miembros; solo los propietarios nombran propietarios y borran el equipo.</string>
+    <string name="teams_add_member_hint">Quien tenga cuenta en este servidor entra al momento; si no, recibe una invitación para registrarse. Los administradores del equipo gestionan los miembros; solo los propietarios nombran propietarios y borran el equipo.</string>
     <string name="teams_added">%1$s ya está en el equipo.</string>
     <string name="teams_email_placeholder">correo@ejemplo.com</string>
     <string name="teams_role">Rol</string>
@@ -1544,7 +1544,6 @@
     <string name="two_factor_copied">Copiados</string>
     <string name="two_factor_share_codes">Compartir los códigos</string>
     <string name="two_factor_qr">Código QR para la app de autenticación</string>
-    <string name="two_factor_current_only">Aquí para la cuenta actual (%1$s). Para otra, hazla actual o usa la web.</string>
     <string name="lock_title">Termoak está bloqueado</string>
     <string name="lock_detail">Usa tu huella, tu cara o el bloqueo de pantalla para abrirlo. Tus terminales siguen funcionando.</string>
     <string name="lock_unlock">Desbloquear</string>
@@ -1786,4 +1785,12 @@
         <item quantity="many">%d aprobaciones</item>
         <item quantity="other">%d aprobaciones</item>
     </plurals>
+    <string name="teams_invited">%1$s aún no tiene cuenta: se ha creado una invitación para registrarse y entrar en el equipo.</string>
+    <string name="teams_invited_emailed">%1$s aún no tiene cuenta: se le ha enviado por correo una invitación para registrarse y entrar en el equipo.</string>
+    <string name="teams_invites_waiting">Invitaciones pendientes</string>
+    <string name="teams_invite_anyone">Cualquiera con el enlace</string>
+    <string name="teams_invite_until">hasta el %1$s</string>
+    <string name="teams_invite_revoke">Revocar</string>
+    <string name="teams_invite_link_title">Invitación para registrarse</string>
+    <string name="teams_invite_link_text">%1$s aún no tiene cuenta en este servidor. Envíale este enlace: abre el formulario de registro con la invitación y entra en el equipo.</string>
 </resources>
