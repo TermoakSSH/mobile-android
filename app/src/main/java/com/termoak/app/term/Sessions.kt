@@ -213,7 +213,9 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     /** Shows [ids] side by side (fewer than two: back to a single terminal). */
     fun setSplit(ids: List<String>) {
         val panes = ids.distinct().filter { get(it) != null }.take(SplitState.MAX_PANES)
-        _split.value = if (panes.size >= 2) _split.value.copy(panes = panes, maximized = null) else SplitState()
+        _split.value = if (panes.size >= 2) {
+            _split.value.let { it.copy(panes = panes, maximized = null, excluded = it.excluded intersect panes.toSet()) }
+        } else SplitState()
         val active = _active.value
         if (panes.size >= 2 && (active == null || active !in panes)) _active.value = panes.first()
         panes.forEach { wake(it) }
@@ -223,7 +225,9 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     fun removePane(id: String) {
         val sp = _split.value
         val panes = sp.panes - id
-        _split.value = if (panes.size >= 2) sp.copy(panes = panes, maximized = sp.maximized.takeIf { it != id }) else SplitState()
+        _split.value = if (panes.size >= 2) {
+            sp.copy(panes = panes, maximized = sp.maximized.takeIf { it != id }, excluded = sp.excluded - id)
+        } else SplitState()
         if (_active.value == id) _active.value = panes.firstOrNull() ?: id
     }
 
@@ -237,6 +241,31 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
 
     fun setBroadcast(on: Boolean) {
         _split.value = _split.value.copy(broadcast = on && _split.value.on)
+    }
+
+    /** Leaves pane [id] out of the broadcast, or takes it back in. */
+    fun toggleExcluded(id: String) {
+        val sp = _split.value
+        _split.value = sp.copy(excluded = if (id in sp.excluded) sp.excluded - id else sp.excluded + id)
+    }
+
+    /** Focus mode: the focused pane big, the others small beside it. */
+    fun setFocusMode(on: Boolean) {
+        _split.value = _split.value.copy(focusMode = on && _split.value.on, maximized = null)
+    }
+
+    /**
+     * Ctrl+Shift+D: the next open terminal that isn't in the split goes into
+     * it (with the one on screen if there was no split). Whether there was one.
+     */
+    fun addPane(max: Int): Boolean {
+        val sp = _split.value
+        val current = if (sp.on) sp.panes else listOfNotNull(_active.value)
+        if (current.size >= max) return false
+        val next = _list.value.firstOrNull { it.id !in current } ?: return false
+        setSplit(current + next.id)
+        select(next.id)
+        return true
     }
 
     /** Moves tab [id] to position [to] of the list (the tab bar of wide windows). */

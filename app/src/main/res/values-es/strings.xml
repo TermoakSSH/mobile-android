@@ -868,6 +868,15 @@
     <string name="split_broadcast_stop">Dejar de difundir</string>
     <string name="split_broadcast_stop_short">Detener</string>
     <string name="split_broadcast_hint">Lo que escribas o pegues va a todos los paneles.</string>
+    <string name="split_broadcast_receives">Recibe la difusión</string>
+    <string name="split_broadcast_excluded">Excluido de la difusión</string>
+    <string name="split_broadcast_exclude">Excluir de la difusión</string>
+    <string name="split_broadcast_include">Incluir en la difusión</string>
+    <string name="split_focus_mode">Modo foco</string>
+    <string name="split_focus_mode_off">Salir del modo foco</string>
+    <string name="split_pane_actions">Acciones del panel</string>
+    <string name="split_pane_focus">Enfocar</string>
+    <string name="split_add_pane">Añadir a la vista dividida</string>
     <plurals name="split_broadcasting">
         <item quantity="one">Difundiendo a %d terminal</item>
         <item quantity="many">Difundiendo a %d terminales</item>
@@ -1216,6 +1225,10 @@
     <string name="kb_zoom_out">Texto más pequeño</string>
     <string name="kb_zoom_reset">Tamaño de texto por defecto</string>
     <string name="kb_next_pane">Panel siguiente de la vista dividida</string>
+    <string name="kb_pane_direction">Panel de la izquierda, la derecha, arriba o abajo</string>
+    <string name="kb_move_tab">Mover la pestaña a la izquierda o a la derecha</string>
+    <string name="kb_home">Inicio (el Vault)</string>
+    <string name="kb_new_host">Nuevo host</string>
     <string name="kb_scroll_up">Subir una página en el historial</string>
     <string name="kb_scroll_down">Bajar una página en el historial</string>
     <string name="kb_search_hosts">Buscar hosts</string>
@@ -1252,6 +1265,8 @@
     </plurals>
     <string name="tabs_quick_connect">Conexión rápida</string>
     <string name="tabs_move_left">Mover a la izquierda</string>
+    <string name="tabs_duplicate">Duplicar</string>
+    <string name="tabs_close_others">Cerrar las demás</string>
     <string name="tabs_move_right">Mover a la derecha</string>
     <string name="term_kind_local">Local</string>
     <string name="term_kind_server">Servidor</string>

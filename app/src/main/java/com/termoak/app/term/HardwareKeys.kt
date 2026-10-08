@@ -65,6 +65,34 @@ sealed class KeyStroke {
 enum class Shortcut {
     NEW_TAB, CLOSE_TAB, NEXT_TAB, PREV_TAB, COPY, PASTE, ZOOM_IN, ZOOM_OUT, ZOOM_RESET,
     NEXT_PANE, SEARCH_HOSTS, SHORTCUTS, SCROLL_PAGE_UP, SCROLL_PAGE_DOWN,
+
+    // The desktop's (Windows and Linux) shortcuts.
+    /** Ctrl+Alt+arrows: the split view's pane in that direction. */
+    PANE_LEFT, PANE_RIGHT, PANE_UP, PANE_DOWN,
+    /** Ctrl+Shift+D: another terminal into the split view. */
+    ADD_PANE,
+    /** Ctrl+Shift+M: the focused pane big, the others small. */
+    FOCUS_MODE,
+    /** Ctrl+Alt+B: broadcast input to the panes. */
+    BROADCAST,
+    /** Ctrl+Shift+PgUp / PgDn: move the tab. */
+    MOVE_TAB_LEFT, MOVE_TAB_RIGHT,
+    /** Ctrl+Shift+H: Home (the Vault). */
+    HOME,
+    /** Ctrl+,: Settings. */
+    SETTINGS,
+    /** Ctrl+Shift+I: the copilot. */
+    COPILOT,
+    /** Ctrl+Shift+N: a new host. */
+    NEW_HOST,
+    /** Ctrl+Shift+S: snippets. */
+    SNIPPETS,
+    /** Ctrl+Shift+R: reconnect. */
+    RECONNECT,
+    ;
+
+    /** With Ctrl+Alt: when nothing on screen takes it, the key goes to the terminal as it is. */
+    val typesWhenFree: Boolean get() = this in setOf(PANE_LEFT, PANE_RIGHT, PANE_UP, PANE_DOWN, BROADCAST)
 }
 
 sealed class KeyResult {
@@ -98,8 +126,8 @@ class HardwareKeys {
         pendingAccent = 0
     }
 
-    fun press(p: KeyPress, layout: KeyLayout): KeyResult {
-        shortcutOf(p, layout)?.let {
+    fun press(p: KeyPress, layout: KeyLayout, shortcuts: Boolean = true): KeyResult {
+        if (shortcuts) shortcutOf(p, layout)?.let {
             pendingAccent = 0
             return KeyResult.Action(it)
         }
@@ -178,10 +206,25 @@ class HardwareKeys {
          * The app shortcut of a press, if it is one: Ctrl+Shift+T/W/C/V/K/O,
          * Ctrl+Shift+= / - / 0 (zoom), Ctrl+Tab / Ctrl+Shift+Tab and
          * Ctrl+Shift+] / [ (tabs), Ctrl+/ (this list), Shift+PgUp/PgDn
-         * (scrollback), Shift+Insert (paste) and Ctrl+Insert (copy).
+         * (scrollback), Shift+Insert (paste) and Ctrl+Insert (copy); and the
+         * desktop's: Ctrl+Alt+arrows, Ctrl+Shift+D / M and Ctrl+Alt+B (split
+         * view), Ctrl+Shift+PgUp/PgDn (move the tab), Ctrl+Shift+H (Home),
+         * Ctrl+, (Settings), Ctrl+Shift+I (copilot), Ctrl+Shift+N (new host),
+         * Ctrl+Shift+S (snippets) and Ctrl+Shift+R (reconnect).
          * Symbols go by the character, so they work on other layouts too.
          */
         fun shortcutOf(p: KeyPress, layout: KeyLayout): Shortcut? {
+            // Ctrl+Alt (the left Alt): the split view's.
+            if (p.ctrl && p.alt && !p.shift && !p.meta && !p.altGr) {
+                return when (p.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> Shortcut.PANE_LEFT
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> Shortcut.PANE_RIGHT
+                    KeyEvent.KEYCODE_DPAD_UP -> Shortcut.PANE_UP
+                    KeyEvent.KEYCODE_DPAD_DOWN -> Shortcut.PANE_DOWN
+                    KeyEvent.KEYCODE_B -> Shortcut.BROADCAST
+                    else -> null
+                }
+            }
             if (p.alt || p.meta || p.altGr) return null
             fun plainChar(shift: Boolean): Int =
                 layout.char(p.keyCode, shift, false, false, p.numLock).let { if (it and KeyLayout.COMBINING_ACCENT != 0) 0 else it }
@@ -195,6 +238,15 @@ class HardwareKeys {
                     KeyEvent.KEYCODE_V -> Shortcut.PASTE
                     KeyEvent.KEYCODE_K -> Shortcut.SEARCH_HOSTS
                     KeyEvent.KEYCODE_O -> Shortcut.NEXT_PANE
+                    KeyEvent.KEYCODE_D -> Shortcut.ADD_PANE
+                    KeyEvent.KEYCODE_M -> Shortcut.FOCUS_MODE
+                    KeyEvent.KEYCODE_H -> Shortcut.HOME
+                    KeyEvent.KEYCODE_I -> Shortcut.COPILOT
+                    KeyEvent.KEYCODE_N -> Shortcut.NEW_HOST
+                    KeyEvent.KEYCODE_S -> Shortcut.SNIPPETS
+                    KeyEvent.KEYCODE_R -> Shortcut.RECONNECT
+                    KeyEvent.KEYCODE_PAGE_UP -> Shortcut.MOVE_TAB_LEFT
+                    KeyEvent.KEYCODE_PAGE_DOWN -> Shortcut.MOVE_TAB_RIGHT
                     KeyEvent.KEYCODE_TAB -> Shortcut.PREV_TAB
                     KeyEvent.KEYCODE_NUMPAD_ADD -> Shortcut.ZOOM_IN
                     KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> Shortcut.ZOOM_OUT
@@ -212,6 +264,7 @@ class HardwareKeys {
                     p.keyCode == KeyEvent.KEYCODE_TAB -> Shortcut.NEXT_TAB
                     p.keyCode == KeyEvent.KEYCODE_INSERT -> Shortcut.COPY
                     typed == '/'.code -> Shortcut.SHORTCUTS
+                    typed == ','.code -> Shortcut.SETTINGS
                     else -> null
                 }
                 p.shift -> when (p.keyCode) {

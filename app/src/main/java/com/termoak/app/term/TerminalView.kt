@@ -8,6 +8,7 @@ import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.Build
 import android.os.SystemClock
 import android.text.InputType
 import android.util.TypedValue
@@ -685,8 +686,14 @@ class TerminalView(context: Context) : View(context) {
                 true
             }
             // Shortcuts normally go through the activity first; here when nobody took them.
+            // The split view's Ctrl+Alt ones type as keys when nothing takes them.
             is KeyResult.Action -> {
-                onShortcut(r.shortcut)
+                if (!onShortcut(r.shortcut) && r.shortcut.typesWhenFree) {
+                    (keys.press(press, event.layout(), shortcuts = false) as? KeyResult.Send)?.let { send ->
+                        if (stickyCtrl || stickyAlt) s.takeStickyModifiers()
+                        send.strokes.forEach { s.stroke(it) }
+                    }
+                }
                 true
             }
             KeyResult.Consumed -> true
@@ -811,6 +818,10 @@ class TerminalView(context: Context) : View(context) {
     private var lastTapCell: Pair<Int, Int>? = null
     private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+    /** The tick of a selection that changes (Android 8.1+; before, the clock's). */
+    private fun handleTick(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) HapticFeedbackConstants.TEXT_HANDLE_MOVE else HapticFeedbackConstants.CLOCK_TICK
+
     private fun rowCells(row: Int): Array<String>? {
         val snap = session?.screen?.snapshot() ?: return null
         return Suggestions.cells(snap.lines.getOrNull(row), snap.cols.toInt())
@@ -823,7 +834,7 @@ class TerminalView(context: Context) : View(context) {
         selecting = false
         touchSelection = true
         if (before != hasSelection || hasSelection) onSelectionChanged(hasSelection)
-        performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE)
+        performHapticFeedback(handleTick())
         invalidate()
     }
 
@@ -915,7 +926,7 @@ class TerminalView(context: Context) : View(context) {
                 val next = cellAt(e.x, e.y - 24 * density)
                 if (next != selEnd) {
                     selEnd = next
-                    performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE)
+                    performHapticFeedback(handleTick())
                     invalidate()
                 }
                 return true

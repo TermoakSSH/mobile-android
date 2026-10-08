@@ -836,6 +836,15 @@
     <string name="split_broadcast_stop">Stop broadcasting</string>
     <string name="split_broadcast_stop_short">Stop</string>
     <string name="split_broadcast_hint">What you type or paste goes to every pane.</string>
+    <string name="split_broadcast_receives">Receives the broadcast</string>
+    <string name="split_broadcast_excluded">Left out of the broadcast</string>
+    <string name="split_broadcast_exclude">Leave out of the broadcast</string>
+    <string name="split_broadcast_include">Include in the broadcast</string>
+    <string name="split_focus_mode">Focus mode</string>
+    <string name="split_focus_mode_off">Exit focus mode</string>
+    <string name="split_pane_actions">Pane actions</string>
+    <string name="split_pane_focus">Focus</string>
+    <string name="split_add_pane">Add to split view</string>
     <plurals name="split_broadcasting">
         <item quantity="one">Broadcasting to %d terminal</item>
         <item quantity="other">Broadcasting to %d terminals</item>
@@ -1166,6 +1175,10 @@
     <string name="kb_zoom_out">Smaller text</string>
     <string name="kb_zoom_reset">Default text size</string>
     <string name="kb_next_pane">Next pane of the split view</string>
+    <string name="kb_pane_direction">Pane on the left, right, above or below</string>
+    <string name="kb_move_tab">Move the tab left or right</string>
+    <string name="kb_home">Home (the Vault)</string>
+    <string name="kb_new_host">New host</string>
     <string name="kb_scroll_up">Scroll the history up a page</string>
     <string name="kb_scroll_down">Scroll the history down a page</string>
     <string name="kb_search_hosts">Search hosts</string>
@@ -1205,6 +1218,8 @@
     </plurals>
     <string name="tabs_quick_connect">Quick connect</string>
     <string name="tabs_move_left">Move left</string>
+    <string name="tabs_duplicate">Duplicate</string>
+    <string name="tabs_close_others">Close the others</string>
     <string name="tabs_move_right">Move right</string>
     <string name="term_kind_local">Local</string>
     <string name="term_kind_server">Server</string>

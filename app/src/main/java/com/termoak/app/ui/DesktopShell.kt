@@ -44,8 +44,10 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.MenuOpen
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Groups
@@ -54,6 +56,7 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.ViewSidebar
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
@@ -67,9 +70,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -77,9 +80,11 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -100,9 +105,12 @@ import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -110,6 +118,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -120,27 +129,24 @@ import androidx.navigation.NavHostController
 import com.termoak.app.BuildConfig
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
-import com.termoak.app.data.uid
 import com.termoak.app.data.HostProtocol
-import com.termoak.app.data.isTelnet
+import com.termoak.app.data.QuickTarget
 import com.termoak.app.data.WideLayout
+import com.termoak.app.data.isTelnet
+import com.termoak.app.data.uid
+import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.TabOrder
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
-import com.termoak.ffi.SshHost
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.runtime.rememberCoroutineScope
-import com.termoak.app.data.QuickTarget
 import com.termoak.app.userMessage
 import com.termoak.ffi.HostSettings
 import com.termoak.ffi.SecretChange
+import com.termoak.ffi.SshHost
 import com.termoak.ffi.SyncMode
 import com.termoak.ffi.TermoakException
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -503,10 +509,27 @@ fun DesktopTabBar(app: TermoakApp, nav: NavHostController, route: String?) {
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val widths = remember { mutableStateMapOf<String, Int>() }
     val gap = with(LocalDensity.current) { 4.dp.toPx() }
+    val maxPanes = rememberMaxPanes()
+    val collapsed by app.prefs.sidebarCollapsed.collectAsState()
+    // The active tab is always in view (scrolled to when it changes).
+    val scroll = rememberScrollState()
+    val starts = remember { mutableStateMapOf<String, Int>() }
+    var barWidth by remember { mutableIntStateOf(0) }
+    LaunchedEffect(activeId, onTerminal, sessions.size) {
+        val id = activeId ?: return@LaunchedEffect
+        val x = starts[id] ?: return@LaunchedEffect
+        val w = widths[id] ?: 0
+        if (x < scroll.value || x + w > scroll.value + barWidth) scroll.animateScrollTo((x + w / 2 - barWidth / 2).coerceAtLeast(0))
+    }
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+            Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+            // The sidebar of Home, shrunk to its icons or not.
+            IconButton(onClick = { app.prefs.setSidebarCollapsed(!collapsed) }, modifier = Modifier.padding(start = 4.dp).size(36.dp)) {
+                Icon(Icons.Outlined.ViewSidebar, stringResource(if (collapsed) R.string.sidebar_expand else R.string.sidebar_collapse), Modifier.size(18.dp))
+            }
             Row(
-                Modifier.fillMaxWidth().height(44.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+                Modifier.weight(1f).onSizeChanged { barWidth = it.width }.horizontalScroll(scroll).padding(end = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -527,6 +550,7 @@ fun DesktopTabBar(app: TermoakApp, nav: NavHostController, route: String?) {
                             canLeft = index > 0,
                             canRight = index < sessions.lastIndex,
                             modifier = Modifier.onSizeChanged { widths[s.id] = it.width }
+                                .onGloballyPositioned { starts[s.id] = it.positionInParent().x.roundToInt() }
                                 .zIndex(if (drag) 1f else 0f)
                                 .graphicsLayer { translationX = if (drag) dragOffset else 0f },
                             onClick = {
@@ -534,6 +558,14 @@ fun DesktopTabBar(app: TermoakApp, nav: NavHostController, route: String?) {
                                 nav.showTerminal()
                             },
                             onClose = { app.sessions.close(s.id) },
+                            onCloseOthers = if (sessions.size > 1) ({ sessions.filter { it.id != s.id }.forEach { app.sessions.close(it.id) } }) else null,
+                            onAddToSplit = if (maxPanes >= 2 && !(split.on && s.id in split.panes) && sessions.size > 1) ({
+                                val base = if (split.on) split.panes else listOfNotNull(activeId?.takeIf { it != s.id })
+                                app.sessions.setSplit((base + s.id).take(maxPanes))
+                                app.sessions.select(s.id)
+                                nav.showTerminal()
+                            }) else null,
+                            onDuplicate = duplicateOf(app, s)?.let { open -> { open(); nav.showTerminal() } },
                             onMove = { step ->
                                 val i = app.sessions.list.value.indexOf(s)
                                 if (i >= 0) app.sessions.move(s.id, i + step)
@@ -558,6 +590,7 @@ fun DesktopTabBar(app: TermoakApp, nav: NavHostController, route: String?) {
                 ) {
                     Icon(Icons.Outlined.Add, stringResource(R.string.tabs_quick_connect), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
@@ -590,6 +623,9 @@ private fun SessionTabChip(
     modifier: Modifier,
     onClick: () -> Unit,
     onClose: () -> Unit,
+    onCloseOthers: (() -> Unit)?,
+    onAddToSplit: (() -> Unit)?,
+    onDuplicate: (() -> Unit)?,
     onMove: (Int) -> Unit,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
@@ -677,11 +713,41 @@ private fun SessionTabChip(
                 { Text(stringResource(R.string.tabs_move_right)) }, { menu = false; onMove(1) }, enabled = canRight,
                 leadingIcon = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null) },
             )
+            if (onAddToSplit != null) {
+                DropdownMenuItem(
+                    { Text(stringResource(R.string.split_add_pane)) }, { menu = false; onAddToSplit() },
+                    leadingIcon = { Icon(Icons.Outlined.GridView, null) },
+                )
+            }
+            if (onDuplicate != null) {
+                DropdownMenuItem(
+                    { Text(stringResource(R.string.tabs_duplicate)) }, { menu = false; onDuplicate() },
+                    leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) },
+                )
+            }
             HorizontalDivider()
             DropdownMenuItem(
                 { Text(stringResource(R.string.common_close)) }, { menu = false; onClose() },
                 leadingIcon = { Icon(Icons.Outlined.Close, null) },
             )
+            if (onCloseOthers != null) {
+                DropdownMenuItem({ Text(stringResource(R.string.tabs_close_others)) }, { menu = false; onCloseOthers() })
+            }
+        }
+    }
+}
+
+/**
+ * "Duplicate": another terminal to the same host, the same way (from this
+ * device, or a new session on the server); `null` when it can't (a shared
+ * session, a link, no host).
+ */
+internal fun duplicateOf(app: TermoakApp, s: TermSession): (() -> Unit)? {
+    val hostId = s.hostId ?: return null
+    if (s is ServerTerminal && !s.live.value.isOwner) return null
+    return {
+        runCatching { app.core.getHost(hostId, s.accountId) }.getOrNull()?.let { host ->
+            if (s is LocalTerminal) app.sessions.openLocal(host) else app.sessions.openOnServer(host)
         }
     }
 }

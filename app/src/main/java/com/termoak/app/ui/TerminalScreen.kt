@@ -61,6 +61,7 @@ import androidx.compose.material.icons.outlined.TextDecrease
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.TextIncrease
 import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.ViewSidebar
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -133,6 +134,7 @@ import com.termoak.app.term.Pending
 import com.termoak.app.term.ServerTerminal
 import com.termoak.app.term.Shortcut
 import com.termoak.app.term.SpecialKey
+import com.termoak.app.term.SplitState
 import com.termoak.app.term.SuggestionMode
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
@@ -212,8 +214,12 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         split.visible(maxPanes, session.id).mapNotNull { id -> sessions.firstOrNull { it.id == id } }
     val splitShown = panes.size >= 2 && session in panes
     val broadcasting = splitShown && split.broadcast
-    // Broadcast input: what is typed in the focused pane goes to the other visible ones.
-    val broadcastTargets = if (broadcasting) panes.filter { it.id != session.id } else emptyList()
+    // Broadcast input: what is typed in the focused pane goes to the other visible ones (not the excluded ones).
+    val broadcastTargets = if (broadcasting) {
+        split.receivers(panes.map { it.id }, session.id).mapNotNull { id -> panes.firstOrNull { it.id == id } }
+    } else emptyList()
+    // Panes per row of the split view on screen, for Ctrl+Alt+arrows.
+    var paneRows by remember { mutableStateOf<List<Int>>(emptyList()) }
     DisposableEffect(session, broadcastTargets) {
         session.onInput = if (broadcastTargets.isEmpty()) null else { input -> broadcastTargets.forEach { it.apply(input) } }
         onDispose { session.onInput = null }
@@ -260,6 +266,44 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         return true
     }
 
+
+    /** A terminal (the whole screen, or a pane of the split view). */
+    @Composable
+    fun Pane(s: TermSession, focused: Boolean) {
+        TerminalPane(
+            app, nav, s, fontSize, focused,
+            gestureMode = gestureMode,
+            suggestionMode = suggestionMode,
+            font = terminalFont,
+            views = views,
+            onFocus = { if (s.id != app.sessions.active.value) app.sessions.select(s.id) },
+            onPaste = { requestPaste(s, it) },
+            pasteClipboard = { paste(s) },
+            copyScreen = { copyScreen(s) },
+            copySelection = { v -> copySelection(v) },
+            onParticipants = { showParticipants = true },
+        )
+    }
+
+    // Files over this terminal's connection (or through the server for a server session).
+    val canBrowse = when (session) {
+        // Telnet has no SFTP.
+        is LocalTerminal -> state == TermState.Running && !session.telnet
+        is ServerTerminal -> live.isOwner && session.hostId != null
+        else -> false
+    }
+    fun openFiles() {
+        filesSourceOf(session, title ?: session.label)?.let { nav.openFiles(it) }
+    }
+    fun toggleCopilot() {
+        if (copilotOpen) {
+            closeCopilot()
+        } else {
+            copilotOpen = true
+            if (!wide) focusedView()?.hideKeyboard()
+        }
+    }
+
     // ----- Hardware keyboard shortcuts (Ctrl+Shift+…) -----
     ShortcutHandler { shortcut ->
         // The ones that type or read text only while the terminal has the focus (not the copilot's box).
@@ -301,46 +345,41 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     view?.scrollPage(up)
                 }
             }
-            Shortcut.SEARCH_HOSTS, Shortcut.SHORTCUTS -> return@ShortcutHandler false
+            Shortcut.PANE_LEFT, Shortcut.PANE_RIGHT, Shortcut.PANE_UP, Shortcut.PANE_DOWN -> {
+                if (!splitShown) return@ShortcutHandler false
+                val dir = when (shortcut) {
+                    Shortcut.PANE_LEFT -> SplitState.Direction.LEFT
+                    Shortcut.PANE_RIGHT -> SplitState.Direction.RIGHT
+                    Shortcut.PANE_UP -> SplitState.Direction.UP
+                    else -> SplitState.Direction.DOWN
+                }
+                // In focus mode the focused pane is drawn first.
+                val order = if (split.focusMode) listOf(session) + panes.filter { it.id != session.id } else panes
+                val next = SplitState.neighbor(
+                    order.size, order.indexOf(session), dir, paneRows.takeIf { it.sum() == order.size } ?: SplitState.gridRows(order.size),
+                    focusMode = split.focusMode,
+                )?.let { order.getOrNull(it) } ?: return@ShortcutHandler true
+                app.sessions.select(next.id)
+                views.firstOrNull { it.session === next }?.requestFocus()
+            }
+            Shortcut.ADD_PANE -> if (!wide || !app.sessions.addPane(maxPanes)) {
+                if (wide && sessions.size < maxPanes) nav.goTab(Routes.HOSTS)
+            }
+            Shortcut.FOCUS_MODE -> if (splitShown) app.sessions.setFocusMode(!split.focusMode)
+            Shortcut.BROADCAST -> if (splitShown) app.sessions.setBroadcast(!split.broadcast) else return@ShortcutHandler false
+            Shortcut.MOVE_TAB_LEFT, Shortcut.MOVE_TAB_RIGHT -> {
+                val i = sessions.indexOf(session)
+                val to = i + if (shortcut == Shortcut.MOVE_TAB_LEFT) -1 else 1
+                if (i >= 0 && to in sessions.indices) app.sessions.move(session.id, to)
+            }
+            Shortcut.HOME -> nav.goTab(Routes.HOSTS)
+            Shortcut.SETTINGS -> nav.goTab(Routes.SETTINGS)
+            Shortcut.COPILOT -> toggleCopilot()
+            Shortcut.SNIPPETS -> showSnippets = true
+            Shortcut.RECONNECT -> if (live.ended == null) session.reconnect()
+            Shortcut.SEARCH_HOSTS, Shortcut.SHORTCUTS, Shortcut.NEW_HOST -> return@ShortcutHandler false
         }
         true
-    }
-
-    /** A terminal (the whole screen, or a pane of the split view). */
-    @Composable
-    fun Pane(s: TermSession, focused: Boolean) {
-        TerminalPane(
-            app, nav, s, fontSize, focused,
-            gestureMode = gestureMode,
-            suggestionMode = suggestionMode,
-            font = terminalFont,
-            views = views,
-            onFocus = { if (s.id != app.sessions.active.value) app.sessions.select(s.id) },
-            onPaste = { requestPaste(s, it) },
-            pasteClipboard = { paste(s) },
-            copyScreen = { copyScreen(s) },
-            copySelection = { v -> copySelection(v) },
-            onParticipants = { showParticipants = true },
-        )
-    }
-
-    // Files over this terminal's connection (or through the server for a server session).
-    val canBrowse = when (session) {
-        // Telnet has no SFTP.
-        is LocalTerminal -> state == TermState.Running && !session.telnet
-        is ServerTerminal -> live.isOwner && session.hostId != null
-        else -> false
-    }
-    fun openFiles() {
-        filesSourceOf(session, title ?: session.label)?.let { nav.openFiles(it) }
-    }
-    fun toggleCopilot() {
-        if (copilotOpen) {
-            closeCopilot()
-        } else {
-            copilotOpen = true
-            if (!wide) focusedView()?.hideKeyboard()
-        }
     }
 
     // The panel closes when the keyboard comes back (a tap on the terminal...).
@@ -405,6 +444,11 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         DropdownMenuItem({ Text(stringResource(R.string.kb_shortcuts)) }, { dismiss(); KeyShortcuts.sheet.value = true },
             leadingIcon = { Icon(Icons.Outlined.KeyboardCommandKey, null) })
         if (splitShown) {
+            DropdownMenuItem(
+                { Text(stringResource(if (split.focusMode) R.string.split_focus_mode_off else R.string.split_focus_mode)) },
+                { dismiss(); app.sessions.setFocusMode(!split.focusMode) },
+                leadingIcon = { Icon(Icons.Outlined.ViewSidebar, null) },
+            )
             DropdownMenuItem(
                 { Text(stringResource(if (split.broadcast) R.string.split_broadcast_stop else R.string.split_broadcast)) },
                 { dismiss(); app.sessions.setBroadcast(!split.broadcast) },
@@ -549,16 +593,22 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             }
 
             // ----- Broadcast banner (orange, like the desktop's) -----
-            if (broadcasting) BroadcastBanner(panes.size) { app.sessions.setBroadcast(false) }
+            if (broadcasting) BroadcastBanner(broadcastTargets.size + 1) { app.sessions.setBroadcast(false) }
         },
         terminal = {
             if (splitShown) {
                 SplitPanes(
-                    panes, session.id, split.broadcast,
-                    onFocus = { app.sessions.select(it.id) },
-                    onMaximize = { app.sessions.maximize(it.id) },
-                    onRemove = { app.sessions.removePane(it.id) },
-                    onBroadcast = { app.sessions.setBroadcast(!split.broadcast) },
+                    panes, session.id, split,
+                    PaneActions(
+                        onFocus = { app.sessions.select(it.id) },
+                        onMaximize = { app.sessions.maximize(it.id) },
+                        onRemove = { app.sessions.removePane(it.id) },
+                        onClose = { app.sessions.close(it.id) },
+                        onBroadcast = { app.sessions.setBroadcast(!split.broadcast) },
+                        onExclude = { app.sessions.toggleExcluded(it.id) },
+                        onFocusMode = { app.sessions.setFocusMode(it) },
+                    ),
+                    onRows = { paneRows = it },
                 ) { s, focused -> Pane(s, focused) }
             } else {
                 Pane(session, focused = true)

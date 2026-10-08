@@ -271,6 +271,27 @@ class HardwareKeysTest {
         assertEquals("<ZOOM_IN>", es(cs(KeyEvent.KEYCODE_RIGHT_BRACKET)))
         // With Alt they go to the terminal.
         assertEquals("\u001b\u0014", us(KeyPress(KeyEvent.KEYCODE_T, ctrl = true, shift = true, alt = true)))
+        // The desktop's: split view, tabs, Home, Settings, copilot, new host, snippets, reconnect.
+        fun ca(code: Int) = KeyPress(code, ctrl = true, alt = true)
+        assertEquals("<PANE_LEFT><PANE_RIGHT><PANE_UP><PANE_DOWN><BROADCAST>", us(
+            ca(KeyEvent.KEYCODE_DPAD_LEFT), ca(KeyEvent.KEYCODE_DPAD_RIGHT), ca(KeyEvent.KEYCODE_DPAD_UP), ca(KeyEvent.KEYCODE_DPAD_DOWN),
+            ca(KeyEvent.KEYCODE_B),
+        ))
+        assertEquals("<ADD_PANE><FOCUS_MODE><MOVE_TAB_LEFT><MOVE_TAB_RIGHT><HOME><COPILOT><NEW_HOST><SNIPPETS><RECONNECT><SETTINGS>", us(
+            cs(KeyEvent.KEYCODE_D), cs(KeyEvent.KEYCODE_M), cs(KeyEvent.KEYCODE_PAGE_UP), cs(KeyEvent.KEYCODE_PAGE_DOWN),
+            cs(KeyEvent.KEYCODE_H), cs(KeyEvent.KEYCODE_I), cs(KeyEvent.KEYCODE_N), cs(KeyEvent.KEYCODE_S), cs(KeyEvent.KEYCODE_R),
+            ctrl(KeyEvent.KEYCODE_COMMA),
+        ))
+        // Other Ctrl+Alt keys still go to the terminal.
+        assertEquals("\u001b\u0001", us(ca(KeyEvent.KEYCODE_A)))
+        // Without shortcuts (one nothing took): the key as it is.
+        val keys = HardwareKeys()
+        assertEquals(
+            KeyResult.Send(listOf(KeyStroke.Special(SpecialKey.LEFT, alt = true, ctrl = true))),
+            keys.press(ca(KeyEvent.KEYCODE_DPAD_LEFT), us, shortcuts = false),
+        )
+        assertEquals(true, Shortcut.PANE_LEFT.typesWhenFree)
+        assertEquals(false, Shortcut.ADD_PANE.typesWhenFree)
     }
 
     @Test

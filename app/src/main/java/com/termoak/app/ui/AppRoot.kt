@@ -246,6 +246,9 @@ fun AppRoot(app: TermoakApp) {
         ShortcutHandler { shortcut ->
             when (shortcut) {
                 Shortcut.SHORTCUTS -> KeyShortcuts.sheet.value = true
+                Shortcut.HOME -> nav.goTab(Routes.HOSTS)
+                Shortcut.SETTINGS -> nav.goTab(Routes.SETTINGS)
+                Shortcut.NEW_HOST -> nav.navigate(Routes.hostEdit(null))
                 Shortcut.SEARCH_HOSTS -> {
                     nav.goTab(Routes.HOSTS)
                     KeyShortcuts.hostSearch.value = true

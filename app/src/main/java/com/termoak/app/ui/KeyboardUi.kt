@@ -79,6 +79,8 @@ object KeyShortcuts {
     /** Shortcuts that act once per press (not again while the keys are held). */
     val once = setOf(
         Shortcut.NEW_TAB, Shortcut.CLOSE_TAB, Shortcut.COPY, Shortcut.PASTE, Shortcut.SEARCH_HOSTS, Shortcut.SHORTCUTS,
+        Shortcut.ADD_PANE, Shortcut.FOCUS_MODE, Shortcut.BROADCAST, Shortcut.HOME, Shortcut.SETTINGS, Shortcut.COPILOT,
+        Shortcut.NEW_HOST, Shortcut.SNIPPETS, Shortcut.RECONNECT,
     )
 }
 
@@ -131,6 +133,18 @@ private val Groups = listOf(
             Help(R.string.kb_zoom_out, ctrlShift(KeyEvent.KEYCODE_MINUS)),
             Help(R.string.kb_zoom_reset, ctrlShift(KeyEvent.KEYCODE_0)),
             Help(R.string.kb_next_pane, ctrlShift(KeyEvent.KEYCODE_O)),
+            Help(
+                R.string.kb_pane_direction, Combo(KeyEvent.KEYCODE_DPAD_LEFT, ctrl = true, alt = true),
+                Combo(KeyEvent.KEYCODE_DPAD_RIGHT, ctrl = true, alt = true), Combo(KeyEvent.KEYCODE_DPAD_UP, ctrl = true, alt = true),
+                Combo(KeyEvent.KEYCODE_DPAD_DOWN, ctrl = true, alt = true),
+            ),
+            Help(R.string.split_add_pane, ctrlShift(KeyEvent.KEYCODE_D)),
+            Help(R.string.split_focus_mode, ctrlShift(KeyEvent.KEYCODE_M)),
+            Help(R.string.split_broadcast, Combo(KeyEvent.KEYCODE_B, ctrl = true, alt = true)),
+            Help(R.string.kb_move_tab, ctrlShift(KeyEvent.KEYCODE_PAGE_UP), ctrlShift(KeyEvent.KEYCODE_PAGE_DOWN)),
+            Help(R.string.copilot_title, ctrlShift(KeyEvent.KEYCODE_I)),
+            Help(R.string.section_snippets, ctrlShift(KeyEvent.KEYCODE_S)),
+            Help(R.string.term_reconnect, ctrlShift(KeyEvent.KEYCODE_R)),
             Help(R.string.kb_scroll_up, Combo(KeyEvent.KEYCODE_PAGE_UP, shift = true)),
             Help(R.string.kb_scroll_down, Combo(KeyEvent.KEYCODE_PAGE_DOWN, shift = true)),
         ),
@@ -139,6 +153,9 @@ private val Groups = listOf(
         R.string.kb_section_app,
         listOf(
             Help(R.string.kb_search_hosts, ctrlShift(KeyEvent.KEYCODE_K)),
+            Help(R.string.kb_home, ctrlShift(KeyEvent.KEYCODE_H)),
+            Help(R.string.section_settings, Combo(KeyEvent.KEYCODE_COMMA, ctrl = true)),
+            Help(R.string.kb_new_host, ctrlShift(KeyEvent.KEYCODE_N)),
             Help(R.string.kb_vault_search, Combo(KeyEvent.KEYCODE_F, ctrl = true)),
             Help(R.string.kb_shortcuts, Combo(KeyEvent.KEYCODE_SLASH, ctrl = true)),
             Help(R.string.kb_back, Combo(KeyEvent.KEYCODE_ESCAPE)),
@@ -170,6 +187,9 @@ private fun keyName(context: Context, keyCode: Int): String = when (keyCode) {
     KeyEvent.KEYCODE_INSERT -> context.getString(R.string.key_insert)
     KeyEvent.KEYCODE_ESCAPE -> context.getString(R.string.key_esc)
     KeyEvent.KEYCODE_DPAD_UP -> "↑"
+    KeyEvent.KEYCODE_DPAD_DOWN -> "↓"
+    KeyEvent.KEYCODE_DPAD_LEFT -> "←"
+    KeyEvent.KEYCODE_DPAD_RIGHT -> "→"
     KeyEvent.KEYCODE_F5 -> "F5"
     else -> KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD).getDisplayLabel(keyCode).toString()
 }
