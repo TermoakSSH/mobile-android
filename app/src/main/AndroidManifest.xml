@@ -50,6 +50,13 @@
                 <data android:pathPrefix="/join/" />
                 <data android:pathPrefix="/invite/" />
             </intent-filter>
+            <!-- Files shared from other apps: uploaded to a host (Files, "Upload here"). -->
+            <intent-filter android:label="@string/share_into_label">
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
 
         <service

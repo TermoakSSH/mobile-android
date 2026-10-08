@@ -1642,4 +1642,42 @@
     <string name="ai_memories_host">Host</string>
     <string name="ai_memories_new">Nueva memoria</string>
     <string name="ai_memories_no_host">Cualquier host</string>
+    <string name="error_cancelled">Cancelado</string>
+    <string name="files_move_failed">No se ha podido mover</string>
+    <string name="files_upload_files">Archivos…</string>
+    <string name="files_upload_media">Fotos y vídeos…</string>
+    <string name="files_select">Seleccionar</string>
+    <string name="files_select_done">Terminar de seleccionar</string>
+    <string name="files_select_all">Seleccionar todo</string>
+    <string name="files_select_none">No seleccionar nada</string>
+    <string name="files_move">Mover</string>
+    <string name="files_move_to">Mover a la carpeta</string>
+    <string name="files_delete_many_text">Las carpetas se borran con todo lo que tienen dentro. No se puede deshacer.</string>
+    <string name="files_share_zip">Compartir como .zip</string>
+    <string name="files_download_zip">Guardar en Descargas como .zip</string>
+    <string name="files_upload_here">Subir aquí</string>
+    <string name="files_info_link_to">Enlace a: %1$s</string>
+    <string name="files_upload_to_host_text">Elige el host; luego ve a la carpeta y toca Subir aquí.</string>
+    <string name="files_upload_no_hosts">No hay hosts con archivos (SSH) en este vault.</string>
+    <string name="share_into_label">Subir a un host</string>
+    <plurals name="files_selected">
+        <item quantity="one">%d seleccionado</item>
+        <item quantity="many">%d seleccionados</item>
+        <item quantity="other">%d seleccionados</item>
+    </plurals>
+    <plurals name="files_delete_many_title">
+        <item quantity="one">¿Borrar %d elemento?</item>
+        <item quantity="many">¿Borrar %d elementos?</item>
+        <item quantity="other">¿Borrar %d elementos?</item>
+    </plurals>
+    <plurals name="files_incoming">
+        <item quantity="one">%d archivo compartido para subir</item>
+        <item quantity="many">%d archivos compartidos para subir</item>
+        <item quantity="other">%d archivos compartidos para subir</item>
+    </plurals>
+    <plurals name="files_upload_to_host_title">
+        <item quantity="one">Subir %d archivo a…</item>
+        <item quantity="many">Subir %d archivos a…</item>
+        <item quantity="other">Subir %d archivos a…</item>
+    </plurals>
 </resources>

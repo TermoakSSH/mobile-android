@@ -52,6 +52,8 @@ fun knownError(e: Throwable): Int? = when (e) {
     is TermoakException.AiKeyRequired -> R.string.error_ai_key_required
     is TermoakException.AiBudgetExceeded -> R.string.error_ai_budget_exceeded
     is TermoakException.NotSupportedForTelnet -> R.string.error_not_supported_for_telnet
+    // A transfer stopped with its TransferHandle (Cancel).
+    is TermoakException.Cancelled -> R.string.error_cancelled
     else -> null
 }
 

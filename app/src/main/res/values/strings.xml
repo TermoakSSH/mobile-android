@@ -1592,4 +1592,38 @@
     <string name="ai_memories_host">Host</string>
     <string name="ai_memories_new">New memory</string>
     <string name="ai_memories_no_host">Any host</string>
+    <string name="error_cancelled">Cancelled</string>
+    <string name="files_move_failed">Couldn\'t move it</string>
+    <string name="files_upload_files">Files…</string>
+    <string name="files_upload_media">Photos and videos…</string>
+    <string name="files_select">Select</string>
+    <string name="files_select_done">Done selecting</string>
+    <string name="files_select_all">Select all</string>
+    <string name="files_select_none">Select none</string>
+    <string name="files_move">Move</string>
+    <string name="files_move_to">Move to folder</string>
+    <string name="files_delete_many_text">Folders are deleted with everything inside them. This can\'t be undone.</string>
+    <string name="files_share_zip">Share as .zip</string>
+    <string name="files_download_zip">Save to Downloads as .zip</string>
+    <string name="files_upload_here">Upload here</string>
+    <string name="files_info_link_to">Link to: %1$s</string>
+    <string name="files_upload_to_host_text">Choose the host; then go to the folder and tap Upload here.</string>
+    <string name="files_upload_no_hosts">No hosts with files (SSH) in this vault.</string>
+    <string name="share_into_label">Upload to a host</string>
+    <plurals name="files_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <plurals name="files_delete_many_title">
+        <item quantity="one">Delete %d item?</item>
+        <item quantity="other">Delete %d items?</item>
+    </plurals>
+    <plurals name="files_incoming">
+        <item quantity="one">%d shared file to upload</item>
+        <item quantity="other">%d shared files to upload</item>
+    </plurals>
+    <plurals name="files_upload_to_host_title">
+        <item quantity="one">Upload %d file to…</item>
+        <item quantity="other">Upload %d files to…</item>
+    </plurals>
 </resources>

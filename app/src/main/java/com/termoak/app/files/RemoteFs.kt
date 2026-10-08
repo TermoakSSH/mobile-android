@@ -4,6 +4,7 @@ import com.termoak.ffi.RemoteFile
 import com.termoak.ffi.RemoteFileKind
 import com.termoak.ffi.SshSession
 import com.termoak.ffi.TermoakCore
+import com.termoak.ffi.TransferHandle
 import com.termoak.ffi.TransferListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,14 +44,23 @@ object FileSources {
     }
 }
 
-/** The SFTP operations, over the phone's SSH connection or through the server. */
+/**
+ * The SFTP operations, over the phone's SSH connection or through the server
+ * (the same ones both ways: Strict hosts and server sessions too). Transfers
+ * take a [TransferHandle] whose `cancel()` stops them in the engine (the call
+ * then fails with `Cancelled`).
+ */
 interface RemoteFs {
-    /** Permissions can be changed (only over direct SSH). */
-    val canChmod: Boolean
     suspend fun home(): String
     suspend fun list(path: String): List<RemoteFile>
-    suspend fun download(remote: String, local: File, listener: TransferListener)
-    suspend fun upload(local: File, remote: String, listener: TransferListener)
+    /** The file's details as they are now (a link: its target's). */
+    suspend fun stat(path: String): RemoteFile
+    suspend fun download(remote: String, local: File, listener: TransferListener, cancel: TransferHandle? = null)
+    suspend fun upload(local: File, remote: String, listener: TransferListener, cancel: TransferHandle? = null)
+    /** A whole file in memory (editors, viewers); fails above [maxBytes] (0: the engine's 16 MiB). */
+    suspend fun read(path: String, maxBytes: Long = 0): ByteArray
+    /** Creates or overwrites a file with [data]. */
+    suspend fun write(path: String, data: ByteArray)
     suspend fun mkdir(path: String)
     suspend fun rename(from: String, to: String)
     suspend fun delete(path: String, recursive: Boolean)
@@ -60,15 +70,17 @@ interface RemoteFs {
 }
 
 class SshFs(private val session: SshSession, private val own: Boolean) : RemoteFs {
-    override val canChmod = true
     override suspend fun home() = session.sftpHome()
     override suspend fun list(path: String) = session.sftpList(path)
-    override suspend fun download(remote: String, local: File, listener: TransferListener) {
-        session.sftpDownload(remote, local.path, listener)
+    override suspend fun stat(path: String) = session.sftpStat(path)
+    override suspend fun download(remote: String, local: File, listener: TransferListener, cancel: TransferHandle?) {
+        session.sftpDownload(remote, local.path, listener, cancel)
     }
-    override suspend fun upload(local: File, remote: String, listener: TransferListener) {
-        session.sftpUpload(local.path, remote, listener)
+    override suspend fun upload(local: File, remote: String, listener: TransferListener, cancel: TransferHandle?) {
+        session.sftpUpload(local.path, remote, listener, cancel)
     }
+    override suspend fun read(path: String, maxBytes: Long) = session.sftpRead(path, maxBytes.toULong())
+    override suspend fun write(path: String, data: ByteArray) = session.sftpWrite(path, data)
     override suspend fun mkdir(path: String) = session.sftpMkdir(path, false)
     override suspend fun rename(from: String, to: String) = session.sftpRename(from, to)
     override suspend fun delete(path: String, recursive: Boolean) = session.sftpRemove(path, recursive)
@@ -83,21 +95,25 @@ class SshFs(private val session: SshSession, private val own: Boolean) : RemoteF
     }
 }
 
+/** SFTP done by the server of the host's account (it makes the connection: Strict hosts, hosts only it reaches). */
 class ServerFs(private val core: TermoakCore, private val hostId: String, private val accountId: String?) : RemoteFs {
-    override val canChmod = false
     override suspend fun home() = core.serverSftpHome(hostId, accountId)
     override suspend fun list(path: String) = core.serverSftpList(hostId, path, accountId)
-    override suspend fun download(remote: String, local: File, listener: TransferListener) {
-        core.serverSftpDownload(hostId, remote, local.path, listener, accountId)
+    override suspend fun stat(path: String) = core.serverSftpStat(hostId, path, accountId)
+    override suspend fun download(remote: String, local: File, listener: TransferListener, cancel: TransferHandle?) {
+        core.serverSftpDownload(hostId, remote, local.path, listener, accountId, cancel)
     }
-    override suspend fun upload(local: File, remote: String, listener: TransferListener) {
-        core.serverSftpUpload(hostId, local.path, remote, listener, accountId)
+    override suspend fun upload(local: File, remote: String, listener: TransferListener, cancel: TransferHandle?) {
+        core.serverSftpUpload(hostId, local.path, remote, listener, accountId, cancel)
+    }
+    override suspend fun read(path: String, maxBytes: Long) = core.serverSftpRead(hostId, path, maxBytes.toULong(), accountId)
+    override suspend fun write(path: String, data: ByteArray) {
+        core.serverSftpWrite(hostId, path, data, accountId)
     }
     override suspend fun mkdir(path: String) = core.serverSftpMkdir(hostId, path, false, accountId)
     override suspend fun rename(from: String, to: String) = core.serverSftpRename(hostId, from, to, accountId)
     override suspend fun delete(path: String, recursive: Boolean) = core.serverSftpDelete(hostId, path, recursive, accountId)
-    /** Not offered: [canChmod] is false. */
-    override suspend fun chmod(path: String, mode: Int) = throw UnsupportedOperationException()
+    override suspend fun chmod(path: String, mode: Int) = core.serverSftpChmod(hostId, path, mode.toUInt(), accountId)
     override fun close() {}
 }
 

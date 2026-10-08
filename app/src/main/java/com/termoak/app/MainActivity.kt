@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.termoak.app.data.IncomingFiles
 import com.termoak.app.data.InviteLinkRef
 import com.termoak.app.data.JoinLinkRef
 import com.termoak.app.data.QuickAction
@@ -122,7 +123,7 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
-    /** Invitation links (`termoak://join`, `https://…/join/…`, `termoak://invite`, `https://…/invite/…`), our notifications and the shortcuts of the app's icon. */
+    /** Invitation links (`termoak://join`, `https://…/join/…`, `termoak://invite`, `https://…/invite/…`), our notifications, the shortcuts of the app's icon and files shared into the app. */
     private fun handleIntent(intent: Intent?) {
         val app = application as TermoakApp
         if (app.shareNotices.handleIntent(intent)) return
@@ -130,6 +131,12 @@ class MainActivity : AppCompatActivity() {
         QuickAction.parse(intent?.action, intent?.getStringExtra(QuickAction.EXTRA_HOST), intent?.getStringExtra(QuickAction.EXTRA_ACCOUNT))?.let {
             app.pendingQuickAction.value = it
             app.shortcuts.used(it)
+            return
+        }
+        // Files shared from another app: to a host's files.
+        if (intent?.action == Intent.ACTION_SEND || intent?.action == Intent.ACTION_SEND_MULTIPLE) {
+            val uris = IncomingFiles.urisOf(intent)
+            if (uris.isNotEmpty()) app.incomingFiles.offer(uris)
             return
         }
         if (intent?.action == Intent.ACTION_VIEW) {

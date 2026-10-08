@@ -61,6 +61,8 @@ class TermoakApp : Application() {
     val keyboard: HardwareKeyboard by lazy { HardwareKeyboard(this) }
     /** An invitation link opened from outside (deep link), waiting for the app to show it. */
     val pendingLink = kotlinx.coroutines.flow.MutableStateFlow<com.termoak.app.data.JoinLinkRef?>(null)
+    /** Files shared into the app from another one, on their way to a host's files. */
+    val incomingFiles = com.termoak.app.data.IncomingFiles()
     /** An invitation to create an account opened from outside, waiting for the sign-up form. */
     val pendingInvite = kotlinx.coroutines.flow.MutableStateFlow<com.termoak.app.data.InviteLinkRef?>(null)
 

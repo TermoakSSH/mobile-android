@@ -561,6 +561,14 @@ fun AppRoot(app: TermoakApp) {
             }
         }
     }
+    // Files shared from another app: which host's files they go to.
+    val incoming by app.incomingFiles.waiting.collectAsState()
+    if (incoming.isNotEmpty()) {
+        UploadToHostSheet(app, incoming.size, onDismiss = { app.incomingFiles.clear() }) { host ->
+            app.incomingFiles.hostPicked()
+            nav.openFiles(filesSourceOf(app, host))
+        }
+    }
     if (joinAsk) {
         JoinLinkDialog(onDismiss = { joinAsk = false }) { l ->
             joinAsk = false

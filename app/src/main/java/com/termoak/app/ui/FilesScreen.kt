@@ -9,6 +9,7 @@ import android.text.format.Formatter
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -46,6 +47,11 @@ import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
@@ -127,6 +133,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.isTelnet
 import com.termoak.app.asString
 import com.termoak.app.files.DownloadTarget
 import com.termoak.app.files.FileListing
@@ -137,6 +144,7 @@ import com.termoak.app.files.FilesViewModel
 import com.termoak.app.files.LocalFile
 import com.termoak.app.files.PreviewKind
 import com.termoak.app.files.RemotePaths
+import com.termoak.app.files.LocalFiles
 import com.termoak.app.files.Transfer
 import com.termoak.app.files.UploadRequest
 import com.termoak.app.files.item
@@ -213,6 +221,12 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
     var saving by remember { mutableStateOf<RemoteFile?>(null) }
     var newFile by remember { mutableStateOf(false) }
     var goingTo by remember { mutableStateOf(false) }
+    // Select: several files and folders to share, save, move or delete at once (paths).
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var picked by remember { mutableStateOf(setOf<String>()) }
+    var moving by remember { mutableStateOf<List<RemoteFile>?>(null) }
+    var deletingMany by remember { mutableStateOf<List<RemoteFile>?>(null) }
+    val incoming by vm.incoming.collectAsState()
     val preview by vm.preview.collectAsState()
     val searchFocus = remember { FocusRequester() }
 
@@ -221,11 +235,24 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
         query = ""
         searching = false
         selected = null
+        picked = emptySet()
     }
+    // Files shared into the app from another one ("Upload to a host"): they wait for "Upload here".
+    LaunchedEffect(Unit) { app.incomingFiles.take()?.let { vm.setIncoming(it) } }
+    fun endSelect() {
+        selecting = false
+        picked = emptySet()
+    }
+    BackHandler(selecting) { endSelect() }
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it.resolve(resources)) } }
     LaunchedEffect(Unit) {
         vm.opened.collect { f ->
             if (!handOver(context, f)) snackbar.showSnackbar(resources.getString(R.string.files_no_app))
+        }
+    }
+    LaunchedEffect(Unit) {
+        vm.sharedMany.collect { f ->
+            if (!shareAll(context, f)) snackbar.showSnackbar(resources.getString(R.string.files_no_app))
         }
     }
     BackHandler(searching) { searching = false; query = "" }
@@ -241,6 +268,10 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
     }
 
     val pickUpload = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        vm.pickedForUpload(uris)
+    }
+    // The system's photo picker (no storage permission needed).
+    val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
         vm.pickedForUpload(uris)
     }
     val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -269,10 +300,15 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
         download = if (Build.VERSION.SDK_INT >= 29) ({ f -> vm.download(f, DownloadTarget.Downloads) }) else null,
         saveAs = { f -> saving = f; app.appLock.expectReturn(); saveAs.launch(f.name) },
         rename = { f -> renaming = f },
-        permissions = if (vm.canChmod) ({ f -> permissions = f }) else null,
+        permissions = { f -> permissions = f },
         copyPath = { f -> copyPath(f.path) },
         delete = { f -> deleting = f },
+        shareFolder = { f -> vm.downloadFolder(f, DownloadTarget.Share) },
+        downloadFolder = if (Build.VERSION.SDK_INT >= 29) ({ f -> vm.downloadFolder(f, DownloadTarget.Downloads) }) else null,
+        select = { f -> selecting = true; picked = setOf(f.path) },
+        stat = { f -> vm.stat(f) },
     )
+    val chosen = entries.filter { it.path in picked }
 
     ScreenScaffold(
         title = vm.title,
@@ -286,8 +322,27 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
             IconButton(onClick = { searching = !searching; if (!searching) query = "" }, enabled = ready) {
                 Icon(Icons.Outlined.Search, stringResource(R.string.files_search))
             }
-            IconButton(onClick = { app.appLock.expectReturn(); pickUpload.launch(arrayOf("*/*")) }, enabled = ready) {
-                Icon(Icons.Outlined.FileUpload, stringResource(R.string.files_upload))
+            Box {
+                var uploadMenu by remember { mutableStateOf(false) }
+                IconButton(onClick = { uploadMenu = true }, enabled = ready) {
+                    Icon(Icons.Outlined.FileUpload, stringResource(R.string.files_upload))
+                }
+                DropdownMenu(uploadMenu, { uploadMenu = false }) {
+                    DropdownMenuItem(
+                        { Text(stringResource(R.string.files_upload_files)) },
+                        { uploadMenu = false; app.appLock.expectReturn(); pickUpload.launch(arrayOf("*/*")) },
+                        leadingIcon = { Icon(Icons.Outlined.FileUpload, null) },
+                    )
+                    DropdownMenuItem(
+                        { Text(stringResource(R.string.files_upload_media)) },
+                        {
+                            uploadMenu = false
+                            app.appLock.expectReturn()
+                            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                        },
+                        leadingIcon = { Icon(Icons.Outlined.PhotoLibrary, null) },
+                    )
+                }
             }
             Box {
                 var menu by remember { mutableStateOf(false) }
@@ -304,6 +359,10 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
                     DropdownMenuItem(
                         { Text(stringResource(R.string.files_go_to)) }, { menu = false; goingTo = true },
                         leadingIcon = { Icon(Icons.Outlined.DriveFileMove, null) }, enabled = ready,
+                    )
+                    DropdownMenuItem(
+                        { Text(stringResource(R.string.files_select)) }, { menu = false; selecting = true; picked = emptySet() },
+                        leadingIcon = { Icon(Icons.Outlined.Checklist, null) }, enabled = ready && entries.isNotEmpty(),
                     )
                     DropdownMenuItem(
                         { Text(stringResource(R.string.files_refresh)) }, { menu = false; vm.reload() },
@@ -344,6 +403,25 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
         header = {
             Column {
                 Breadcrumbs(path, loading, onUp = { vm.up() }, onGo = { vm.navigate(it) })
+                if (incoming.isNotEmpty()) {
+                    IncomingBar(
+                        incoming.size, ready,
+                        onUpload = { vm.uploadIncoming() },
+                        onCancel = { vm.setIncoming(emptyList()) },
+                    )
+                }
+                if (selecting) {
+                    SelectionBar(
+                        count = chosen.size,
+                        all = shown.isNotEmpty() && shown.all { it.path in picked },
+                        onAll = { on -> picked = if (on) shown.map { it.path }.toSet() else emptySet() },
+                        onShare = { vm.downloadAll(chosen, DownloadTarget.Share); endSelect() },
+                        onDownload = if (Build.VERSION.SDK_INT >= 29) ({ vm.downloadAll(chosen, DownloadTarget.Downloads); endSelect() }) else null,
+                        onMove = { moving = chosen },
+                        onDelete = { deletingMany = chosen },
+                        onClose = { endSelect() },
+                    )
+                }
                 if (searching) {
                     LaunchedEffect(Unit) { runCatching { searchFocus.requestFocus() } }
                     OutlinedTextField(
@@ -372,8 +450,13 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
                         } else {
                             FileList(
                                 shown, entries.isEmpty(), loading, ready, query, selected?.path.takeIf { wide },
+                                picked = if (selecting) picked else null,
                                 onRefresh = { vm.reload() },
                                 onOpen = { f ->
+                                    if (selecting) {
+                                        picked = if (f.path in picked) picked - f.path else picked + f.path
+                                        return@FileList
+                                    }
                                     when (f.kind) {
                                         RemoteFileKind.DIR -> vm.navigate(f.path)
                                         // A link may point to a folder: try to enter it.
@@ -412,7 +495,7 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                             val f = selected
                             if (f != null) {
-                                FileDetails(f)
+                                FileDetails(f, actions.stat)
                                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                                 ActionList(f, actions) { }
                             } else {
@@ -440,7 +523,7 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
 
     actionsFor?.let { f ->
         ModalBottomSheet(onDismissRequest = { actionsFor = null }) {
-            FileDetails(f)
+            FileDetails(f, actions.stat)
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             ActionList(f, actions) { actionsFor = null }
             Spacer(Modifier.navigationBarsPadding().padding(bottom = 16.dp))
@@ -476,6 +559,23 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
         }
     }
     uploadAsk?.let { UploadConflictDialog(it, vm) }
+    moving?.let { list ->
+        PathDialog(path, title = stringResource(R.string.files_move_to), confirm = stringResource(R.string.files_move), onDismiss = { moving = null }) {
+            moving = null
+            vm.moveAll(list, it)
+            endSelect()
+        }
+    }
+    deletingMany?.let { list ->
+        ConfirmDialog(
+            title = pluralStringResource(R.plurals.files_delete_many_title, list.size, list.size),
+            text = stringResource(R.string.files_delete_many_text),
+            confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { deletingMany = null },
+        ) {
+            vm.deleteAll(list)
+            endSelect()
+        }
+    }
     if (newFile) {
         NameDialog(stringResource(R.string.files_new_file), "", stringResource(R.string.files_create), onDismiss = { newFile = false }) {
             newFile = false
@@ -498,13 +598,19 @@ fun FilesScreen(app: TermoakApp, nav: NavHostController, sourceId: String) {
     }
 }
 
-/** "Go to folder…": a path typed by hand (absolute, or `~` for home). */
+/** "Go to folder…" (or "Move to…"): a path typed by hand (absolute, or `~` for home). */
 @Composable
-private fun PathDialog(current: String, onDismiss: () -> Unit, onGo: (String) -> Unit) {
+private fun PathDialog(
+    current: String,
+    title: String = stringResource(R.string.files_go_to),
+    confirm: String = stringResource(R.string.files_go),
+    onDismiss: () -> Unit,
+    onGo: (String) -> Unit,
+) {
     var text by remember { mutableStateOf(current) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.files_go_to)) },
+        title = { Text(title) },
         text = {
             androidx.compose.material3.OutlinedTextField(
                 text, { text = it }, singleLine = true, label = { Text(stringResource(R.string.files_path)) },
@@ -513,7 +619,7 @@ private fun PathDialog(current: String, onDismiss: () -> Unit, onGo: (String) ->
                 ),
             )
         },
-        confirmButton = { TextButton(onClick = { onGo(text.trim()) }, enabled = text.isNotBlank()) { Text(stringResource(R.string.files_go)) } },
+        confirmButton = { TextButton(onClick = { onGo(text.trim()) }, enabled = text.isNotBlank()) { Text(confirm) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
@@ -530,6 +636,13 @@ private class FileActions(
     val permissions: ((RemoteFile) -> Unit)?,
     val copyPath: (RemoteFile) -> Unit,
     val delete: (RemoteFile) -> Unit,
+    /** A folder as a .zip: shared, or saved in Downloads. */
+    val shareFolder: (RemoteFile) -> Unit,
+    val downloadFolder: ((RemoteFile) -> Unit)?,
+    /** Starts selecting with this one. */
+    val select: (RemoteFile) -> Unit,
+    /** The details as they are now (Info). */
+    val stat: suspend (RemoteFile) -> RemoteFile?,
 )
 
 @Composable
@@ -541,7 +654,11 @@ private fun ActionList(f: RemoteFile, a: FileActions, done: () -> Unit) {
         SheetAction(Icons.Outlined.Share, stringResource(R.string.files_share), onClick = run(a.share))
         a.download?.let { SheetAction(Icons.Outlined.FileDownload, stringResource(R.string.files_download), onClick = run(it)) }
         SheetAction(Icons.Outlined.SaveAlt, stringResource(R.string.files_save_as), onClick = run(a.saveAs))
+    } else {
+        SheetAction(Icons.Outlined.Share, stringResource(R.string.files_share_zip), onClick = run(a.shareFolder))
+        a.downloadFolder?.let { SheetAction(Icons.Outlined.FolderZip, stringResource(R.string.files_download_zip), onClick = run(it)) }
     }
+    SheetAction(Icons.Outlined.Checklist, stringResource(R.string.files_select), onClick = run(a.select))
     SheetAction(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.files_rename), onClick = run(a.rename))
     a.permissions?.let { SheetAction(Icons.Outlined.Lock, stringResource(R.string.common_permissions), onClick = run(it)) }
     SheetAction(Icons.Outlined.ContentCopy, stringResource(R.string.files_copy_path), onClick = run(a.copyPath))
@@ -590,6 +707,8 @@ private fun FileList(
     ready: Boolean,
     query: String,
     selectedPath: String?,
+    /** Selecting several: the chosen paths (`null`: not selecting). */
+    picked: Set<String>?,
     onRefresh: () -> Unit,
     onOpen: (RemoteFile) -> Unit,
     onMore: (RemoteFile) -> Unit,
@@ -602,7 +721,7 @@ private fun FileList(
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(shown, key = { it.path }) { f ->
                 FileRow(
-                    f, f.path == selectedPath, onClick = { onOpen(f) }, onMore = { onMore(f) },
+                    f, f.path == selectedPath, picked = picked?.contains(f.path), onClick = { onOpen(f) }, onMore = { onMore(f) },
                     // Keyboard on a focused row (as on iOS): Space previews, Delete deletes, Menu or Shift+F10 the actions.
                     modifier = Modifier.onKeyEvent { e -> e.type == KeyEventType.KeyDown && onKey(f, e.key) },
                 )
@@ -621,15 +740,29 @@ private fun FileList(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FileRow(f: RemoteFile, selected: Boolean, onClick: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
+private fun FileRow(
+    f: RemoteFile,
+    selected: Boolean,
+    picked: Boolean?,
+    onClick: () -> Unit,
+    onMore: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val dir = f.kind == RemoteFileKind.DIR
     Row(
         modifier.fillMaxWidth()
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onMore)
+            .background(if (selected || picked == true) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = if (picked != null) onClick else onMore)
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (picked != null) {
+            Icon(
+                if (picked) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank, null,
+                Modifier.padding(end = 12.dp).size(22.dp),
+                tint = if (picked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Icon(
             fileIcon(f), null, Modifier.size(26.dp),
             tint = if (dir) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -641,15 +774,77 @@ private fun FileRow(f: RemoteFile, selected: Boolean, onClick: () -> Unit, onMor
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = onMore) {
-            Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_options), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (picked == null) {
+            IconButton(onClick = onMore) {
+                Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_options), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
 
-/** Name, type and everything known about a file (top of its sheet, or the details pane). */
+/** Selecting: how many, all, and what can be done with them. */
 @Composable
-private fun FileDetails(f: RemoteFile) {
+private fun SelectionBar(
+    count: Int,
+    all: Boolean,
+    onAll: (Boolean) -> Unit,
+    onShare: () -> Unit,
+    onDownload: (() -> Unit)?,
+    onMove: () -> Unit,
+    onDelete: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, stringResource(R.string.files_select_done)) }
+        Text(
+            pluralStringResource(R.plurals.files_selected, count, count), Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        IconButton(onClick = { onAll(!all) }) {
+            Icon(Icons.Outlined.SelectAll, stringResource(if (all) R.string.files_select_none else R.string.files_select_all))
+        }
+        val some = count > 0
+        IconButton(onClick = onShare, enabled = some) { Icon(Icons.Outlined.Share, stringResource(R.string.files_share)) }
+        onDownload?.let { IconButton(onClick = it, enabled = some) { Icon(Icons.Outlined.FileDownload, stringResource(R.string.files_download)) } }
+        IconButton(onClick = onMove, enabled = some) { Icon(Icons.Outlined.DriveFileMove, stringResource(R.string.files_move)) }
+        IconButton(onClick = onDelete, enabled = some) {
+            Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete), tint = if (some) MaterialTheme.colorScheme.error else Color.Unspecified)
+        }
+    }
+}
+
+/** Files shared into the app from another one: "N files to upload · Upload here · Cancel". */
+@Composable
+private fun IncomingBar(count: Int, ready: Boolean, onUpload: () -> Unit, onCancel: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.FileUpload, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+        Text(
+            pluralStringResource(R.plurals.files_incoming, count, count), Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp),
+            color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium,
+        )
+        TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel)) }
+        Button(onClick = onUpload, enabled = ready) { Text(stringResource(R.string.files_upload_here)) }
+    }
+}
+
+/**
+ * Name, type and everything known about a file (top of its sheet, or the
+ * details pane): the listing's at first, then as it is now ([stat]; a link
+ * keeps its name and path and shows what it points to).
+ */
+@Composable
+private fun FileDetails(listed: RemoteFile, stat: suspend (RemoteFile) -> RemoteFile?) {
+    var current by remember(listed.path) { mutableStateOf<RemoteFile?>(null) }
+    LaunchedEffect(listed.path) { current = stat(listed) }
+    val fresh = current
+    val target = fresh?.kind?.takeIf { listed.kind == RemoteFileKind.SYMLINK && it != RemoteFileKind.SYMLINK }
+    val f = fresh?.copy(name = listed.name, path = listed.path, kind = listed.kind) ?: listed
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(fileIcon(f), null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
@@ -660,16 +855,16 @@ private fun FileDetails(f: RemoteFile) {
         }
         Spacer(Modifier.padding(top = 8.dp))
         val context = LocalContext.current
-        val kind = stringResource(
-            when (f.kind) {
-                RemoteFileKind.DIR -> R.string.files_kind_folder
-                RemoteFileKind.FILE -> R.string.files_kind_file
-                RemoteFileKind.SYMLINK -> R.string.files_kind_link
-                RemoteFileKind.OTHER -> R.string.files_kind_other
-            },
-        )
+        fun kindRes(k: RemoteFileKind) = when (k) {
+            RemoteFileKind.DIR -> R.string.files_kind_folder
+            RemoteFileKind.FILE -> R.string.files_kind_file
+            RemoteFileKind.SYMLINK -> R.string.files_kind_link
+            RemoteFileKind.OTHER -> R.string.files_kind_other
+        }
+        val kind = if (target != null) stringResource(R.string.files_info_link_to, stringResource(kindRes(target)))
+        else stringResource(kindRes(f.kind))
         InfoLine(stringResource(R.string.files_info_kind), kind)
-        if (f.kind != RemoteFileKind.DIR) {
+        if (f.kind != RemoteFileKind.DIR && target != RemoteFileKind.DIR) {
             InfoLine(stringResource(R.string.files_info_size), "${Formatter.formatFileSize(context, f.size.toLong())} (${f.size})")
         }
         f.modified?.let { InfoLine(stringResource(R.string.files_info_modified), formatDate(it)) }
@@ -871,6 +1066,25 @@ private fun UploadConflictDialog(request: UploadRequest, vm: FilesViewModel) {
     )
 }
 
+/** Shares several downloaded files together with another app; `false` if no app can. */
+private fun shareAll(context: android.content.Context, f: LocalFiles): Boolean {
+    val uris = f.files.mapNotNull { runCatching { FileProvider.getUriForFile(context, "${context.packageName}.files", it.file) }.getOrNull() }
+    if (uris.isEmpty()) return false
+    val mime = f.files.map { it.mime }.distinct().singleOrNull() ?: "*/*"
+    val intent = Intent(Intent.ACTION_SEND_MULTIPLE).setType(mime)
+        .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        .apply {
+            clipData = ClipData.newRawUri(f.files[0].file.name, uris[0]).also { c -> uris.drop(1).forEach { c.addItem(ClipData.Item(it)) } }
+        }
+    return try {
+        context.startActivity(Intent.createChooser(intent, null))
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    }
+}
+
 /** Opens or shares a downloaded file with another app; `false` if no app can. */
 private fun handOver(context: android.content.Context, f: LocalFile): Boolean {
     val uri = runCatching { FileProvider.getUriForFile(context, "${context.packageName}.files", f.file) }.getOrNull() ?: return false
@@ -917,4 +1131,59 @@ private fun fileDetail(f: RemoteFile): String {
 private fun formatDate(seconds: Long): String {
     val locale = LocalConfiguration.current.locales[0]
     return DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale).format(Date(seconds * 1000))
+}
+
+/**
+ * Files shared into the app from another one: which host they go to (its
+ * Files open, with "Upload here" for the folder chosen). Telnet hosts have no
+ * files.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UploadToHostSheet(app: TermoakApp, count: Int, onDismiss: () -> Unit, onPick: (SshHost) -> Unit) {
+    val hosts = remember {
+        runCatching { app.core.listHosts(app.accounts.filter()) }.getOrDefault(emptyList())
+            .filter { !it.isTelnet }
+            .sortedWith(compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() })
+    }
+    var query by remember { mutableStateOf("") }
+    val shown = hosts.filter { h ->
+        query.isBlank() || listOf(h.label, h.address, h.settings.username.orEmpty()).any { it.contains(query.trim(), ignoreCase = true) }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            pluralStringResource(R.plurals.files_upload_to_host_title, count, count), Modifier.padding(horizontal = 24.dp),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            stringResource(R.string.files_upload_to_host_text), Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (hosts.isEmpty()) {
+            Text(stringResource(R.string.files_upload_no_hosts), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            OutlinedTextField(
+                query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+                placeholder = { Text(stringResource(R.string.common_search)) }, singleLine = true,
+                leadingIcon = { Icon(Icons.Outlined.Search, null) },
+            )
+            LazyColumn(Modifier.padding(bottom = 24.dp)) {
+                items(shown, key = { "${it.accountId}/${it.id}" }) { h ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onPick(h) }.padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HostTile(h, size = 36.dp)
+                        Column(Modifier.padding(start = 14.dp)) {
+                            Text(h.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                (h.settings.username?.let { "$it@" } ?: "") + h.address, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

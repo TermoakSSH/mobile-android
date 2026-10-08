@@ -19,6 +19,9 @@ import com.termoak.ffi.AuthHandler
 import com.termoak.ffi.AuthPromptKind
 import com.termoak.ffi.AuthRequest
 import com.termoak.ffi.RemoteFile
+import com.termoak.ffi.RemoteFileKind
+import com.termoak.ffi.TermoakException
+import com.termoak.ffi.TransferHandle
 import com.termoak.ffi.TransferListener
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -38,6 +41,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /** An upload or a download, with its progress. */
 data class Transfer(
@@ -74,6 +79,9 @@ data class FilePreviewState(val file: RemoteFile, val local: File, val kind: Pre
 
 /** A file on the device to hand to another app (open or share). */
 data class LocalFile(val file: File, val mime: String, val share: Boolean)
+
+/** Files on the device to share together (several selected files; folders as .zip). */
+data class LocalFiles(val files: List<LocalFile>)
 
 /** Files picked to upload, with their names; [conflicts]: names that already exist in the folder. */
 data class UploadRequest(val files: List<Pair<Uri, String>>, val folder: String, val conflicts: List<String>)
@@ -112,6 +120,9 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
     private val _opened = MutableSharedFlow<LocalFile>(extraBufferCapacity = 4)
     /** Downloaded to open or share: the screen starts the other app. */
     val opened: SharedFlow<LocalFile> = _opened
+    private val _sharedMany = MutableSharedFlow<LocalFiles>(extraBufferCapacity = 2)
+    /** Several files downloaded to share together. */
+    val sharedMany: SharedFlow<LocalFiles> = _sharedMany
     private val _preview = MutableStateFlow<FilePreviewState?>(null)
     /** The file shown in the preview (downloaded), or `null`. */
     val preview: StateFlow<FilePreviewState?> = _preview
@@ -119,7 +130,20 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
     /** Picked files whose names already exist in the folder: replace them or keep both? */
     val uploadAsk: StateFlow<UploadRequest?> = _uploadAsk
 
-    val canChmod: Boolean get() = fs?.canChmod == true
+    /** Files shared into the app from another one, waiting for "Upload here" (in the folder chosen). */
+    private val _incoming = MutableStateFlow<List<Uri>>(emptyList())
+    val incoming: StateFlow<List<Uri>> = _incoming
+
+    fun setIncoming(uris: List<Uri>) {
+        _incoming.value = uris
+    }
+
+    /** "Upload here": the shared files go to the folder on screen. */
+    fun uploadIncoming() {
+        val uris = _incoming.value
+        _incoming.value = emptyList()
+        pickedForUpload(uris)
+    }
 
     private val _showHidden = MutableStateFlow(app.prefs.filesShowHidden)
     val showHidden: StateFlow<Boolean> = _showHidden
@@ -136,6 +160,8 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
 
     private val ids = AtomicLong()
     private val jobs = mutableMapOf<Long, Job>()
+    /** The engine's handle of each running transfer: Cancel stops it there at once. */
+    private val handles = mutableMapOf<Long, TransferHandle>()
     private val retries = mutableMapOf<Long, () -> Unit>()
     private val staged = mutableMapOf<Long, File>()
     /** At most two transfers at once; the rest wait their turn. */
@@ -262,11 +288,18 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
     fun createFile(name: String) = perform(R.string.files_new_file_failed) { f ->
         val n = name.trim()
         if (_entries.value.any { it.name == n }) error("exists")
-        val empty = File(stagingDir, "new-${System.nanoTime()}").apply { parentFile?.mkdirs(); writeBytes(ByteArray(0)) }
-        try {
-            f.upload(empty, RemotePaths.child(_path.value, n), ProgressRelay { _, _ -> })
-        } finally {
-            empty.delete()
+        f.write(RemotePaths.child(_path.value, n), ByteArray(0))
+    }
+
+    /** The details of [file] as they are now (Info; a link: its target's), or `null` if it can't be read. */
+    suspend fun stat(file: RemoteFile): RemoteFile? {
+        val f = fs ?: return null
+        return try {
+            f.stat(file.path)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -282,8 +315,9 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
         val p = _preview.value ?: return false
         val f = fs ?: return false
         return try {
-            withContext(Dispatchers.IO) { p.local.writeText(text) }
-            f.upload(p.local, p.file.path, ProgressRelay { _, _ -> })
+            val bytes = text.toByteArray(Charsets.UTF_8)
+            withContext(Dispatchers.IO) { p.local.writeBytes(bytes) }
+            f.write(p.file.path, bytes)
             _messages.tryEmit(uiText(R.string.files_saved, p.file.name))
             go(_path.value, quiet = true)
             true
@@ -304,6 +338,150 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
 
     fun chmod(file: RemoteFile, mode: Int) = perform(R.string.files_permissions_failed) { it.chmod(file.path, mode) }
 
+    // ----- Several at once (Select) -----
+
+    /** Deletes [files] (folders with what they have inside), one question for all. */
+    fun deleteAll(files: List<RemoteFile>) = perform(R.string.files_delete_failed) { f ->
+        for (file in files) f.delete(file.path, recursive = file.item().dir)
+    }
+
+    /** Moves [files] to [folder] (an absolute path, or `~/…`), keeping their names. */
+    fun moveAll(files: List<RemoteFile>, folder: String) = perform(R.string.files_move_failed) { f ->
+        val t = folder.trim()
+        val to = if (t == "~" || t.startsWith("~/")) RemotePaths.child(f.home(), t.removePrefix("~").trimStart('/')).trimEnd('/').ifEmpty { "/" } else t
+        for (file in files) {
+            val dest = RemotePaths.child(to, file.name)
+            if (dest != file.path) f.rename(file.path, dest)
+        }
+    }
+
+    /**
+     * Shares [files] together (one transfer with the progress of all; folders
+     * walked and zipped), or saves each in Downloads.
+     */
+    fun downloadAll(files: List<RemoteFile>, target: DownloadTarget) {
+        if (files.isEmpty()) return
+        if (target != DownloadTarget.Share) {
+            files.forEach { if (it.kind == RemoteFileKind.DIR) downloadFolder(it, target) else download(it, target) }
+            return
+        }
+        if (files.size == 1) {
+            val one = files[0]
+            if (one.kind == RemoteFileKind.DIR) downloadFolder(one, target) else download(one, target)
+            return
+        }
+        val f = fs ?: return
+        val id = ids.incrementAndGet()
+        val dir = File(openDir, "$id-${System.currentTimeMillis()}")
+        val name = context.resources.getQuantityString(R.plurals.files_selected, files.size, files.size)
+        val start = {
+            transfer(id) { listener, handle ->
+                val plan = files.map { it to if (it.kind == RemoteFileKind.DIR) walk(f, it.path) else listOf(it) }
+                val total = plan.sumOf { (_, list) -> list.sumOf { it.size.toLong() } }
+                val progress = Combined(listener, total)
+                val out = plan.map { (item, list) ->
+                    if (item.kind == RemoteFileKind.DIR) {
+                        val tree = File(File(dir, "tree"), item.name)
+                        fetchTree(f, item.path, list, tree, progress, handle)
+                        val zip = File(dir, "${item.name}.zip")
+                        withContext(Dispatchers.IO) { zipFolder(tree, zip) }
+                        LocalFile(zip, "application/zip", share = true)
+                    } else {
+                        val local = File(dir, item.name)
+                        progress.file(item.size.toLong()) { l -> f.download(item.path, local, l, handle) }
+                        LocalFile(local, mimeOf(item.name), share = true)
+                    }
+                }
+                File(dir, "tree").deleteRecursively()
+                _sharedMany.tryEmit(LocalFiles(out))
+            }
+        }
+        add(Transfer(id, name, upload = false), start)
+    }
+
+    /**
+     * A folder as a .zip: walked and downloaded whole (one transfer with the
+     * progress of all its files), zipped here, then shared or saved like a file.
+     */
+    fun downloadFolder(folder: RemoteFile, target: DownloadTarget) {
+        val f = fs ?: return
+        val id = ids.incrementAndGet()
+        val dir = File(openDir, "$id-${System.currentTimeMillis()}")
+        val zipName = "${folder.name}.zip"
+        val start = {
+            transfer(id) { listener, handle ->
+                val list = walk(f, folder.path)
+                val tree = File(File(dir, "tree"), folder.name)
+                fetchTree(f, folder.path, list, tree, Combined(listener, list.sumOf { it.size.toLong() }), handle)
+                val zip = File(dir, zipName)
+                withContext(Dispatchers.IO) {
+                    zipFolder(tree, zip)
+                    File(dir, "tree").deleteRecursively()
+                }
+                deliver(zip, zipName, "application/zip", target)
+            }
+        }
+        add(Transfer(id, zipName, upload = false), start)
+    }
+
+    /** Every file under [path] (not following links: they could loop), with its path. */
+    private suspend fun walk(f: RemoteFs, path: String): List<RemoteFile> {
+        val out = mutableListOf<RemoteFile>()
+        for (e in f.list(path)) {
+            when (e.kind) {
+                RemoteFileKind.DIR -> out += walk(f, e.path)
+                RemoteFileKind.FILE -> out += e
+                else -> Unit
+            }
+            if (out.size > MAX_FOLDER_FILES) error("too many files")
+        }
+        return out
+    }
+
+    /** Downloads [files] (from under [root]) to the same places under [into]; empty folders aren't kept. */
+    private suspend fun fetchTree(f: RemoteFs, root: String, files: List<RemoteFile>, into: File, progress: Combined, handle: TransferHandle) {
+        withContext(Dispatchers.IO) { into.mkdirs() }
+        for (file in files) {
+            val rel = file.path.removePrefix(root).trimStart('/')
+            // Never outside the folder (a name with ..).
+            if (rel.isEmpty() || rel.split('/').any { it == ".." || it.isEmpty() }) continue
+            val local = File(into, rel)
+            withContext(Dispatchers.IO) { local.parentFile?.mkdirs() }
+            progress.file(file.size.toLong()) { l -> f.download(file.path, local, l, handle) }
+        }
+    }
+
+    private fun zipFolder(folder: File, zip: File) {
+        val base = folder.parentFile ?: folder
+        ZipOutputStream(zip.outputStream().buffered()).use { out ->
+            folder.walkTopDown().filter { it.isFile }.forEach { file ->
+                out.putNextEntry(ZipEntry(file.relativeTo(base).invariantSeparatorsPath))
+                file.inputStream().use { it.copyTo(out) }
+                out.closeEntry()
+            }
+        }
+    }
+
+    /** Hands a downloaded file to where it was asked to go. */
+    private suspend fun deliver(local: File, name: String, mime: String, target: DownloadTarget) {
+        when (target) {
+            DownloadTarget.Open, DownloadTarget.Share ->
+                _opened.tryEmit(LocalFile(local, mime, share = target == DownloadTarget.Share))
+            DownloadTarget.Downloads -> {
+                if (Build.VERSION.SDK_INT < 29) error("Downloads needs Android 10")
+                saveToDownloads(local, name)
+                local.parentFile?.deleteRecursively()
+                _messages.tryEmit(uiText(R.string.files_saved_downloads, name))
+            }
+            is DownloadTarget.SaveAs -> {
+                copyTo(local, target.uri)
+                local.parentFile?.deleteRecursively()
+                _messages.tryEmit(uiText(R.string.files_saved, name))
+            }
+            is DownloadTarget.Preview -> Unit
+        }
+    }
+
     // ----- Transfers -----
 
     /** Downloads [file] to open it, share it or save it on the device. */
@@ -312,27 +490,14 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
         val id = ids.incrementAndGet()
         val local = File(File(openDir, "$id-${System.currentTimeMillis()}"), file.name)
         val start = {
-            transfer(id) { listener ->
+            transfer(id) { listener, handle ->
                 local.parentFile?.mkdirs()
-                f.download(file.path, local, listener)
-                when (target) {
-                    DownloadTarget.Open, DownloadTarget.Share ->
-                        _opened.tryEmit(LocalFile(local, mimeOf(file.name), share = target == DownloadTarget.Share))
-                    DownloadTarget.Downloads -> {
-                        if (Build.VERSION.SDK_INT < 29) error("Downloads needs Android 10")
-                        saveToDownloads(local, file.name)
-                        local.parentFile?.deleteRecursively()
-                        _messages.tryEmit(uiText(R.string.files_saved_downloads, file.name))
-                    }
-                    is DownloadTarget.SaveAs -> {
-                        copyTo(local, target.uri)
-                        local.parentFile?.deleteRecursively()
-                        _messages.tryEmit(uiText(R.string.files_saved, file.name))
-                    }
-                    is DownloadTarget.Preview -> {
-                        _preview.value?.local?.parentFile?.deleteRecursively()
-                        _preview.value = FilePreviewState(file, local, target.kind)
-                    }
+                f.download(file.path, local, listener, handle)
+                if (target is DownloadTarget.Preview) {
+                    _preview.value?.local?.parentFile?.deleteRecursively()
+                    _preview.value = FilePreviewState(file, local, target.kind)
+                } else {
+                    deliver(local, file.name, mimeOf(file.name), target)
                 }
             }
         }
@@ -370,7 +535,7 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
             val remote = RemotePaths.child(request.folder, name)
             val id = ids.incrementAndGet()
             val start = {
-                transfer(id) { listener ->
+                transfer(id) { listener, handle ->
                     // The engine reads a file: a copy of the picked document first.
                     val local = staged[id]?.takeIf { it.exists() } ?: run {
                         setStatus(id, Transfer.Status.PREPARING)
@@ -385,7 +550,7 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
                         copy
                     }
                     setStatus(id, Transfer.Status.RUNNING)
-                    f.upload(local, remote, listener)
+                    f.upload(local, remote, listener, handle)
                     staged.remove(id)?.parentFile?.deleteRecursively()
                     if (_path.value == request.folder) go(request.folder, quiet = true)
                 }
@@ -394,7 +559,9 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
         }
     }
 
+    /** Stops a transfer: in the engine at once (its handle), and its turn if it was waiting. */
     fun cancel(id: Long) {
+        handles[id]?.cancel()
         jobs[id]?.cancel()
     }
 
@@ -422,7 +589,9 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
     }
 
     /** Runs a transfer in its turn, with progress, and leaves it done, failed or cancelled. */
-    private fun transfer(id: Long, action: suspend (TransferListener) -> Unit) {
+    private fun transfer(id: Long, action: suspend (TransferListener, TransferHandle) -> Unit) {
+        val handle = TransferHandle()
+        handles[id] = handle
         jobs[id] = viewModelScope.launch {
             val listener = ProgressRelay { done, total ->
                 _transfers.update { list ->
@@ -432,7 +601,7 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
             try {
                 slots.withPermit {
                     setStatus(id, Transfer.Status.RUNNING)
-                    action(listener)
+                    action(listener, handle)
                 }
                 _transfers.update { list -> list.map { if (it.id == id) it.copy(status = Transfer.Status.DONE, done = it.total ?: it.done) else it } }
                 retries.remove(id)
@@ -442,11 +611,15 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
             } catch (e: CancellationException) {
                 setStatus(id, Transfer.Status.CANCELLED)
                 throw e
+            } catch (_: TermoakException.Cancelled) {
+                // Stopped with its handle: no error to show.
+                setStatus(id, Transfer.Status.CANCELLED)
             } catch (e: Exception) {
                 val why = e.toUiText(if (_transfers.value.firstOrNull { it.id == id }?.upload == true) R.string.files_upload_failed else R.string.files_download_failed)
                 _transfers.update { list -> list.map { if (it.id == id) it.copy(status = Transfer.Status.FAILED, error = why) else it } }
             } finally {
                 jobs.remove(id)
+                handles.remove(id)?.close()
             }
         }
     }
@@ -522,6 +695,9 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
     }
 
     companion object {
+        /** Most files a folder download walks (beyond that, it stops). */
+        private const val MAX_FOLDER_FILES = 10_000
+
         /** MIME type for other apps, by the extension (text for the usual config and log files). */
         fun mimeOf(name: String): String {
             val ext = name.substringAfterLast('.', "").lowercase()
@@ -534,6 +710,25 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
             "log", "txt", "md", "conf", "cfg", "ini", "yml", "yaml", "toml", "env", "sh", "bash", "zsh", "py", "rb",
             "js", "ts", "go", "rs", "c", "h", "cpp", "kt", "java", "php", "sql", "csv", "service", "properties", "list",
         )
+    }
+}
+
+/**
+ * The progress of several files as one transfer: [file] runs a download with
+ * a listener that adds what came before.
+ */
+private class Combined(private val listener: TransferListener, private val total: Long) {
+    @Volatile private var before = 0L
+
+    suspend fun file(size: Long, run: suspend (TransferListener) -> Unit) {
+        val base = before
+        run(object : TransferListener {
+            override fun onProgress(transferred: ULong, total: ULong?) {
+                listener.onProgress((base + transferred.toLong()).toULong(), this@Combined.total.toULong())
+            }
+        })
+        before = base + size
+        listener.onProgress(before.toULong(), total.toULong())
     }
 }
 
