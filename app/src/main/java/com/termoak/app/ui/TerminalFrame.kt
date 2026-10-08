@@ -72,6 +72,8 @@ internal fun TerminalFrame(
     header: @Composable ColumnScope.() -> Unit,
     terminal: @Composable BoxScope.() -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
+    /** A panel beside the terminal (the quick panel of the desktop layout), `null`: none. */
+    side: (@Composable () -> Unit)? = null,
     copilot: @Composable (modifier: Modifier, overlay: Boolean) -> Unit,
 ) {
     if (!desktop) DarkSystemBars()
@@ -95,6 +97,10 @@ internal fun TerminalFrame(
                 header()
                 Box(Modifier.weight(1f).fillMaxWidth(), content = terminal)
                 footer()
+            }
+            if (side != null) {
+                VerticalDivider(color = TermKeyBg)
+                Box(Modifier.width(320.dp).fillMaxHeight()) { side() }
             }
             if (wide && copilotOpen) {
                 VerticalDivider(color = TermKeyBg)

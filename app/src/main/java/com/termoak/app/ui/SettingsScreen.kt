@@ -18,12 +18,16 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -68,13 +72,12 @@ import com.termoak.app.TermoakApp
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ThemeMode
 import com.termoak.app.data.WideLayout
-import com.termoak.app.term.GestureMode
-import com.termoak.ffi.AccountStatus
-import com.termoak.ffi.TwoFactorStatus
 import com.termoak.app.data.officialServer
 import com.termoak.app.data.serverHost
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.ManageAccounts
+import com.termoak.app.term.GestureMode
+import com.termoak.app.term.SuggestionMode
+import com.termoak.ffi.AccountStatus
+import com.termoak.ffi.TwoFactorStatus
 import com.termoak.ffi.libraryVersion
 import kotlinx.coroutines.launch
 
@@ -100,6 +103,9 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     var choosingLayout by remember { mutableStateOf(false) }
     val gestureMode by app.prefs.cursorGestures.collectAsState()
     var choosingGestures by remember { mutableStateOf(false) }
+    val suggestionMode by app.prefs.commandSuggestions.collectAsState()
+    var choosingSuggestions by remember { mutableStateOf(false) }
+    val terminalFont by app.prefs.terminalFont.collectAsState()
     var twoFactor by remember { mutableStateOf<TwoFactorStatus?>(null) }
     val checkUpdates by app.prefs.checkUpdates.collectAsState()
     val latest by app.updates.latest.collectAsState()
@@ -173,7 +179,19 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                 Slider(fontSize, { app.prefs.setFontSize(it) }, valueRange = Prefs.MIN_FONT..Prefs.MAX_FONT, steps = 15)
                 Text(stringResource(R.string.settings_font_size_hint), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    stringResource(R.string.settings_terminal_font) + " · " + terminalFontName(terminalFont),
+                    Modifier.padding(top = 12.dp, bottom = 6.dp), style = MaterialTheme.typography.bodyLarge,
+                )
+                TerminalFontPicker(app)
             }
+            Row0(Icons.Outlined.Keyboard, stringResource(R.string.settings_keyboard_keys), stringResource(R.string.settings_keyboard_keys_hint)) {
+                nav.navigate(Routes.KEYBOARD)
+            }
+            Row0(
+                Icons.Outlined.AutoFixHigh, stringResource(R.string.settings_command_suggestions),
+                stringResource(suggestionModeName(suggestionMode)) + "\n" + stringResource(suggestionModeHint(suggestionMode)),
+            ) { choosingSuggestions = true }
             // The chosen mode and what it does (like the iOS app's explanation under the picker).
             Row0(
                 Icons.Outlined.Swipe, stringResource(R.string.settings_cursor_gestures),
@@ -274,6 +292,15 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             app.prefs.setWideLayout(it)
         }
     }
+    if (choosingSuggestions) {
+        ChoiceDialog(
+            stringResource(R.string.settings_command_suggestions), SuggestionMode.entries, suggestionMode,
+            name = { suggestionModeName(it) }, hint = { suggestionModeHint(it) }, onDismiss = { choosingSuggestions = false },
+        ) {
+            choosingSuggestions = false
+            app.prefs.setCommandSuggestions(it)
+        }
+    }
     if (choosingGestures) {
         GestureModeDialog(gestureMode, onDismiss = { choosingGestures = false }) {
             choosingGestures = false
@@ -286,6 +313,58 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             if (tag != language) AppLanguage.choose(app, tag)
         }
     }
+}
+
+@androidx.annotation.StringRes
+private fun suggestionModeName(mode: SuggestionMode): Int = when (mode) {
+    SuggestionMode.CURSOR -> R.string.settings_suggestions_cursor
+    SuggestionMode.BAR -> R.string.settings_suggestions_bar
+    SuggestionMode.OFF -> R.string.settings_suggestions_off
+}
+
+@androidx.annotation.StringRes
+private fun suggestionModeHint(mode: SuggestionMode): Int = when (mode) {
+    SuggestionMode.CURSOR -> R.string.settings_suggestions_cursor_hint
+    SuggestionMode.BAR -> R.string.settings_suggestions_bar_hint
+    SuggestionMode.OFF -> R.string.settings_suggestions_off_hint
+}
+
+/** One of several options, each with what it does (radio buttons). */
+@Composable
+private fun <T> ChoiceDialog(
+    title: String,
+    options: List<T>,
+    selected: T,
+    name: (T) -> Int,
+    hint: (T) -> Int,
+    onDismiss: () -> Unit,
+    onSelect: (T) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                options.forEach { option ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { onSelect(option) }.padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = option == selected, onClick = { onSelect(option) })
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text(stringResource(name(option)), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(hint(option)), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 @androidx.annotation.StringRes

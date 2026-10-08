@@ -5,26 +5,21 @@ import android.content.ClipboardManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.outlined.CellTower
-import androidx.compose.material.icons.outlined.CloseFullscreen
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LocalContentColor
-import com.termoak.app.term.Paste
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,45 +27,51 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CellTower
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CloseFullscreen
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.KeyboardCommandKey
-import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.TextDecrease
 import androidx.compose.material.icons.outlined.TextIncrease
 import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material.icons.filled.TouchApp
-import androidx.compose.material3.IconToggleButton
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.ui.semantics.Role
-import com.termoak.app.term.GestureMode
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -83,6 +84,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,10 +95,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -104,27 +110,29 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavHostController
 import com.termoak.app.R
-import com.termoak.app.data.uid
 import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
 import com.termoak.app.asString
 import com.termoak.app.data.Prefs
+import com.termoak.app.data.uid
+import com.termoak.app.term.GestureMode
 import com.termoak.app.term.InitialConnecting
-import com.termoak.app.term.Latency
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import com.termoak.app.term.LiveShare
 import com.termoak.app.term.KeyStroke
-import com.termoak.app.term.Shortcut
-import com.termoak.app.term.SpecialKey
+import com.termoak.app.term.Latency
+import com.termoak.app.term.LiveShare
 import com.termoak.app.term.LocalTerminal
+import com.termoak.app.term.Paste
 import com.termoak.app.term.Pending
 import com.termoak.app.term.ServerTerminal
+import com.termoak.app.term.Shortcut
+import com.termoak.app.term.SpecialKey
+import com.termoak.app.term.SuggestionMode
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
+import com.termoak.app.term.TerminalFont
 import com.termoak.app.term.TerminalView
 import com.termoak.ffi.Snippet
 import com.termoak.ffi.TerminalKey
@@ -140,7 +148,7 @@ internal val TermBarBg = BarBg
 internal val TermKeyBg = KeyBg
 internal val TermKeyFg = KeyFg
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val context = LocalContext.current
@@ -153,6 +161,9 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val hardwareKeyboard by app.keyboard.connected.collectAsState()
     val keepKeyBar by app.prefs.keyBarWithKeyboard.collectAsState()
     val gestureMode by app.prefs.cursorGestures.collectAsState()
+    val keyLayout by app.prefs.keyboardLayout.collectAsState()
+    val suggestionMode by app.prefs.commandSuggestions.collectAsState()
+    val terminalFont by app.prefs.terminalFont.collectAsState()
     val session = sessions.firstOrNull { it.id == activeId } ?: sessions.lastOrNull()
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     // The terminal views on screen (one, or one per pane): the keyboard goes to the focused one.
@@ -163,6 +174,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     var pasteAsk by remember { mutableStateOf<Pair<TermSession, String>?>(null) }
     // Copilot: side by side on tablets; on top, from the right, on phones.
     var copilotOpen by rememberSaveable { mutableStateOf(false) }
+    // Quick access panel: in the keyboard's place on phones, beside the terminal in the desktop layout.
+    var panelOpen by rememberSaveable { mutableStateOf(false) }
     // Window size class (it changes when a foldable folds or unfolds; the sessions stay).
     val maxPanes = rememberMaxPanes()
     val wide = maxPanes >= 2
@@ -212,6 +225,15 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         app.copilot.stop(session)
     }
     BackHandler { if (copilotOpen) closeCopilot() else nav.popBackStack() }
+
+    /** A snippet typed in [target] (and, while broadcasting, in the other panes), in the split's panes or in every open terminal. */
+    fun useSnippet(target: TermSession, name: String, text: String, run: Boolean, to: SnippetTarget) {
+        when (to) {
+            SnippetTarget.THIS -> if (run) target.run(text) else target.paste(text)
+            SnippetTarget.PANES -> app.snippetRuns.onSessions(name, text, run, panes.map { it.id })
+            SnippetTarget.ALL_OPEN -> app.snippetRuns.onSessions(name, text, run, sessions.map { it.id })
+        }
+    }
 
     /** Pastes into [target], asking first for several lines (unless it uses bracketed paste). */
     fun requestPaste(target: TermSession, text: String) {
@@ -284,6 +306,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         TerminalPane(
             app, nav, s, fontSize, focused,
             gestureMode = gestureMode,
+            suggestionMode = suggestionMode,
+            font = terminalFont,
             views = views,
             onFocus = { if (s.id != app.sessions.active.value) app.sessions.select(s.id) },
             onPaste = { requestPaste(s, it) },
@@ -311,6 +335,32 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             copilotOpen = true
             if (!wide) focusedView()?.hideKeyboard()
         }
+    }
+
+    // The panel closes when the keyboard comes back (a tap on the terminal...).
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) { if (imeVisible && !desktop) panelOpen = false }
+    // As tall as the keyboard was (the terminal keeps its size), at least 260 dp.
+    val density = LocalDensity.current
+    val imeHeight = WindowInsets.ime.getBottom(density)
+    var lastIme by remember { mutableIntStateOf(0) }
+    LaunchedEffect(imeHeight) { if (imeHeight > lastIme) lastIme = imeHeight }
+    val panelHeight = with(density) { lastIme.toDp() - 52.dp }.coerceIn(260.dp, 420.dp)
+
+    /** The quick access panel for [target] (keys, snippets, history, appearance). */
+    @Composable
+    fun QuickPanelHere(target: TermSession, side: Boolean, modifier: Modifier) {
+        QuickPanel(
+            app, target, side = side, panes = if (splitShown) panes.size else 0, openCount = sessions.size,
+            onKeyboard = {
+                panelOpen = false
+                focusedView()?.showSoftKeyboard()
+            },
+            onCustomize = { nav.navigate(Routes.KEYBOARD) },
+            onPaste = { paste(target) },
+            onSnippet = { name, text, run, to -> useSnippet(target, name, text, run, to) },
+            modifier = modifier,
+        )
     }
 
     /** Split view (tablets, unfolded foldables); a maximized pane goes back to the grid. */
@@ -413,6 +463,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     onParticipants = { showParticipants = true },
                     onSnippets = { showSnippets = true },
                     onKeyboard = { focusedView()?.showSoftKeyboard() },
+                    panelOpen = panelOpen,
+                    onPanel = { panelOpen = !panelOpen },
                 ) { dismiss -> MenuEntries(dismiss, inToolbar = true) }
             } else {
                 // ----- Top bar -----
@@ -498,8 +550,26 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         footer = {
             KeyboardStrip(session, live)
             // With a hardware keyboard the key bar goes away (unless the setting keeps it).
-            if (live.canWrite && (!hardwareKeyboard || keepKeyBar)) ExtraKeys(session, cursorButton = gestureMode == GestureMode.BUTTON)
+            if (live.canWrite && (!hardwareKeyboard || keepKeyBar)) {
+                KeyBar(
+                    session, keyLayout, suggestionMode, cursorButton = gestureMode == GestureMode.BUTTON, panelOpen = panelOpen,
+                    onPaste = { paste(session) },
+                ) {
+                    if (panelOpen) {
+                        panelOpen = false
+                        if (!desktop) focusedView()?.showSoftKeyboard()
+                    } else {
+                        panelOpen = true
+                        if (!desktop) focusedView()?.hideKeyboard()
+                    }
+                }
+            }
+            // On phones the panel takes the keyboard's place.
+            if (panelOpen && !desktop && live.canWrite) {
+                QuickPanelHere(session, side = false, Modifier.fillMaxWidth().height(panelHeight))
+            }
         },
+        side = if (panelOpen && desktop && live.canWrite) ({ QuickPanelHere(session, side = true, Modifier.fillMaxSize()) }) else null,
     ) { modifier, overlay ->
         CopilotPanel(
             app, session, host, onClose = { closeCopilot() }, onLogin = { nav.navigate(Routes.login()) },
@@ -527,15 +597,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             onDismiss = { showSnippets = false },
         ) { sn, text, run, target ->
             showSnippets = false
-            when (target) {
-                SnippetTarget.THIS -> {
-                    // Typed here (and, while broadcasting, in the other panes too).
-                    session.paste(text)
-                    if (run) session.key(TerminalKey.Enter)
-                }
-                SnippetTarget.PANES -> app.snippetRuns.onSessions(sn.name, text, run, panes.map { it.id })
-                SnippetTarget.ALL_OPEN -> app.snippetRuns.onSessions(sn.name, text, run, sessions.map { it.id })
-            }
+            // Typed here (and, while broadcasting, in the other panes too), or in the panes or every open terminal.
+            useSnippet(session, sn.name, text, run, target)
         }
     }
     if (showSplitPicker) {
@@ -622,6 +685,8 @@ private fun DesktopTerminalToolbar(
     onParticipants: () -> Unit,
     onSnippets: () -> Unit,
     onKeyboard: () -> Unit,
+    panelOpen: Boolean,
+    onPanel: () -> Unit,
     menuEntries: @Composable (dismiss: () -> Unit) -> Unit,
 ) {
     // A terminal from this device shared through the server.
@@ -665,6 +730,12 @@ private fun DesktopTerminalToolbar(
             if (sharable) ToolbarButton(Icons.Outlined.PersonAdd, stringResource(R.string.term_share), labels, onClick = onShare)
             IconButton(onClick = onSnippets) {
                 Icon(Icons.Outlined.Code, stringResource(R.string.section_snippets), tint = KeyFg)
+            }
+            // The quick access panel, beside the terminal.
+            if (live.canWrite) {
+                IconButton(onClick = onPanel) {
+                    Icon(Icons.Outlined.GridView, stringResource(R.string.quick_panel), tint = if (panelOpen) MaterialTheme.colorScheme.primary else KeyFg)
+                }
             }
             // Without a hardware keyboard, the on-screen one.
             if (!hardwareKeyboard) {
@@ -777,6 +848,8 @@ private fun TerminalPane(
     fontSize: Float,
     focused: Boolean,
     gestureMode: GestureMode,
+    suggestionMode: SuggestionMode,
+    font: TerminalFont,
     views: MutableList<TerminalView>,
     onFocus: () -> Unit,
     onPaste: (String) -> Unit,
@@ -797,6 +870,10 @@ private fun TerminalPane(
     val view = remember { arrayOfNulls<TerminalView>(1) }
     var hasSelection by remember { mutableStateOf(false) }
     val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it, session.accountId) }.getOrNull() } }
+    val suggestions by session.suggestions.collectAsState()
+    val awaitingEcho by session.awaitingEcho.collectAsState()
+    // Next to the cursor: the rest dimmed and a list to pick from (only the focused pane).
+    val nearCursor = suggestionMode == SuggestionMode.CURSOR && focused && live.canWrite
     // Connection steps (like Termius' connection screen).
     val steps = remember(session.id) { androidx.compose.runtime.mutableStateListOf<UiText>() }
     var everRan by remember(session.id) { mutableStateOf(false) }
@@ -835,7 +912,9 @@ private fun TerminalPane(
             },
             update = { v ->
                 v.session = session
+                v.setTypeface(font.typeface(v.context))
                 v.setFontSize(fontSize)
+                v.ghostText = if (nearCursor && !awaitingEcho) suggestions.firstOrNull()?.insert else null
                 v.onTouched = onFocus
                 v.onContextMenu = { x, y -> onFocus(); menuAt = IntOffset(x.toInt(), y.toInt()); longPressMenu = true }
                 v.onPasteText = onPaste
@@ -858,6 +937,9 @@ private fun TerminalPane(
                 DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { longPressMenu = false; copyScreen() },
                     leadingIcon = { Icon(Icons.Outlined.SelectAll, null) })
             }
+        }
+        if (nearCursor && suggestions.isNotEmpty() && state == TermState.Running) {
+            view[0]?.let { v -> CursorSuggestionList(v, suggestions) { session.accept(it) } }
         }
         val waiting = live.waiting
         val ended = live.ended
@@ -976,55 +1058,6 @@ private fun SessionTab(s: TermSession, selected: Boolean, inSplit: Boolean, onCl
     }
 }
 
-/**
- * Keys missing from the phone keyboard, in a scrollable row (like Termius). Ctrl and Alt apply to the next key.
- * [cursorButton]: cursor gestures "With a button", whose toggle stays at the start, out of the scrolling row.
- */
-@Composable
-private fun ExtraKeys(session: TermSession, cursorButton: Boolean) {
-    val ctrl by session.ctrl.collectAsState()
-    val alt by session.alt.collectAsState()
-    val cursorByButton by session.cursorByButton.collectAsState()
-    Row(Modifier.fillMaxWidth().background(BarBg), verticalAlignment = Alignment.CenterVertically) {
-        if (cursorButton) {
-            val label = stringResource(R.string.term_move_cursor)
-            Box(
-                Modifier.padding(start = 6.dp).size(44.dp, 40.dp).clip(RoundedCornerShape(8.dp))
-                    .background(if (cursorByButton) MaterialTheme.colorScheme.primary else KeyBg)
-                    .toggleable(cursorByButton, role = Role.Switch) { session.cursorByButton.value = it }
-                    .semantics { contentDescription = label },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (cursorByButton) Icons.Filled.TouchApp else Icons.Outlined.TouchApp, null, Modifier.size(20.dp),
-                    tint = if (cursorByButton) Color.White else KeyFg,
-                )
-            }
-        }
-        Row(
-            Modifier.weight(1f).horizontalScroll(rememberScrollState())
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            val w = Modifier.widthIn(min = 44.dp)
-            Key("esc", w) { session.key(TerminalKey.Escape) }
-            Key("tab", w) { session.key(TerminalKey.Tab) }
-            Key("ctrl", w, active = ctrl) { session.ctrl.value = !ctrl }
-            Key("alt", w, active = alt) { session.alt.value = !alt }
-            Key("←", w) { session.key(TerminalKey.Left) }
-            Key("↑", w) { session.key(TerminalKey.Up) }
-            Key("↓", w) { session.key(TerminalKey.Down) }
-            Key("→", w) { session.key(TerminalKey.Right) }
-            for (c in listOf("/", "-", "|", "~", "*", "&", ";", ":", "$", ">", "<", "'", "\"")) Key(c, w) { session.text(c) }
-            Key("home", w, small = true) { session.key(TerminalKey.Home) }
-            Key("end", w, small = true) { session.key(TerminalKey.End) }
-            Key("pgup", w, small = true) { session.key(TerminalKey.PageUp) }
-            Key("pgdn", w, small = true) { session.key(TerminalKey.PageDown) }
-            for (n in 1..12) Key("F$n", w, small = true) { session.key(TerminalKey.Function(n.toUByte())) }
-        }
-    }
-}
-
 /** Connection screen: the host, a progress bar and the steps (or the error). */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.ConnectingPanel(
@@ -1077,21 +1110,6 @@ private fun androidx.compose.foundation.layout.BoxScope.ConnectingPanel(
                 TextButton(onClick = onClose) { Text(stringResource(R.string.common_close)) }
             }
         }
-    }
-}
-
-@Composable
-private fun Key(label: String, modifier: Modifier, active: Boolean = false, small: Boolean = false, onClick: () -> Unit) {
-    Box(
-        modifier.height(40.dp).clip(RoundedCornerShape(8.dp))
-            .background(if (active) MaterialTheme.colorScheme.primary else KeyBg)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label, color = if (active) Color.White else KeyFg,
-            fontFamily = FontFamily.Monospace, fontSize = if (small) 12.sp else 15.sp,
-        )
     }
 }
 
@@ -1148,7 +1166,7 @@ private fun CredentialsDialog(p: Pending.Credentials) {
 }
 
 /** Where a snippet from the terminal goes. */
-private enum class SnippetTarget { THIS, PANES, ALL_OPEN }
+internal enum class SnippetTarget { THIS, PANES, ALL_OPEN }
 
 /**
  * Vault snippets: pasted into the terminal (and optionally run), into all
@@ -1166,6 +1184,7 @@ private fun SnippetsSheet(
     val snippets = remember { runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
     var filling by remember { mutableStateOf<Pair<Snippet, Boolean>?>(null) }
     var target by remember { mutableStateOf(SnippetTarget.THIS) }
+    var query by remember { mutableStateOf("") }
     fun use(sn: Snippet, run: Boolean) {
         if (snippetVariables(sn.script).isEmpty()) onUse(sn, sn.script, run, target) else filling = sn to run
     }
@@ -1192,22 +1211,42 @@ private fun SnippetsSheet(
                 stringResource(R.string.snippets_none_yet),
                 Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        } else {
+            OutlinedTextField(
+                query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+                placeholder = { Text(stringResource(R.string.common_search)) }, singleLine = true,
+                leadingIcon = { Icon(Icons.Outlined.Search, null) },
+            )
         }
+        // Folders by the first tag (like the quick panel), unless searching.
+        val shown = SnippetFolders.filter(snippets, query)
+        val folders = SnippetFolders.group(shown, "")
+        val noFolder = stringResource(R.string.quick_panel_snippets_no_folder)
         LazyColumn(Modifier.padding(bottom = 24.dp)) {
-            items(snippets, key = { it.uid }) { sn ->
-                ListItem(
-                    headlineContent = { Text(sn.name) },
-                    supportingContent = {
-                        Text(sn.description.ifBlank { sn.script }, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            fontFamily = if (sn.description.isBlank()) FontFamily.Monospace else null)
-                    },
-                    trailingContent = {
-                        Row {
-                            TextButton(onClick = { use(sn, false) }) { Text(stringResource(R.string.common_paste)) }
-                            Button(onClick = { use(sn, true) }) { Text(stringResource(R.string.snippets_run)) }
-                        }
-                    },
-                )
+            folders.forEach { (folder, list) ->
+                if (query.isBlank() && folders.size > 1) {
+                    item(key = "folder:$folder") {
+                        Text(
+                            folder.ifEmpty { noFolder }, Modifier.padding(start = 24.dp, top = 12.dp, bottom = 4.dp),
+                            style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+                items(list, key = { "$folder/${it.uid}" }) { sn ->
+                    ListItem(
+                        headlineContent = { Text(sn.name) },
+                        supportingContent = {
+                            Text(sn.description.ifBlank { sn.script }, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                fontFamily = if (sn.description.isBlank()) FontFamily.Monospace else null)
+                        },
+                        trailingContent = {
+                            Row {
+                                TextButton(onClick = { use(sn, false) }) { Text(stringResource(R.string.common_paste)) }
+                                Button(onClick = { use(sn, true) }) { Text(stringResource(R.string.snippets_run)) }
+                            }
+                        },
+                    )
+                }
             }
         }
     }

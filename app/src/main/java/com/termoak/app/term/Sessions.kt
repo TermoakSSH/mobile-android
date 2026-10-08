@@ -55,10 +55,22 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
 
     /** Settings → Terminal: log in to Telnet hosts automatically (set by the app). */
     @Volatile var telnetAutoLogin: () -> Boolean = { true }
+    /** Command suggestions and history for the terminals (set by the app). */
+    @Volatile var assist: CommandAssist? = null
+
+    /** Gives a new terminal the suggestions, with its host's system. */
+    private fun prepare(session: TermSession, os: String? = null) {
+        session.assist = assist
+        session.hostOs = os ?: session.hostId?.let { runCatching { core.getHost(it, session.accountId) }.getOrNull()?.os }
+    }
 
     /** SSH (or Telnet) from the phone ([activate]: it becomes the terminal on screen). */
     fun openLocal(host: SshHost, activate: Boolean = true): TermSession =
-        add(LocalTerminal(core, host.label, host.id, host.address, host.accountId, host.isTelnet, telnetAutoLogin), activate)
+        add(
+            LocalTerminal(core, host.label, host.id, host.address, host.accountId, host.isTelnet, telnetAutoLogin)
+                .also { prepare(it, host.os) },
+            activate,
+        )
 
     /** An open terminal of [hostId] from the phone that is connected or connecting (to reuse it). */
     fun liveLocal(hostId: String, accountId: String? = null): TermSession? = _list.value.firstOrNull {
@@ -129,6 +141,7 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
                 ServerTerminal(core, s.title.ifBlank { s.hostId?.let { labels[it] } ?: untitled }, s.hostId, s.id, accountId = acc.id)
                     .apply {
                         onShareNotice = { _notices.tryEmit(it) }
+                        prepare(this)
                         sleep()
                     }
             }
@@ -159,6 +172,7 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
 
     private fun add(session: TermSession, activate: Boolean = true): TermSession {
         session.onShareNotice = { _notices.tryEmit(it) }
+        if (session.assist == null) prepare(session)
         _list.value = _list.value + session
         if (activate || _active.value == null) setActive(session.id)
         session.start()

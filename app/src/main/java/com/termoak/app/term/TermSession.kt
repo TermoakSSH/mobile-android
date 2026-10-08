@@ -3,11 +3,14 @@ package com.termoak.app.term
 import com.termoak.app.R
 import com.termoak.app.UiText
 import com.termoak.app.uiText
+import com.termoak.ffi.CommandSuggestion
 import com.termoak.ffi.KeyModifiers
+import com.termoak.ffi.LineTracker
 import com.termoak.ffi.PromptField
 import com.termoak.ffi.ScreenEvent
 import com.termoak.ffi.TerminalKey
 import com.termoak.ffi.TerminalScreen
+import com.termoak.ffi.commandEchoed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,7 +19,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 /** What the terminal needs to ask the user. */
 sealed class Pending {
@@ -101,6 +106,24 @@ abstract class TermSession(
     /** Cursor gestures "With a button": one finger moves the cursor (instead of scrolling). */
     val cursorByButton = MutableStateFlow(false)
 
+    // ----- Command suggestions and history (the iOS app's) -----
+
+    /** Autocompletion and history (set by [Sessions]; `null`: none). */
+    @Volatile var assist: CommandAssist? = null
+    /** The host's system (`SshHost.os`), to suggest the right package manager. */
+    @Volatile var hostOs: String? = null
+    /** What is typed, to know the command sent with Enter and to complete it. */
+    private val line = LineTracker()
+    private val _suggestions = MutableStateFlow<List<CommandSuggestion>>(emptyList())
+    /** How to continue the line being typed (history, snippets, commands). */
+    val suggestions: StateFlow<List<CommandSuggestion>> = _suggestions
+    private val _awaitingEcho = MutableStateFlow(false)
+    /** Something was typed and the shell hasn't shown it yet: the dimmed rest hides so it doesn't jump. */
+    val awaitingEcho: StateFlow<Boolean> = _awaitingEcho
+    /** Look for suggestions as soon as the echo of what was typed arrives. */
+    @Volatile private var suggestAfterEcho = false
+    private val query = AtomicInteger()
+
     /** Needs a redraw (from any thread). */
     @Volatile var onScreenChanged: () -> Unit = {}
     /** The remote program wants to copy text (OSC 52). */
@@ -129,6 +152,7 @@ abstract class TermSession(
         release()
         screen.reset()
         modes.reset()
+        forgetLine()
         _state.value = TermState.Connecting(uiText(R.string.term_reconnecting))
         start()
     }
@@ -144,6 +168,11 @@ abstract class TermSession(
                 is ScreenEvent.Copy -> onCopy(event.text)
                 is ScreenEvent.Bell -> onBell()
             }
+        }
+        if (_awaitingEcho.value) _awaitingEcho.value = false
+        if (suggestAfterEcho) {
+            suggestAfterEcho = false
+            requestSuggestions()
         }
         onScreenChanged()
     }
@@ -161,7 +190,128 @@ abstract class TermSession(
     fun write(bytes: ByteArray) {
         if (bytes.isEmpty() || _state.value != TermState.Running || !canType) return
         screen.scrollToBottom()
+        trackLine(bytes)
         send(bytes)
+        typed()
+    }
+
+    /**
+     * Saves in the history the line sent with Enter, only if the screen
+     * showed it as it is (so passwords and lines the shell changed on its
+     * own are not saved).
+     */
+    private fun trackLine(bytes: ByteArray) {
+        if (screen.alternateScreen()) {
+            // vim, less, htop...: there is no shell line.
+            line.forget()
+            return
+        }
+        val a = assist
+        val pending = line.current()
+        val echoed = a != null && !pending.isNullOrEmpty() && commandEchoed(pending, cursorLine(), true)
+        val sent = line.feed(bytes)
+        val host = hostId
+        if (a != null && echoed && sent != null && sent == pending && host != null) {
+            scope.launch(Dispatchers.IO) { a.record(host, sent) }
+        }
+    }
+
+    /** After typing: suggestions come with the echo; meanwhile the ones that still fit stay. */
+    private fun typed() {
+        if ((assist?.mode ?: SuggestionMode.OFF) == SuggestionMode.OFF) {
+            if (_suggestions.value.isNotEmpty()) _suggestions.value = emptyList()
+            return
+        }
+        suggestAfterEcho = true
+        _awaitingEcho.value = true
+        val l = line.current()
+        _suggestions.value = if (l != null && line.atEnd() && l.isNotBlank()) Suggestions.narrow(_suggestions.value, l) else emptyList()
+    }
+
+    /** Text of the cursor's line on screen (wrapped rows joined). */
+    private fun cursorLine(): String {
+        val snap = screen.snapshot()
+        val cursor = snap.cursor ?: return ""
+        return Suggestions.cursorLine(snap.lines, cursor.row.toInt(), snap.cols.toInt())
+    }
+
+    /**
+     * Suggestions for the typed line: only if it is known, the cursor is at
+     * its end and the screen shows it. Computed off the terminal's thread;
+     * discarded if more was typed meanwhile.
+     */
+    private fun requestSuggestions() {
+        val a = assist
+        val current = line.current()
+        if (a == null || a.mode == SuggestionMode.OFF || _state.value != TermState.Running || screen.alternateScreen() ||
+            !line.atEnd() || current.isNullOrBlank() || !commandEchoed(current, cursorLine(), true)
+        ) {
+            if (_suggestions.value.isNotEmpty()) _suggestions.value = emptyList()
+            return
+        }
+        val n = query.incrementAndGet()
+        val host = hostId
+        val os = hostOs
+        scope.launch(Dispatchers.Default) {
+            val r = a.complete(host, os, current)
+            if (n == query.get() && line.current() != null) _suggestions.value = r
+        }
+    }
+
+    /** New, unknown line (after reconnecting). */
+    private fun forgetLine() {
+        line.reset()
+        query.incrementAndGet()
+        _suggestions.value = emptyList()
+    }
+
+    /** Types the rest of a suggestion (without Enter). */
+    fun accept(s: CommandSuggestion) = input(TermInput.Text(s.insert, KeyModifiers(shift = false, alt = false, ctrl = false)))
+
+    /**
+     * → with suggestions next to the cursor accepts the first one, like on
+     * the desktop. Whether it did.
+     */
+    fun acceptFirstSuggestion(): Boolean {
+        if (assist?.mode != SuggestionMode.CURSOR || ctrl.value || alt.value) return false
+        val first = _suggestions.value.firstOrNull() ?: return false
+        accept(first)
+        return true
+    }
+
+    /**
+     * Runs a command (history, snippet): types it and presses Enter. It is
+     * saved in the history directly (we know what it is) and the line starts over.
+     */
+    fun run(command: String) {
+        paste(command)
+        key(TerminalKey.Enter)
+        line.reset()
+        query.incrementAndGet()
+        _suggestions.value = emptyList()
+        val a = assist
+        val host = hostId
+        if (a != null && host != null && !command.contains('\n')) scope.launch(Dispatchers.IO) { a.record(host, command.trim()) }
+    }
+
+    /**
+     * A key of the key bar or the quick panel. Ctrl and Alt stay pressed
+     * until the next key, which they apply to (its first step). Paste is
+     * the screen's ([onPaste]), which asks first for several lines.
+     */
+    fun press(key: BarKey, onPaste: () -> Unit) {
+        when (val a = key.action) {
+            is BarAction.Modifier -> if (a.ctrl) ctrl.value = !ctrl.value else alt.value = !alt.value
+            BarAction.Paste -> {
+                takeStickyModifiers()
+                onPaste()
+            }
+            is BarAction.Steps -> {
+                if (a.steps == listOf(BarStep.Special(BarSpecial.RIGHT)) && acceptFirstSuggestion()) return
+                val (c, al) = takeStickyModifiers()
+                keyInputs(a.steps, c, al).forEach { input(it) }
+            }
+        }
     }
 
     /**
@@ -254,5 +404,6 @@ abstract class TermSession(
         release()
         scope.cancel()
         screen.close()
+        line.close()
     }
 }

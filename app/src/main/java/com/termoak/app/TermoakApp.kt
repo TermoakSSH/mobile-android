@@ -8,6 +8,7 @@ import com.termoak.app.data.Copilot
 import com.termoak.app.data.Prefs
 import com.termoak.app.data.ShareNotices
 import com.termoak.app.data.Updates
+import com.termoak.app.term.CommandAssist
 import com.termoak.app.term.HardwareKeyboard
 import com.termoak.app.term.Sessions
 import com.termoak.app.term.SnippetRuns
@@ -27,7 +28,12 @@ class TermoakApp : Application() {
     val prefs: Prefs by lazy { Prefs(this) }
     /** The accounts on this device (servers), the Vault's view and their sync. */
     val accounts: Accounts by lazy { Accounts(this, core, prefs) }
-    val sessions: Sessions by lazy { Sessions(this, core, accounts).apply { telnetAutoLogin = { prefs.telnetAutoLogin.value } } }
+    val sessions: Sessions by lazy {
+        Sessions(this, core, accounts).apply {
+            telnetAutoLogin = { prefs.telnetAutoLogin.value }
+            assist = CommandAssist(core) { prefs.commandSuggestions.value }
+        }
+    }
     /** A snippet sent to several terminals at once, and how it went. */
     val snippetRuns: SnippetRuns by lazy { SnippetRuns(sessions) }
     val copilot: Copilot by lazy { Copilot(this, core, accounts, sessions) }

@@ -70,6 +70,34 @@ class TerminalView(context: Context) : View(context) {
     var gestureMode = GestureMode.DEFAULT
 
     /**
+     * The rest of the first command suggestion, drawn dimmed right after the
+     * cursor (Command suggestions "Next to the cursor"); `null`: none.
+     */
+    var ghostText: String? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+
+    /**
+     * The cursor's cell in this view (px), while the end of the terminal is
+     * on screen: where the suggestions list goes. `null` otherwise.
+     */
+    fun cursorCell(): RectF? {
+        val s = session ?: return null
+        val snap = s.screen.snapshot()
+        if (snap.displayOffset > 0u) return null
+        val c = snap.cursor ?: return null
+        val x = paddingLeft + c.col.toInt() * cellWidth * fit - panX
+        val y = paddingTop + c.row.toInt() * cellHeight * fit
+        return RectF(x, y, x + cellWidth * fit, y + cellHeight * fit)
+    }
+
+    /** Size of a cell (px), as drawn now. */
+    val cellSize: Pair<Float, Float> get() = cellWidth * fit to cellHeight * fit
+
+    /**
      * Watching a shared terminal without the keyboard: the system keyboard
      * stays hidden (nothing typed would reach the terminal), and the cursor
      * gestures are off.
@@ -114,6 +142,13 @@ class TerminalView(context: Context) : View(context) {
     init {
         isFocusable = true
         isFocusableInTouchMode = true
+        setFontSize(fontSp)
+    }
+
+    /** The terminal's font (Settings → Terminal → Font); the grid is measured again. */
+    fun setTypeface(typeface: Typeface) {
+        if (paint.typeface === typeface) return
+        paint.typeface = typeface
         setFontSize(fontSp)
     }
 
@@ -224,6 +259,28 @@ class TerminalView(context: Context) : View(context) {
                 canvas.drawRect(left + c0 * cellWidth, y, left + (c1 + 1) * cellWidth, y + cellHeight, fill)
             }
             fill.alpha = 0xFF
+        }
+        // The rest of the suggestion, dimmed after the cursor (only while the end is on screen).
+        val ghost = ghostText
+        if (ghost != null && snap.displayOffset == 0u) {
+            snap.cursor?.let { c ->
+                val x = left + c.col.toInt() * cellWidth
+                val y = top + c.row.toInt() * cellHeight
+                val room = (snap.cols.toInt() - c.col.toInt()).coerceAtLeast(0)
+                paint.color = snap.foreground.toInt()
+                paint.alpha = 0x66
+                paint.isFakeBoldText = false
+                paint.textSkewX = 0f
+                var i = 0
+                var col = 0
+                while (i < ghost.length && col < room) {
+                    val next = ghost.offsetByCodePoints(i, 1)
+                    canvas.drawText(ghost, i, next, x + col * cellWidth, y + baseline, paint)
+                    i = next
+                    col++
+                }
+                paint.alpha = 0xFF
+            }
         }
         snap.cursor?.let { c ->
             val x = left + c.col.toInt() * cellWidth
@@ -582,6 +639,11 @@ class TerminalView(context: Context) : View(context) {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val s = session ?: return super.onKeyDown(keyCode, event)
         if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyDown(keyCode, event)
+        // → with a suggestion next to the cursor types its rest, like on the desktop.
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && event.hasNoModifiers() && s.acceptFirstSuggestion()) {
+            taken += keyCode
+            return true
+        }
         // Ctrl and Alt of the key bar apply to this key too.
         val (stickyCtrl, stickyAlt) = s.ctrl.value to s.alt.value
         val press = event.toKeyPress().let { it.copy(ctrl = it.ctrl || stickyCtrl, alt = it.alt || stickyAlt) }

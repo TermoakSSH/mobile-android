@@ -117,6 +117,8 @@ object Routes {
     const val AI = "ai"
     const val SETTINGS = "settings"
     const val AI_KEYS = "settings/ai"
+    /** Settings → Terminal → Keys above the keyboard (also the quick panel's Customize). */
+    const val KEYBOARD = "settings/keys"
     const val TERMINAL = "terminal"
     const val HOST_EDIT = "host/{id}?account={account}"
     const val AI_TASK = "ai/{id}?account={account}"
@@ -174,7 +176,7 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
-    Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.LOGIN, Routes.JOIN,
+    Routes.GROUP, Routes.HOST_EDIT, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.KEYBOARD, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES,
 )
 
@@ -182,7 +184,7 @@ private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.IMPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW -> Tab.AI
-    Routes.SETTINGS, Routes.AI_KEYS, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
     else -> null
 }
 
@@ -396,6 +398,7 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.AI) { AiScreen(app, nav) }
                         composable(Routes.SETTINGS) { SettingsScreen(app, nav) }
                         composable(Routes.AI_KEYS) { AiKeysScreen(app, nav) }
+                        composable(Routes.KEYBOARD) { KeyboardEditorScreen(app, nav) }
                         // The terminal keeps a plain fade, as before.
                         composable(
                             Routes.TERMINAL,

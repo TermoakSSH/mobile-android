@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.core.content.edit
 import com.termoak.app.files.FileSort
 import com.termoak.app.term.GestureMode
+import com.termoak.app.term.KeyboardLayout
+import com.termoak.app.term.SuggestionMode
+import com.termoak.app.term.TerminalFont
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -107,6 +110,35 @@ class Prefs(context: Context) {
         _cursorGestures.value = mode
         sp.edit { putString("cursor_gestures", mode.key) }
     }
+
+    private val _terminalFont = MutableStateFlow(TerminalFont.of(sp.getString("terminal_font", null)))
+    /** The terminal's font (Settings → Terminal → Font). */
+    val terminalFont: StateFlow<TerminalFont> = _terminalFont
+    fun setTerminalFont(font: TerminalFont) {
+        _terminalFont.value = font
+        sp.edit { putString("terminal_font", font.id) }
+    }
+
+    private val _suggestions = MutableStateFlow(SuggestionMode.of(sp.getString("command_suggestions", null)))
+    /** Where command suggestions show while typing (Settings → Terminal; the iOS app's setting). */
+    val commandSuggestions: StateFlow<SuggestionMode> = _suggestions
+    fun setCommandSuggestions(mode: SuggestionMode) {
+        _suggestions.value = mode
+        sp.edit { putString("command_suggestions", mode.key) }
+    }
+
+    private val _keyboardLayout = MutableStateFlow(KeyboardLayout.fromJson(sp.getString("keyboard_layout", null)))
+    /** The key bar above the keyboard and the groups of the quick panel (Settings → Terminal → Keys above the keyboard). */
+    val keyboardLayout: StateFlow<KeyboardLayout> = _keyboardLayout
+    fun setKeyboardLayout(layout: KeyboardLayout) {
+        _keyboardLayout.value = layout
+        sp.edit { putString("keyboard_layout", layout.toJson()) }
+    }
+
+    /** The quick panel's tab opened last. */
+    var quickPanelTab: String
+        get() = sp.getString("quick_panel_tab", null) ?: "teclas"
+        set(v) = sp.edit { putString("quick_panel_tab", v) }
 
     private val _telnetAutoLogin = MutableStateFlow(sp.getBoolean("telnet_auto_login", true))
     /** The host's username and password answer the first login prompts of a Telnet host (the desktop's setting). */
