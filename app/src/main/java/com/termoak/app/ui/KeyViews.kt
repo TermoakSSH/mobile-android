@@ -282,7 +282,7 @@ internal fun InstallKeyDialog(app: TermoakApp, key: SshKey, onDismiss: () -> Uni
         working = h.uid
         scope.launch {
             val message = try {
-                val session = app.core.connect(h.id, auth, h.accountId)
+                val session = app.core.connect(h.id, auth, h.accountId, keyChanged = auth)
                 try {
                     val added = addKey(key.publicKey, session)
                     resources.getString(if (added) R.string.keys_install_done else R.string.keys_install_already, h.label)

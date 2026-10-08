@@ -145,11 +145,18 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
         session.hostOs = os ?: session.hostId?.let { runCatching { core.getHost(it, session.accountId) }.getOrNull()?.os }
     }
 
-    /** SSH (or Telnet) from the phone ([activate]: it becomes the terminal on screen). */
-    fun openLocal(host: SshHost, activate: Boolean = true): TermSession {
+    /**
+     * SSH (or Telnet) from the phone ([activate]: it becomes the terminal on
+     * screen; [record]: recorded on the phone even if its host doesn't record
+     * every session).
+     */
+    fun openLocal(host: SshHost, activate: Boolean = true, record: Boolean = false): TermSession {
         onHostOpened(host)
         return add(
-            LocalTerminal(core, host.label, host.id, host.address, host.accountId, host.isTelnet, telnetAutoLogin)
+            LocalTerminal(
+                core, host.label, host.id, host.address, host.accountId, host.isTelnet, record = record,
+                telnetAutoLogin = telnetAutoLogin,
+            )
                 .also {
                     prepare(it, host.os)
                     it.onConnected = { onLocalConnected(it) }

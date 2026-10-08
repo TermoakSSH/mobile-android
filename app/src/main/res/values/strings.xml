@@ -1640,4 +1640,11 @@
     <string name="settings_terminal_theme">Theme</string>
     <string name="editor_theme_dark">A dark theme</string>
     <string name="editor_theme_light">A light theme</string>
+    <string name="term_key_changed_title">The key of %1$s changed</string>
+    <string name="term_key_changed_text">The server presents a key that isn\'t the one saved in Known hosts. Someone may be impersonating it (a man-in-the-middle attack), or the server was reinstalled or its key replaced. Trust the new key only if you know why it changed.</string>
+    <string name="term_key_changed_saved">Saved</string>
+    <string name="term_key_changed_new">Now</string>
+    <string name="term_key_changed_trust">Trust the new key</string>
+    <string name="hosts_connect_recorded">Connect, recorded</string>
+    <string name="term_latency_server">Latency to the server: %1$s</string>
 </resources>

@@ -1694,4 +1694,11 @@
     <string name="settings_terminal_theme">Tema</string>
     <string name="editor_theme_dark">Un tema oscuro</string>
     <string name="editor_theme_light">Un tema claro</string>
+    <string name="term_key_changed_title">La clave de %1$s ha cambiado</string>
+    <string name="term_key_changed_text">El servidor presenta una clave que no es la guardada en Hosts conocidos. Alguien podría estar haciéndose pasar por él (un ataque de intermediario), o el servidor se reinstaló o se cambió su clave. Confía en la clave nueva solo si sabes por qué ha cambiado.</string>
+    <string name="term_key_changed_saved">Guardada</string>
+    <string name="term_key_changed_new">Ahora</string>
+    <string name="term_key_changed_trust">Confiar en la clave nueva</string>
+    <string name="hosts_connect_recorded">Conectar grabando</string>
+    <string name="term_latency_server">Latencia con el servidor: %1$s</string>
 </resources>

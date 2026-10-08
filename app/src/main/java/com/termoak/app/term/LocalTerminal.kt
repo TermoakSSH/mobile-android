@@ -7,6 +7,8 @@ import com.termoak.app.uiText
 import com.termoak.ffi.AuthHandler
 import com.termoak.ffi.AuthPromptKind
 import com.termoak.ffi.AuthRequest
+import com.termoak.ffi.HostKeyChange
+import com.termoak.ffi.HostKeyChangeHandler
 import com.termoak.ffi.SharedTerminal
 import com.termoak.ffi.SharedTerminalEvent
 import com.termoak.ffi.SharedTerminalListener
@@ -35,9 +37,11 @@ class LocalTerminal(
     accountId: String? = null,
     /** A Telnet host: unencrypted, without SFTP or another SSH connection. */
     val telnet: Boolean = false,
+    /** Recorded (asciicast) even if its host doesn't record every session; also after reconnecting. */
+    val record: Boolean = false,
     /** Settings → Terminal: the host's username and password answer its first login prompts. */
     private val telnetAutoLogin: () -> Boolean = { true },
-) : TermSession(label, hostId, accountId), TerminalListener, AuthHandler {
+) : TermSession(label, hostId, accountId), TerminalListener, AuthHandler, HostKeyChangeHandler {
     @Volatile private var handle: TerminalHandle? = null
     override val persistent = false
     /** Connected (each time: also after reconnecting). */
@@ -93,7 +97,7 @@ class LocalTerminal(
      * TIMING-MARK), or `null` when unknown: not connected, no answer in
      * time, or a host that doesn't speak Telnet.
      */
-    suspend fun latencyMs(): Double? {
+    override suspend fun latencyMs(): Double? {
         val h = handle?.takeIf { _state.value == TermState.Running } ?: return null
         return try {
             h.latencyMs(LATENCY_TIMEOUT_MS)
@@ -197,6 +201,8 @@ class LocalTerminal(
                 handle = core.connectTerminal(
                     hostId!!, screen.cols(), screen.rows(), this@LocalTerminal, this@LocalTerminal, accountId,
                     telnetAutoLogin = telnetAutoLogin(),
+                    record = record,
+                    keyChanged = this@LocalTerminal,
                 )
                 _state.value = TermState.Running
                 onConnected()
@@ -331,6 +337,9 @@ class LocalTerminal(
         return runBlocking { withTimeoutOrNull(30_000) { answer.await() } ?: false }
             .also { _pending.value = null }
     }
+
+    /** A known host (or a jump host) whose key changed: asked here, with both fingerprints. */
+    override fun onHostKeyChanged(change: HostKeyChange): Boolean = askChangedKey(_pending, change)
 
     override fun onPrompt(request: AuthRequest): List<String>? {
         val answer = CompletableDeferred<List<String>?>()

@@ -196,7 +196,7 @@ class Tunnels(private val core: TermoakCore, private val sessions: Sessions) {
             connections[key] = Connection(s, own = false)
             return s
         }
-        val s = core.connect(hostId, auth, accountId)
+        val s = core.connect(hostId, auth, accountId, keyChanged = auth)
         connections[key] = Connection(s, own = true)
         return s
     }

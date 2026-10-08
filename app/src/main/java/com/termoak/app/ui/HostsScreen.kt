@@ -268,7 +268,12 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
 
     fun connect(host: SshHost, onServer: Boolean, record: Boolean? = null) {
         (context as? MainActivity)?.askNotificationPermission()
-        if (onServer) app.sessions.openOnServer(host, record) else connectHost(app, host)
+        when {
+            onServer -> app.sessions.openOnServer(host, record)
+            // Recorded on the phone (its .cast to share from the terminal's menu).
+            record == true && !isStrictUseOnly(app, host) -> app.sessions.openLocal(host, record = true)
+            else -> connectHost(app, host)
+        }
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
     }
     /** The host's editor: a panel on the right in the desktop layout, a screen otherwise. */
@@ -379,6 +384,10 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     @Composable
     fun hostActions(host: SshHost, menu: Boolean): List<ItemAction> = buildList {
         add(ItemAction(Icons.Outlined.Terminal, stringResource(R.string.hosts_connect), 0) { connect(host, false) })
+        // Recorded on the phone (the host's setting may already record every session).
+        if (host.settings.recordSessions != true && !isStrictUseOnly(app, host)) {
+            add(ItemAction(Icons.Outlined.FiberManualRecord, stringResource(R.string.hosts_connect_recorded), 0) { connect(host, false, record = true) })
+        }
         if (menu && maxPanes >= 2) {
             add(ItemAction(Icons.Outlined.GridView, stringResource(R.string.hosts_connect_split), 0) { connectInSplit(host) })
         }
@@ -1031,7 +1040,7 @@ private fun HostRow(
                 if (menu) onMore()
                 // Delete: the host's delete confirmation (as on iOS).
                 val delete = down && onDelete != null && (e.key == Key.Delete || e.key == Key.Backspace)
-                if (delete) onDelete?.invoke()
+                if (delete) onDelete()
                 menu || delete
             }
             .combinedClickable(onClick = onClick, onLongClick = {
@@ -1621,7 +1630,7 @@ private fun DesktopHostCard(
                         if (key) { menuAt = null; menuOpen = true }
                         // Delete: the host's delete confirmation (as on iOS).
                         val delete = down && onDelete != null && (e.key == Key.Delete || e.key == Key.Backspace)
-                        if (delete) onDelete?.invoke()
+                        if (delete) onDelete()
                         key || delete
                     }
                     .combinedClickable(onClick = onClick, onLongClick = {

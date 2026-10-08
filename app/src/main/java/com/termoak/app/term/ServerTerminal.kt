@@ -217,6 +217,19 @@ class ServerTerminal(
     /** Everyone else leaves and every invitation is revoked. */
     fun stopSharing() = io { it.stopSharing() }
 
+    /**
+     * Round trip to the Termoak server (a ping on the session's WebSocket;
+     * not the server-to-host hop), or `null` when unknown.
+     */
+    override suspend fun latencyMs(): Double? {
+        val h = handle?.takeIf { _state.value == TermState.Running } ?: return null
+        return try {
+            h.latencyMs(5000u)
+        } catch (_: com.termoak.ffi.TermoakException) {
+            null
+        }
+    }
+
     /** Calls the handle off the main thread (the library blocks briefly). */
     private fun io(action: (ServerTerminalHandle) -> Unit) {
         val h = handle ?: return

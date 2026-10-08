@@ -6,6 +6,8 @@ import com.termoak.app.uiText
 import com.termoak.ffi.AuthHandler
 import com.termoak.ffi.AuthPromptKind
 import com.termoak.ffi.AuthRequest
+import com.termoak.ffi.HostKeyChange
+import com.termoak.ffi.HostKeyChangeHandler
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +20,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * passphrases. The screen shows [pending] with `PendingDialog`. Each
  * question comes on its own thread and waits for the answer.
  */
-class PromptAuth : AuthHandler {
+class PromptAuth : AuthHandler, HostKeyChangeHandler {
     private val _pending = MutableStateFlow<Pending?>(null)
     val pending: StateFlow<Pending?> = _pending
 
@@ -28,6 +30,9 @@ class PromptAuth : AuthHandler {
         // The SSH handshake times out after ~30 s.
         return runBlocking { withTimeoutOrNull(30_000) { answer.await() } ?: false }.also { _pending.value = null }
     }
+
+    /** A known host (or a jump host) whose key changed: asked, like in a terminal. */
+    override fun onHostKeyChanged(change: HostKeyChange): Boolean = askChangedKey(_pending, change)
 
     override fun onPrompt(request: AuthRequest): List<String>? {
         val answer = CompletableDeferred<List<String>?>()

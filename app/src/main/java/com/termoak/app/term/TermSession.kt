@@ -4,6 +4,7 @@ import com.termoak.app.R
 import com.termoak.app.UiText
 import com.termoak.app.uiText
 import com.termoak.ffi.CommandSuggestion
+import com.termoak.ffi.HostKeyChange
 import com.termoak.ffi.KeyModifiers
 import com.termoak.ffi.LineTracker
 import com.termoak.ffi.PromptField
@@ -33,6 +34,12 @@ sealed class Pending {
         val answer: (Boolean) -> Unit,
     ) : Pending()
 
+    /**
+     * The key of a known host is not the one saved (it may be someone
+     * impersonating it): trust the new one (it replaces the old one) or not.
+     */
+    class HostKeyChanged(val change: HostKeyChange, val answer: (Boolean) -> Unit) : Pending()
+
     /** Password, passphrase or keyboard-interactive questions (`null`: cancel). */
     class Credentials(
         val title: UiText,
@@ -57,6 +64,17 @@ sealed class TermInput {
     data class Paste(val text: String) : TermInput()
     /** A key of a hardware keyboard, already resolved (each terminal encodes it with its own modes). */
     data class Stroke(val stroke: KeyStroke) : TermInput()
+}
+
+/**
+ * Asks about a changed host key through [pending] (the connection waits on
+ * its own thread) and gives the answer; no answer in a minute is no.
+ */
+internal fun askChangedKey(pending: MutableStateFlow<Pending?>, change: HostKeyChange): Boolean {
+    val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+    pending.value = Pending.HostKeyChanged(change) { answer.complete(it) }
+    return kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeoutOrNull(60_000) { answer.await() } ?: false }
+        .also { pending.value = null }
 }
 
 /** The first, generic connecting step ("Connecting…"), before the real ones. */
@@ -175,6 +193,13 @@ abstract class TermSession(
 
     /** Lives on the server: closing the tab only detaches. */
     abstract val persistent: Boolean
+
+    /**
+     * Round trip in milliseconds for the latency badge, or `null` when
+     * unknown (not connected, no answer in time): to the host from the
+     * phone, or to the Termoak server for a server session.
+     */
+    open suspend fun latencyMs(): Double? = null
 
     abstract fun start()
     protected abstract fun send(bytes: ByteArray)

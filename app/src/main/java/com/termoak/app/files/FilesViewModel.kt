@@ -15,9 +15,12 @@ import com.termoak.app.UiText
 import com.termoak.app.toUiText
 import com.termoak.app.uiText
 import com.termoak.app.term.Pending
+import com.termoak.app.term.askChangedKey
 import com.termoak.ffi.AuthHandler
 import com.termoak.ffi.AuthPromptKind
 import com.termoak.ffi.AuthRequest
+import com.termoak.ffi.HostKeyChange
+import com.termoak.ffi.HostKeyChangeHandler
 import com.termoak.ffi.RemoteFile
 import com.termoak.ffi.RemoteFileKind
 import com.termoak.ffi.TermoakException
@@ -92,7 +95,7 @@ data class UploadRequest(val files: List<Pair<Uri, String>>, val folder: String,
  * back stack entry): leaving it cancels the transfers and closes the
  * connection if the browser opened it.
  */
-class FilesViewModel(private val app: TermoakApp, private val sourceId: String) : ViewModel(), AuthHandler {
+class FilesViewModel(private val app: TermoakApp, private val sourceId: String) : ViewModel(), AuthHandler, HostKeyChangeHandler {
     private val source = FileSources.get(sourceId)
     val title: String = source?.title.orEmpty()
     private var fs: RemoteFs? = null
@@ -189,7 +192,9 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
                 val f = fs ?: when (src) {
                     is FilesSource.Terminal -> SshFs(src.session, own = false)
                     is FilesSource.Server -> ServerFs(app.core, src.hostId, src.accountId)
-                    is FilesSource.Connect -> SshFs(app.core.connect(src.hostId, this@FilesViewModel, src.accountId), own = true)
+                    is FilesSource.Connect -> SshFs(
+                        app.core.connect(src.hostId, this@FilesViewModel, src.accountId, keyChanged = this@FilesViewModel), own = true,
+                    )
                 }.also { fs = it }
                 val start = _path.value.ifEmpty { f.home() }
                 _entries.value = f.list(start)
@@ -682,6 +687,8 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
         _pending.value = Pending.HostKey(if (port == 22u) host else "$host:$port", keyType, fingerprint) { answer.complete(it) }
         return runBlocking { withTimeoutOrNull(30_000) { answer.await() } ?: false }.also { _pending.value = null }
     }
+
+    override fun onHostKeyChanged(change: HostKeyChange): Boolean = askChangedKey(_pending, change)
 
     override fun onPrompt(request: AuthRequest): List<String>? {
         val answer = CompletableDeferred<List<String>?>()

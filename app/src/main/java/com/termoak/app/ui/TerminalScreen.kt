@@ -583,8 +583,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                                 color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            // The round trip to the host (terminals from the phone).
-                            if (session is LocalTerminal) {
+                            // The round trip to the host (terminals from the phone), or to the server (server sessions).
+                            if (session is LocalTerminal || session is ServerTerminal) {
                                 Text(" · ", color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
                                 LatencyText(session, state)
                             }
@@ -864,8 +864,8 @@ private fun DesktopTerminalToolbar(
             Pill(kind, kindColor, Modifier.padding(start = 8.dp))
             if (session is LocalTerminal && session.telnet) Pill("Telnet", Brand.Amber, Modifier.padding(start = 4.dp))
             if (sharedLocally != null) Pill(stringResource(R.string.term_kind_shared), Brand.Green, Modifier.padding(start = 4.dp))
-            // The round trip to the host, next to the kind (terminals from this device).
-            if (session is LocalTerminal) LatencyPill(session, state, Modifier.padding(start = 4.dp))
+            // The round trip to the host (terminals from this device) or to the server (server sessions), next to the kind.
+            if (session is LocalTerminal || session is ServerTerminal) LatencyPill(session, state, Modifier.padding(start = 4.dp))
             Text(
                 terminalStatus(session, state, live), Modifier.weight(1f).padding(horizontal = 10.dp),
                 color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -912,7 +912,7 @@ private fun DesktopTerminalToolbar(
  * while unknown.
  */
 @Composable
-private fun rememberLatency(session: LocalTerminal, state: TermState): Double? {
+private fun rememberLatency(session: TermSession, state: TermState): Double? {
     var ms by remember(session) { mutableStateOf<Double?>(null) }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val running = state == TermState.Running
@@ -938,9 +938,9 @@ private fun latencyColor(ms: Double?): Color = when (Latency.level(ms)) {
 
 /** "42 ms" in the phone's terminal bar. */
 @Composable
-private fun LatencyText(session: LocalTerminal, state: TermState) {
+private fun LatencyText(session: TermSession, state: TermState) {
     val ms = rememberLatency(session, state)
-    val description = latencyDescription(ms)
+    val description = latencyDescription(ms, session.persistent)
     Text(
         Latency.format(ms), Modifier.semantics { contentDescription = description },
         color = latencyColor(ms), style = MaterialTheme.typography.labelSmall, maxLines = 1,
@@ -949,15 +949,16 @@ private fun LatencyText(session: LocalTerminal, state: TermState) {
 
 /** "42 ms" as a badge of the desktop toolbar. */
 @Composable
-private fun LatencyPill(session: LocalTerminal, state: TermState, modifier: Modifier = Modifier) {
+private fun LatencyPill(session: TermSession, state: TermState, modifier: Modifier = Modifier) {
     val ms = rememberLatency(session, state)
-    val description = latencyDescription(ms)
+    val description = latencyDescription(ms, session.persistent)
     Pill(Latency.format(ms), latencyColor(ms).copy(alpha = 1f), modifier.semantics { contentDescription = description })
 }
 
-/** For TalkBack: "Latency: 42 ms". */
+/** For TalkBack: "Latency: 42 ms" (to the server, for a server session). */
 @Composable
-private fun latencyDescription(ms: Double?): String = stringResource(R.string.term_latency, Latency.format(ms))
+private fun latencyDescription(ms: Double?, server: Boolean): String =
+    stringResource(if (server) R.string.term_latency_server else R.string.term_latency, Latency.format(ms))
 
 /** Server sessions in the toolbar (the desktop's "info" color). */
 private val ServerKindColor = Color(0xFF2BA6B5)
@@ -1320,8 +1321,48 @@ internal fun PendingDialog(p: Pending) {
             confirmButton = { TextButton(onClick = { p.answer(true) }) { Text(stringResource(R.string.term_trust_connect)) } },
             dismissButton = { TextButton(onClick = { p.answer(false) }) { Text(stringResource(R.string.common_cancel)) } },
         )
+        is Pending.HostKeyChanged -> HostKeyChangedDialog(p)
         is Pending.Credentials -> CredentialsDialog(p)
     }
+}
+
+/**
+ * A known host's key is not the one saved: the warning, with the key type
+ * and the saved and new fingerprints; trusting it replaces the saved one in
+ * Known hosts and the connection goes on.
+ */
+@Composable
+private fun HostKeyChangedDialog(p: Pending.HostKeyChanged) {
+    val c = p.change
+    val host = if (c.port == 22u) c.host else "${c.host}:${c.port}"
+    AlertDialog(
+        onDismissRequest = {},
+        icon = { Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.error) },
+        title = { Text(stringResource(R.string.term_key_changed_title, host)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.term_key_changed_text))
+                Surface(
+                    Modifier.padding(top = 12.dp).fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = RoundedCornerShape(8.dp),
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(c.keyType, style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.term_key_changed_saved), Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelSmall)
+                        Text(c.oldFingerprint, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                        Text(stringResource(R.string.term_key_changed_new), Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelSmall)
+                        Text(c.newFingerprint, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { p.answer(true) }) {
+                Text(stringResource(R.string.term_key_changed_trust), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = { p.answer(false) }) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 @Composable
