@@ -160,6 +160,7 @@ import com.termoak.ffi.SshHost
 import com.termoak.ffi.SyncMode
 import com.termoak.ffi.TransferMode
 import com.termoak.ffi.VaultInfo
+import com.termoak.ffi.VaultKind
 import kotlinx.coroutines.launch
 
 /**
@@ -261,6 +262,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         (accountList.isNotEmpty() && hosts.any { it.accountId == null } && hosts.any { it.accountId != null })
     val showAccounts = accountList.size > 1 && view == AccountView.All
     fun vaultOf(h: SshHost): VaultInfo? = vaults.firstOrNull { it.id == h.vaultId && it.accountId == h.accountId }
+    fun inSharedVault(h: SshHost): Boolean = vaultOf(h)?.let { it.kind != VaultKind.PERSONAL } == true
     LaunchedEffect(syncError) { syncError?.let { snackbar.showSnackbar(it.resolve(resources)) } }
 
     fun connect(host: SshHost, onServer: Boolean) {
@@ -484,14 +486,21 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 full { SearchField(query, searchFocus) { query = it } }
                 if (hosts.isEmpty() && groups.isEmpty()) {
                     full {
-                        EmptyState(
-                            Icons.Outlined.Dns,
-                            stringResource(if (syncing) R.string.common_syncing else R.string.hosts_empty_title),
-                            stringResource(if (loggedIn == true) R.string.hosts_empty_text_synced else R.string.hosts_empty_text_local),
-                            Modifier.height(420.dp),
-                            action = stringResource(R.string.hosts_new_host),
-                            onAction = { newHost() },
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            EmptyState(
+                                Icons.Outlined.Dns,
+                                stringResource(if (syncing) R.string.common_syncing else R.string.hosts_empty_title),
+                                stringResource(if (loggedIn == true) R.string.hosts_empty_text_synced else R.string.hosts_empty_text_local),
+                                Modifier.height(420.dp),
+                                action = stringResource(R.string.hosts_new_host),
+                                onAction = { newHost() },
+                            )
+                            // Or bring them from an OpenSSH config (as on iOS).
+                            TextButton(onClick = { nav.navigate(Routes.IMPORT) }) {
+                                Icon(Icons.Outlined.Description, null, Modifier.size(18.dp))
+                                Text(stringResource(R.string.hosts_import_ssh_config), Modifier.padding(start = 8.dp))
+                            }
+                        }
                     }
                 } else if (groupId != null && visibleGroups.isEmpty() && visibleHosts.isEmpty() && !searching) {
                     full {
@@ -512,14 +521,22 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                         if (scopes.size == 1) full { SectionLabel(stringResource(R.string.hosts_groups)) }
                         items(scGroups, key = { "g" + it.uid }) { g ->
                             // While selecting, a group selects (or unselects) its hosts instead of opening.
-                            GroupRow(g, countIn(g), {
-                                if (selecting) {
-                                    val ids = hostsIn(g, hosts, groups).map { it.uid }
-                                    selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
-                                } else {
-                                    nav.navigate(Routes.group(g.id, g.accountId))
-                                }
-                            }, { groupActions = g })
+                            val gv = vaults.firstOrNull { it.id == g.vaultId && it.accountId == g.accountId }
+                            GroupRow(
+                                g, countIn(g),
+                                onClick = {
+                                    if (selecting) {
+                                        val ids = hostsIn(g, hosts, groups).map { it.uid }
+                                        selected = if (ids.all { it in selected }) selected - ids.toSet() else (selected + ids).distinct()
+                                    } else {
+                                        nav.navigate(Routes.group(g.id, g.accountId))
+                                    }
+                                },
+                                onMore = { groupActions = g },
+                                vault = if (!showVaults) null else if (g.accountId == null) stringResource(R.string.vault_this_device) else gv?.let { vaultName(it) },
+                                vaultColor = if (g.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(gv),
+                                account = if (showAccounts) accountList.firstOrNull { it.id == g.accountId } else null,
+                            )
                         }
                     }
                     if (scHosts.isNotEmpty()) {
@@ -761,15 +778,24 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     }
     editingGroup?.let { g ->
         var name by remember(g) { mutableStateOf(g.name) }
+        var place by remember(g) { mutableStateOf(com.termoak.app.data.Place(g.accountId, g.vaultId)) }
         AlertDialog(
             onDismissRequest = { editingGroup = null },
             title = { Text(stringResource(if (g.id.isEmpty()) R.string.hosts_new_group else R.string.hosts_rename)) },
             text = {
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
+                    // A new group at the top: where it goes (inside a group, its parent's place).
+                    if (g.id.isEmpty() && g.parentId == null) PlacePicker(app, place) { place = it }
+                }
             },
             confirmButton = {
                 TextButton(enabled = name.isNotBlank(), onClick = {
-                    runCatching { app.core.saveGroup(g.copy(name = name.trim())) }
+                    val saved = if (g.id.isEmpty() && g.parentId == null) {
+                        app.accounts.rememberPlace(place)
+                        g.copy(accountId = place.account, vaultId = place.vault, syncMode = place.syncMode(accountList.isNotEmpty()))
+                    } else g
+                    runCatching { app.core.saveGroup(saved.copy(name = name.trim())) }
                         .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
                     editingGroup = null
                     reload()
@@ -783,7 +809,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     deleting?.let { host ->
         ConfirmDialog(
             title = stringResource(R.string.hosts_delete_title, host.label),
-            text = stringResource(R.string.hosts_delete_text),
+            // A host of a shared vault is deleted for everyone in it (as on iOS).
+            text = stringResource(if (inSharedVault(host)) R.string.hosts_delete_text_shared else R.string.hosts_delete_text),
             confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { deleting = null },
         ) {
             val r = runCatching { app.core.deleteHost(host.id, host.accountId) }
@@ -824,7 +851,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         val count = selected.size
         ConfirmDialog(
             title = pluralStringResource(R.plurals.bulk_delete_title, count, count),
-            text = pluralStringResource(R.plurals.bulk_delete_text, count, count),
+            text = pluralStringResource(R.plurals.bulk_delete_text, count, count) +
+                (if (hosts.any { it.uid in selected && inSharedVault(it) }) "\n\n" + stringResource(R.string.hosts_delete_text_shared) else ""),
             confirm = stringResource(R.string.common_delete), destructive = true, onDismiss = { bulkDelete = false },
         ) {
             val chosen = hosts.filter { it.uid in selected }
@@ -1049,23 +1077,40 @@ private fun TagChip(text: String, onClick: (() -> Unit)?) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GroupRow(group: HostGroup, count: Int, onClick: () -> Unit, onMore: () -> Unit) {
+private fun GroupRow(
+    group: HostGroup,
+    count: Int,
+    onClick: () -> Unit,
+    onMore: () -> Unit,
+    /** Its vault (or "This device") and its account, like the hosts' (as on iOS). */
+    vault: String? = null,
+    vaultColor: Color = MaterialTheme.colorScheme.primary,
+    account: AccountInfo? = null,
+) {
     val tint = group.color?.let { runCatching { Color(it.toColorInt()) }.getOrNull() } ?: MaterialTheme.colorScheme.primary
     Row(
         Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onMore)
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(tint.copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.Folder, null, Modifier.size(24.dp), tint = tint) }
+        Box {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(tint.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.Folder, null, Modifier.size(24.dp), tint = tint) }
+            if (account != null) {
+                Box(Modifier.align(Alignment.TopStart).offset((-4).dp, (-4).dp)) { AccountAvatar(account, 16.dp) }
+            }
+        }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(group.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                pluralStringResource(R.plurals.hosts_count, count, count), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    pluralStringResource(R.plurals.hosts_count, count, count), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                vault?.let { VaultChip(it, vaultColor, useOnly = group.access.useOnly()) }
+            }
         }
         IconButton(onClick = onMore) {
             Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_options), tint = MaterialTheme.colorScheme.onSurfaceVariant)

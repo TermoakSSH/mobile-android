@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Add
@@ -22,9 +25,10 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -43,6 +47,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,13 +67,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.TermoakApp
 import com.termoak.app.data.canWrite
 import com.termoak.app.data.uid
 import com.termoak.app.data.useOnly
 import com.termoak.app.userMessage
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.runtime.LaunchedEffect
-import com.termoak.app.TermoakApp
 import com.termoak.ffi.KeyType
 import com.termoak.ffi.KnownHost
 import com.termoak.ffi.SecretChange
@@ -80,14 +84,6 @@ import kotlinx.coroutines.launch
 
 /** Whether there is any account (This-device items then show a phone). */
 private fun hasAccounts(app: TermoakApp) = app.accounts.list.value.isNotEmpty()
-
-/** Where a synced key goes: the vault shown, or the current account's personal vault (`null`: no account). */
-private fun syncedPlace(app: TermoakApp): com.termoak.app.data.Place? {
-    val p = app.accounts.defaultPlace()
-    if (!p.device) return p
-    val current = app.accounts.current.value ?: return null
-    return com.termoak.app.data.Place(current.id, app.accounts.personalVault(current.id)?.id)
-}
 
 /** A new identity, in the place new items go. */
 private fun newIdentity(app: TermoakApp): SshIdentity {
@@ -119,6 +115,13 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
     var tab by remember { mutableStateOf(0) }
     var identities by remember { mutableStateOf(runCatching { app.core.listIdentities(app.accounts.filter()) }.getOrDefault(emptyList())) }
     val reload = { keys = runCatching { app.core.listKeys(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() } }
+    // Vault chips and account avatars, like the hosts': with several vaults or accounts in view.
+    val accountList by app.accounts.list.collectAsState()
+    val vaults by app.accounts.vaults.collectAsState()
+    val view by app.accounts.view.collectAsState()
+    val showVaults = app.accounts.vaultsInView().size > 1 ||
+        (accountList.isNotEmpty() && keys.any { it.accountId == null } && keys.any { it.accountId != null })
+    val showAccounts = accountList.size > 1 && view == com.termoak.app.data.AccountView.All
     LaunchedEffect(Unit) {
         app.accounts.itemsChanged.collect {
             reload()
@@ -187,8 +190,25 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                                     )
                                 }
                             }
-                            Text(k.fingerprint, Modifier.padding(top = 8.dp), fontFamily = FontFamily.Monospace, fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            // Its vault (with several), as on iOS; the fingerprint can be selected and copied.
+                            if (showVaults) {
+                                val v = vaults.firstOrNull { it.id == k.vaultId && it.accountId == k.accountId }
+                                Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (showAccounts) {
+                                        accountList.firstOrNull { it.id == k.accountId }?.let { AccountAvatar(it, 16.dp) }
+                                        Spacer(Modifier.width(6.dp))
+                                    }
+                                    VaultChip(
+                                        if (k.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) } ?: "",
+                                        if (k.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
+                                        useOnly = k.access.useOnly(),
+                                    )
+                                }
+                            }
+                            SelectionContainer {
+                                Text(k.fingerprint, Modifier.padding(top = 8.dp), fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
                             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 TextButton(onClick = { copyPublic(k) }) {
                                     Icon(Icons.Outlined.ContentCopy, null, Modifier.padding(end = 6.dp))
@@ -212,7 +232,8 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
         var label by remember { mutableStateOf("") }
         var type by remember { mutableStateOf(KeyType.ED25519) }
         var passphrase by remember { mutableStateOf("") }
-        var deviceOnly by remember { mutableStateOf(true) }
+        // Where it goes (This device or a vault), as on iOS.
+        var place by remember { mutableStateOf(app.accounts.defaultPlace()) }
         var busy by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { if (!busy) creating = false },
@@ -229,10 +250,7 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                     }
                     OutlinedTextField(passphrase, { passphrase = it }, label = { Text(stringResource(R.string.keys_passphrase_optional)) },
                         singleLine = true, visualTransformation = PasswordVisualTransformation())
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        androidx.compose.material3.Checkbox(deviceOnly, { deviceOnly = it })
-                        Text(stringResource(R.string.keys_device_only_check), style = MaterialTheme.typography.bodyMedium)
-                    }
+                    PlacePicker(app, place) { place = it }
                 }
             },
             confirmButton = {
@@ -241,11 +259,10 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                     scope.launch {
                         try {
                             val name = label.trim().ifEmpty { android.os.Build.MODEL }
-                            // Synced: to the vault shown (or the current account's personal one).
-                            val place = if (deviceOnly) null else syncedPlace(app)
                             app.core.generateKey(name, type, "$name (Termoak)", passphrase.ifEmpty { null },
-                                passphrase.isNotEmpty(), if (place == null) SyncMode.DEVICE_ONLY else SyncMode.SYNCED,
-                                place?.account, place?.vault)
+                                passphrase.isNotEmpty(), if (place.device) SyncMode.DEVICE_ONLY else SyncMode.SYNCED,
+                                place.account, place.vault)
+                            app.accounts.rememberPlace(place)
                             reload()
                             app.accounts.sync()
                             creating = false
@@ -267,6 +284,7 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
         var label by remember { mutableStateOf("") }
         var pem by remember { mutableStateOf("") }
         var passphrase by remember { mutableStateOf("") }
+        var place by remember { mutableStateOf(app.accounts.defaultPlace()) }
         val importedLabel = stringResource(R.string.keys_imported_label)
         AlertDialog(
             onDismissRequest = { importing = false },
@@ -279,15 +297,16 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                         textStyle = Mono.copy(fontSize = 11.sp))
                     OutlinedTextField(passphrase, { passphrase = it }, label = { Text(stringResource(R.string.keys_passphrase_if_any)) },
                         singleLine = true, visualTransformation = PasswordVisualTransformation())
+                    PlacePicker(app, place) { place = it }
                 }
             },
             confirmButton = {
                 TextButton(enabled = pem.isNotBlank(), onClick = {
                     scope.launch {
                         try {
-                            val place = app.accounts.defaultPlace()
                             app.core.importKey(label.trim().ifEmpty { importedLabel }, pem.trim(), passphrase.ifEmpty { null },
                                 passphrase.isNotEmpty(), if (place.device) SyncMode.DEVICE_ONLY else SyncMode.SYNCED, place.account, place.vault)
+                            app.accounts.rememberPlace(place)
                             reload()
                             app.accounts.sync()
                             importing = false
@@ -383,6 +402,7 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
         var name by remember(sn) { mutableStateOf(sn.name) }
         var script by remember(sn) { mutableStateOf(sn.script) }
         var description by remember(sn) { mutableStateOf(sn.description) }
+        var place by remember(sn) { mutableStateOf(com.termoak.app.data.Place(sn.accountId, sn.vaultId)) }
         AlertDialog(
             onDismissRequest = { editing = null },
             title = { Text(stringResource(if (sn.id.isEmpty()) R.string.snippets_new else R.string.snippets_edit)) },
@@ -393,12 +413,20 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
                         textStyle = Mono, supportingText = { Text(stringResource(R.string.snippets_variables_hint)) })
                     OutlinedTextField(description, { description = it },
                         label = { Text(stringResource(R.string.snippets_description_optional)) })
+                    if (sn.id.isEmpty()) PlacePicker(app, place) { place = it }
                 }
             },
             confirmButton = {
                 TextButton(enabled = name.isNotBlank() && script.isNotBlank(), onClick = {
                     try {
-                        app.core.saveSnippet(sn.copy(name = name.trim(), script = script, description = description.trim()))
+                        app.core.saveSnippet(
+                            sn.copy(name = name.trim(), script = script, description = description.trim()).let {
+                                if (it.id.isEmpty()) {
+                                    app.accounts.rememberPlace(place)
+                                    it.copy(accountId = place.account, vaultId = place.vault, syncMode = place.syncMode(hasAccounts(app)))
+                                } else it
+                            },
+                        )
                         reload()
                         app.accounts.sync()
                         editing = null
@@ -482,6 +510,7 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
         var user by remember(idn) { mutableStateOf(idn.username) }
         var password by remember(idn) { mutableStateOf("") }
         var keyId by remember(idn) { mutableStateOf(idn.keyId) }
+        var place by remember(idn) { mutableStateOf(com.termoak.app.data.Place(idn.accountId, idn.vaultId)) }
         val noKey = stringResource(R.string.common_no_key)
         AlertDialog(
             onDismissRequest = { editing = null },
@@ -501,8 +530,9 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
                         },
                         singleLine = true, visualTransformation = PasswordVisualTransformation(),
                     )
+                    if (idn.id.isEmpty()) PlacePicker(app, place) { place = it; keyId = null }
                     // Keys of the identity's own place (or This device).
-                    val usable = keys.filter { com.termoak.app.data.Place(idn.accountId, idn.vaultId).reaches(it.accountId, it.vaultId) }
+                    val usable = keys.filter { place.reaches(it.accountId, it.vaultId) }
                     if (usable.isNotEmpty()) {
                         Picker(stringResource(R.string.common_key), usable.firstOrNull { it.id == keyId }?.label ?: noKey, null,
                             listOf<Pair<String?, String>>(null to noKey) + usable.map { it.id to it.label }) { keyId = it }
@@ -513,7 +543,12 @@ private fun IdentitiesList(app: TermoakApp, identities: List<SshIdentity>, keys:
                 TextButton(enabled = user.isNotBlank() && idn.access.canWrite(), onClick = {
                     runCatching {
                         app.core.saveIdentity(
-                            idn.copy(label = label.trim().ifEmpty { user }, username = user, keyId = keyId),
+                            idn.copy(label = label.trim().ifEmpty { user }, username = user, keyId = keyId).let {
+                                if (it.id.isEmpty()) {
+                                    app.accounts.rememberPlace(place)
+                                    it.copy(accountId = place.account, vaultId = place.vault, syncMode = place.syncMode(hasAccounts(app)))
+                                } else it
+                            },
                             if (password.isEmpty()) SecretChange.Keep else SecretChange.Set(password),
                         )
                     }.onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
@@ -562,8 +597,10 @@ fun KnownHostsScreen(app: TermoakApp, nav: NavHostController) {
                         supportingContent = {
                             Column {
                                 Text(k.keyType, style = MaterialTheme.typography.labelMedium)
-                                Text(k.fingerprint, fontFamily = FontFamily.Monospace, fontSize = 11.sp, maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis)
+                                // The whole fingerprint, selectable (to compare it with the server's).
+                                SelectionContainer {
+                                    Text(k.fingerprint, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                }
                             }
                         },
                         leadingContent = { Icon(Icons.Outlined.VerifiedUser, null, tint = Brand.Green) },

@@ -149,6 +149,7 @@
     <string name="hosts_delete_group">Borrar grupo</string>
     <string name="hosts_delete_title">¿Borrar %1$s?</string>
     <string name="hosts_delete_text">Se borra de este móvil y, al sincronizar, de tus otros dispositivos.</string>
+    <string name="hosts_delete_text_shared">Se borra para todos los que ven su vault.</string>
     <string name="hosts_deleted">%1$s borrado</string>
     <string name="hosts_delete_group_title">¿Borrar el grupo %1$s?</string>
     <string name="hosts_delete_group_text">Sus hosts no se borran: pasan a estar sin grupo.</string>
@@ -200,7 +201,6 @@
     <string name="keys_copy_public">Copiar pública</string>
     <string name="keys_name_placeholder">Mi móvil</string>
     <string name="keys_passphrase_optional">Frase de paso (opcional)</string>
-    <string name="keys_device_only_check">Solo en este móvil (no se sincroniza)</string>
     <string name="keys_generating">Generando…</string>
     <string name="keys_generate">Generar</string>
     <string name="keys_generate_failed">No se pudo generar</string>
@@ -939,6 +939,8 @@
     <string name="accounts_no_vaults">Actualiza el servidor para usar bóvedas</string>
     <string name="accounts_sign_in_again">Volver a entrar</string>
     <string name="accounts_remove">Quitar</string>
+    <string name="accounts_vaults_count">Vaults (%1$d)</string>
+    <string name="accounts_show_only">Mostrar solo esta cuenta</string>
     <string name="accounts_add_hint">Tu propio servidor u otra cuenta de Termoak</string>
     <string name="vaults_hint">Comparte hosts y claves con personas y equipos</string>
     <string name="accounts_footer">Cada cuenta guarda en este móvil su propia copia de sus bóvedas. Al cerrar sesión se borra esa copia; los elementos siguen en su servidor. Los elementos de Este dispositivo nunca se borran.</string>
@@ -952,6 +954,8 @@
     <string name="accounts_sync_now">Sincronizar ahora</string>
     <string name="keys_identities">Identidades</string>
     <string name="upload_text">Se sincronizarán con tu cuenta y tus otros dispositivos. Lo que no marques se queda solo en este móvil (en Este dispositivo).</string>
+    <string name="upload_select_all">Seleccionar todo</string>
+    <string name="upload_select_none">No seleccionar ninguno</string>
     <string name="upload_failed">No se pudieron subir los elementos</string>
     <string name="upload_action">Subir</string>
     <string name="upload_not_now">Ahora no</string>
@@ -1306,6 +1310,7 @@
     <string name="hosts_all">Todos</string>
     <string name="hosts_favorites">Favoritos</string>
     <string name="hosts_import">Importar</string>
+    <string name="hosts_import_ssh_config">Importar ssh_config</string>
     <string name="hosts_group_button">Grupo</string>
     <string name="hosts_connect_split">Conectar en vista dividida</string>
     <string name="hosts_select">Seleccionar</string>

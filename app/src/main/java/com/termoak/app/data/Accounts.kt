@@ -101,6 +101,14 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     val syncing: StateFlow<Boolean> = _syncing
     private val _syncError = MutableStateFlow<UiText?>(null)
     val syncError: StateFlow<UiText?> = _syncError
+    private val _syncErrors = MutableStateFlow<Map<String, UiText>>(emptyMap())
+    /** Why each account's last sync failed (Manage accounts shows it on its card, as iOS's account page). */
+    val syncErrors: StateFlow<Map<String, UiText>> = _syncErrors
+
+    private fun failed(id: String, why: UiText?) {
+        _syncError.value = why
+        _syncErrors.value = if (why == null) _syncErrors.value - id else _syncErrors.value + (id to why)
+    }
 
     private val approvals = mutableMapOf<String, Int>()
     private val _pendingApprovals = MutableStateFlow(0)
@@ -358,7 +366,8 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     private fun hasDeviceItems(): Boolean = runCatching {
         val device = scopeFilter(null)
         core.listHosts(device).isNotEmpty() || core.listKeys(device).isNotEmpty() ||
-            core.listIdentities(device).isNotEmpty() || core.listSnippets(device).isNotEmpty()
+            core.listIdentities(device).isNotEmpty() || core.listSnippets(device).isNotEmpty() ||
+            core.listGroups(device).isNotEmpty() || core.listForwards(null, device).isNotEmpty()
     }.getOrDefault(false)
 
     /**
@@ -458,17 +467,17 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         setSyncing(id, true)
         try {
             val report = handle.syncNow()
-            _syncError.value = null
+            failed(id, null)
             notify(report)
         } catch (_: TermoakException.NotLoggedIn) {
             // Signed out meanwhile: nothing to sync.
         } catch (e: TermoakException.SessionExpired) {
-            _syncError.value = uiText(R.string.accounts_session_expired, account(id)?.email ?: "")
+            failed(id, uiText(R.string.accounts_session_expired, account(id)?.email ?: ""))
         } catch (e: TermoakException.EmailNotVerified) {
-            _syncError.value = uiText(R.string.error_email_not_verified)
+            failed(id, uiText(R.string.error_email_not_verified))
             account(id)?.let { if (it.isCurrent) startVerification(it) }
         } catch (e: TermoakException) {
-            _syncError.value = e.toUiText(R.string.error_sync_failed)
+            failed(id, e.toUiText(R.string.error_sync_failed))
         } finally {
             setSyncing(id, false)
             refreshNow()

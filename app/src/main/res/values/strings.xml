@@ -150,6 +150,7 @@
     <string name="hosts_delete_group">Delete group</string>
     <string name="hosts_delete_title">Delete %1$s?</string>
     <string name="hosts_delete_text">It\'s deleted from this phone and, when syncing, from your other devices.</string>
+    <string name="hosts_delete_text_shared">It\'s deleted for everyone who can see its vault.</string>
     <string name="hosts_deleted">%1$s deleted</string>
     <string name="hosts_delete_group_title">Delete the group %1$s?</string>
     <string name="hosts_delete_group_text">Its hosts aren\'t deleted: they\'re left without a group.</string>
@@ -201,7 +202,6 @@
     <string name="keys_copy_public">Copy public key</string>
     <string name="keys_name_placeholder">My phone</string>
     <string name="keys_passphrase_optional">Passphrase (optional)</string>
-    <string name="keys_device_only_check">This phone only (not synced)</string>
     <string name="keys_generating">Generating…</string>
     <string name="keys_generate">Generate</string>
     <string name="keys_generate_failed">Couldn\'t generate the key</string>
@@ -906,6 +906,8 @@
     <string name="accounts_no_vaults">Update the server to use vaults</string>
     <string name="accounts_sign_in_again">Sign in again</string>
     <string name="accounts_remove">Remove</string>
+    <string name="accounts_vaults_count">Vaults (%1$d)</string>
+    <string name="accounts_show_only">Show only this account</string>
     <string name="accounts_add_hint">Your own server, or another Termoak account</string>
     <string name="vaults_hint">Share hosts and keys with people and teams</string>
     <string name="accounts_footer">Each account keeps its own copy of its vaults on this phone. Signing out deletes that copy; the items stay on its server. Items of This device are never deleted.</string>
@@ -919,6 +921,8 @@
     <string name="accounts_sync_now">Sync now</string>
     <string name="keys_identities">Identities</string>
     <string name="upload_text">They will sync with your account and your other devices. Unchecked items stay only on this phone (under This device).</string>
+    <string name="upload_select_all">Select all</string>
+    <string name="upload_select_none">Select none</string>
     <string name="upload_failed">Couldn\'t upload the items</string>
     <string name="upload_action">Upload</string>
     <string name="upload_not_now">Not now</string>
@@ -1258,6 +1262,7 @@
     <string name="hosts_all">All</string>
     <string name="hosts_favorites">Favorites</string>
     <string name="hosts_import">Import</string>
+    <string name="hosts_import_ssh_config">Import ssh_config</string>
     <string name="hosts_group_button">Group</string>
     <string name="hosts_connect_split">Connect in split view</string>
     <string name="hosts_select">Select</string>

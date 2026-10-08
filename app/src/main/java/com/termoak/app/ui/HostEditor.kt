@@ -912,6 +912,23 @@ private fun placeLabel(p: Place, accounts: List<AccountInfo>, vaults: List<Vault
     return if (accounts.size > 1 && account != null) "$name · ${account.email}" else name
 }
 
+/**
+ * Where a new item (key, identity, snippet, group) is saved: This device or
+ * one of your vaults, as iOS's place picker. Nothing without accounts.
+ */
+@Composable
+internal fun PlacePicker(app: TermoakApp, place: Place, onChange: (Place) -> Unit) {
+    val accountList by app.accounts.list.collectAsState()
+    val vaults by app.accounts.vaults.collectAsState()
+    if (accountList.isEmpty()) return
+    Picker(stringResource(R.string.editor_place), placeLabel(place, accountList, vaults), null, placeOptions(accountList, vaults)) {
+        onChange(it)
+    }
+}
+
+/** How an item saved at this place syncs: This device (with accounts) only on this phone. */
+internal fun Place.syncMode(hasAccounts: Boolean): SyncMode? = if (device && hasAccounts) SyncMode.DEVICE_ONLY else null
+
 /** Places a new item can go: This device and every vault where you are Editor. */
 @Composable
 private fun placeOptions(accounts: List<AccountInfo>, vaults: List<VaultInfo>): List<Pair<Place, String>> {

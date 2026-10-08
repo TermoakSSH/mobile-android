@@ -7,6 +7,7 @@ import android.os.Vibrator
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -584,8 +585,40 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    sessions.forEach { s ->
-                        SessionTab(s, s.id == session.id, inSplit = splitShown && s in panes, { app.sessions.select(s.id) }, { app.sessions.close(s.id) })
+                    sessions.forEachIndexed { i, s ->
+                        SessionTab(
+                            s, s.id == session.id, inSplit = splitShown && s in panes, { app.sessions.select(s.id) }, { app.sessions.close(s.id) },
+                            // Held: the tab's menu (as on iOS and the desktop layout).
+                            menu = { dismiss ->
+                                if (wide && !(split.on && s.id in split.panes) && sessions.size > 1) {
+                                    DropdownMenuItem({ Text(stringResource(R.string.split_add_pane)) }, {
+                                        dismiss()
+                                        val base = if (split.on) split.panes else listOf(session.id).filter { it != s.id }
+                                        app.sessions.setSplit((base + s.id).take(maxPanes))
+                                        app.sessions.select(s.id)
+                                    }, leadingIcon = { Icon(Icons.Outlined.GridView, null) })
+                                }
+                                duplicateOf(app, s)?.let { open ->
+                                    DropdownMenuItem({ Text(stringResource(R.string.tabs_duplicate)) }, { dismiss(); open() },
+                                        leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+                                }
+                                if (i > 0) {
+                                    DropdownMenuItem({ Text(stringResource(R.string.tabs_move_left)) }, { dismiss(); app.sessions.move(s.id, i - 1) })
+                                }
+                                if (i < sessions.lastIndex) {
+                                    DropdownMenuItem({ Text(stringResource(R.string.tabs_move_right)) }, { dismiss(); app.sessions.move(s.id, i + 1) })
+                                }
+                                HorizontalDivider()
+                                DropdownMenuItem({ Text(stringResource(R.string.common_close)) }, { dismiss(); app.sessions.close(s.id) },
+                                    leadingIcon = { Icon(Icons.Outlined.Close, null) })
+                                if (sessions.size > 1) {
+                                    DropdownMenuItem({ Text(stringResource(R.string.tabs_close_others)) }, {
+                                        dismiss()
+                                        sessions.filter { it.id != s.id }.forEach { app.sessions.close(it.id) }
+                                    })
+                                }
+                            },
+                        )
                     }
                     Box(
                         Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).clickable { nav.goTab(Routes.HOSTS) },
@@ -1123,7 +1156,16 @@ private fun CursorToggleButton(session: TermSession) {
 }
 
 @Composable
-private fun SessionTab(s: TermSession, selected: Boolean, inSplit: Boolean, onClick: () -> Unit, onClose: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun SessionTab(
+    s: TermSession,
+    selected: Boolean,
+    inSplit: Boolean,
+    onClick: () -> Unit,
+    onClose: () -> Unit,
+    menu: @Composable (dismiss: () -> Unit) -> Unit = {},
+) {
+    var menuOpen by remember { mutableStateOf(false) }
     val state by s.state.collectAsState()
     val title by s.title.collectAsState()
     val dot = when (state) {
@@ -1132,10 +1174,12 @@ private fun SessionTab(s: TermSession, selected: Boolean, inSplit: Boolean, onCl
         is TermState.Closed -> Brand.Red
         TermState.Asleep -> KeyFg.copy(alpha = 0.3f)
     }
+    Box {
+    DropdownMenu(menuOpen, { menuOpen = false }) { menu { menuOpen = false } }
     Row(
         Modifier.height(32.dp).clip(RoundedCornerShape(8.dp))
             .background(if (selected) KeyBg else Color.Transparent)
-            .clickable(onClick = onClick).padding(start = 10.dp, end = 2.dp),
+            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true }).padding(start = 10.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (s.persistent) Icon(Icons.Outlined.CloudQueue, null, Modifier.size(14.dp), tint = KeyFg.copy(alpha = 0.7f))
@@ -1150,6 +1194,7 @@ private fun SessionTab(s: TermSession, selected: Boolean, inSplit: Boolean, onCl
         IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Outlined.Close, stringResource(R.string.common_close), Modifier.size(14.dp), tint = KeyFg.copy(alpha = 0.7f))
         }
+    }
     }
 }
 

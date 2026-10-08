@@ -6,6 +6,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.outlined.Login
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -79,6 +82,7 @@ import androidx.core.graphics.toColorInt
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.asString
 import com.termoak.app.data.AccountView
 import com.termoak.app.data.Accounts
 import com.termoak.app.data.DEVICE_VAULT
@@ -427,11 +431,15 @@ fun UseOnlyBadge() {
  * sync; sync now, sign in again, enter the code, sign out (its data on this
  * phone is deleted) and add another one.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
     val accounts by app.accounts.list.collectAsState()
     val syncing by app.accounts.syncingIds.collectAsState()
     val online by app.accounts.onlineIds.collectAsState()
+    val errors by app.accounts.syncErrors.collectAsState()
+    val vaults by app.accounts.vaults.collectAsState()
+    val context = LocalContext.current
     var signingOut by remember { mutableStateOf<AccountInfo?>(null) }
     ScreenScaffold(
         title = stringResource(R.string.accounts_title),
@@ -482,6 +490,38 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                                 stringResource(R.string.login_insecure), Modifier.padding(top = 4.dp),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
                             )
+                        }
+                        // Its last sync's error (each account its own, as on iOS).
+                        errors[a.id]?.let { why ->
+                            Text(
+                                why.asString(), Modifier.padding(top = 4.dp),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        // Its vaults, only its items in the Vault, and its page on the web.
+                        FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (a.vaultsSupported) {
+                                val count = vaults.count { it.accountId == a.id }
+                                TextButton(onClick = { nav.navigate(Routes.VAULTS) }) {
+                                    Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp))
+                                    Text(stringResource(R.string.accounts_vaults_count, count), Modifier.padding(start = 6.dp))
+                                }
+                            }
+                            if (accounts.size > 1) {
+                                TextButton(onClick = {
+                                    app.accounts.setView(AccountView.One(a.id))
+                                    nav.goTab(Routes.HOSTS)
+                                }) {
+                                    Icon(Icons.Outlined.Visibility, null, Modifier.size(16.dp))
+                                    Text(stringResource(R.string.accounts_show_only), Modifier.padding(start = 6.dp))
+                                }
+                            }
+                            if (a.status == AccountStatus.ACTIVE) {
+                                TextButton(onClick = { openUrl(context, "${a.serverUrl}/app/account") }) {
+                                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(16.dp))
+                                    Text(stringResource(R.string.settings_my_account), Modifier.padding(start = 6.dp))
+                                }
+                            }
                         }
                         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             when (a.status) {
@@ -676,6 +716,11 @@ fun UploadDeviceItemsDialog(app: TermoakApp, accountId: String) {
         text = {
             Column {
                 Text(stringResource(R.string.upload_text), style = MaterialTheme.typography.bodyMedium)
+                // Select all / none (as on iOS).
+                val all = chosen.size == items.size
+                TextButton(onClick = { chosen = if (all) emptySet() else items.map { it.id }.toSet() }) {
+                    Text(stringResource(if (all) R.string.upload_select_none else R.string.upload_select_all))
+                }
                 LazyColumn(Modifier.heightIn(max = 320.dp).padding(top = 8.dp)) {
                     items(items, key = { it.id }) { it ->
                         Row(
