@@ -1,6 +1,10 @@
 package com.termoak.app.data
 
 import android.app.Application
+import com.termoak.ffi.AiApprovalPreview
+import com.termoak.ffi.AiDecision
+import com.termoak.ffi.AiRiskLevel
+import com.termoak.ffi.AiRiskReason
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -11,52 +15,59 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** AI approvals of server 0.6: previews and decisions with an edit or a reason. */
+/** AI approvals of server 0.6: previews (the engine's and the live events') and decisions with an edit or a reason. */
 @RunWith(RobolectricTestRunner::class) // org.json is the Android one.
 @Config(sdk = [34], application = Application::class)
 class ApprovalPreviewTest {
-    private val task = """{"id":"t","pending_approvals":[
-        {"id":"a1","tool":"run_command","preview":{"kind":"command","host":"web-1","command":"sudo systemctl restart nginx",
-          "risk":"medium","reasons":[{"code":"sudo","text":"runs as root"},{"code":"service","text":"service"}],"editable":true}},
-        {"id":"a2","tool":"write_file","preview":{"kind":"file","path":"/etc/app.conf","diff":"@@ -1 +1 @@\n-a\n+b","added":1,"removed":1,
-          "new_file":false,"risk":"high","diff_truncated":true}},
-        {"id":"a3","tool":"plan","preview":{"kind":"plan","plan":"1. Check\n2. Fix","risk":"low","editable":true}},
-        {"id":"old","tool":"run_command"}]}"""
+    private fun engine(kind: String, risk: AiRiskLevel = AiRiskLevel.LOW) = AiApprovalPreview(
+        kind = kind, command = null, host = null, risk = risk, reasons = emptyList(), explanation = null, path = null, diff = null,
+        added = null, removed = null, newFile = false, truncated = false, diffError = null, plan = null, editable = false,
+    )
 
     @Test
-    fun previews() {
-        val p = ApprovalPreview.byApproval(task)
-        assertEquals(setOf("a1", "a2", "a3"), p.keys)
-        val cmd = p.getValue("a1")
+    fun enginePreviews() {
+        val cmd = ApprovalPreview.of(
+            engine("command", AiRiskLevel.MEDIUM).copy(
+                host = "web-1", command = "sudo systemctl restart nginx", editable = true,
+                reasons = listOf(AiRiskReason("sudo", "runs as root"), AiRiskReason("service", "service")),
+            ),
+        )!!
         assertEquals("web-1", cmd.host)
         assertEquals("medium", cmd.risk)
         assertEquals(listOf("sudo", "service"), cmd.reasons.map { it.code })
         assertEquals("sudo systemctl restart nginx", cmd.editableText)
-        val file = p.getValue("a2")
+        val file = ApprovalPreview.of(
+            engine("file", AiRiskLevel.HIGH).copy(path = "/etc/app.conf", diff = "@@ -1 +1 @@\n-a\n+b", added = 1u, removed = 1u, truncated = true),
+        )!!
         assertEquals("/etc/app.conf", file.path)
+        assertEquals("high", file.risk)
         assertEquals(1, file.added)
         assertTrue(file.diffTruncated)
         assertFalse(file.editable)
-        assertTrue(p.getValue("a3").isPlan)
-        assertEquals("1. Check\n2. Fix", p.getValue("a3").editableText)
-        // GET /ai/approvals is a plain array.
-        assertEquals(setOf("x"), ApprovalPreview.byApproval("""[{"id":"x","preview":{"kind":"other","risk":"low"}}]""").keys)
-        assertEquals(emptyMap<String, ApprovalPreview>(), ApprovalPreview.byApproval("not json"))
+        val plan = ApprovalPreview.of(engine("plan").copy(plan = "1. Check\n2. Fix", editable = true))!!
+        assertTrue(plan.isPlan)
+        assertEquals("1. Check\n2. Fix", plan.editableText)
+        // Servers before 0.6: no preview (the summary is shown).
+        assertNull(ApprovalPreview.of(null))
+    }
+
+    @Test
+    fun livePreviews() {
+        val p = ApprovalPreview.parse(
+            JSONObject("""{"kind":"file","path":"/etc/x","diff":"+b","added":1,"new_file":true,"risk":"high","diff_truncated":true}"""),
+        )!!
+        assertEquals("/etc/x", p.path)
+        assertTrue(p.newFile)
+        assertTrue(p.diffTruncated)
         assertNull(ApprovalPreview.parse(null))
     }
 
     @Test
     fun decisions() {
-        val plain = JSONObject(ApprovalPreview.decisionBody(ApprovalDecision(approve = true, always = true)))
-        assertTrue(plain.getBoolean("approve"))
-        assertTrue(plain.getBoolean("always"))
-        assertFalse(plain.has("edited"))
-        assertFalse(plain.has("reason"))
-        val edited = JSONObject(ApprovalPreview.decisionBody(ApprovalDecision(approve = true, edited = "ls -la")))
-        assertEquals("ls -la", edited.getString("edited"))
-        val denied = JSONObject(ApprovalPreview.decisionBody(ApprovalDecision(approve = false, reason = "  not on prod  ")))
-        assertFalse(denied.getBoolean("approve"))
-        assertEquals("not on prod", denied.getString("reason"))
-        assertFalse(JSONObject(ApprovalPreview.decisionBody(ApprovalDecision(approve = false, reason = "  "))).has("reason"))
+        assertEquals(AiDecision(approve = true, always = true), ApprovalDecision(approve = true, always = true).engine())
+        assertEquals(AiDecision(approve = true, edited = "ls -la"), ApprovalDecision(approve = true, edited = " ls -la ").engine())
+        // A denial carries no edit; empty texts are left out.
+        assertEquals(AiDecision(approve = false, reason = "not on prod"), ApprovalDecision(approve = false, edited = "x", reason = "  not on prod  ").engine())
+        assertEquals(AiDecision(approve = false), ApprovalDecision(approve = false, reason = "  ").engine())
     }
 }

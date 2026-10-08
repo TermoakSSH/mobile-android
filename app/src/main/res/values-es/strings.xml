@@ -1744,4 +1744,46 @@
         <item quantity="many">Selección · %d líneas</item>
         <item quantity="other">Selección · %d líneas</item>
     </plurals>
+    <string name="ai_provider_reason_not_configured">No está configurado en este servidor.</string>
+    <string name="ai_provider_reason_own_key">Necesita tu propia clave de API: añádela en Ajustes → IA.</string>
+    <string name="ai_provider_reason_plan">Tu plan no lo incluye.</string>
+    <string name="ai_new_where">Dónde se ejecuta</string>
+    <string name="ai_new_target_group">Grupo</string>
+    <string name="ai_new_target_tag">Etiqueta</string>
+    <string name="ai_new_where_hosts_hint">Limítala a algunos hosts (opcional): sin ninguno, la IA puede usar cualquier host de esta cuenta.</string>
+    <string name="ai_new_where_group_hint">Todos los hosts del grupo y de los grupos que contiene.</string>
+    <string name="ai_new_where_tag_hint">Todos los hosts con esta etiqueta.</string>
+    <string name="ai_fan_out_hint">La misma petición se ejecuta en cada host por separado (hasta 4 a la vez), con sus propias aprobaciones; verás una tabla con el resultado de cada host.</string>
+    <string name="ai_fan_out_off_hint">Una sola conversación recorre todos los hosts.</string>
+    <string name="ai_model_section">Modelo</string>
+    <string name="ai_provider">Proveedor</string>
+    <string name="ai_provider_default">Proveedor por defecto</string>
+    <string name="ai_provider_default_named">Por defecto (%1$s)</string>
+    <string name="ai_provider_unavailable">%1$s (no disponible)</string>
+    <string name="ai_model">Modelo</string>
+    <string name="ai_model_default">Modelo por defecto</string>
+    <string name="ai_model_default_named">Por defecto (%1$s)</string>
+    <string name="ai_effort">Esfuerzo</string>
+    <string name="ai_effort_default">Por defecto</string>
+    <string name="ai_effort_low">Bajo</string>
+    <string name="ai_effort_medium">Medio</string>
+    <string name="ai_effort_high">Alto</string>
+    <string name="ai_hosts_hint">Cada host tiene su propia conversación: toca uno para verla.</string>
+    <string name="ai_plan_approved">Plan</string>
+    <string name="ai_plan_edited">Editado</string>
+    <string name="ai_runbook_save">Guardar como runbook</string>
+    <string name="ai_runbook_empty">Esta tarea no ejecutó comandos que guardar.</string>
+    <string name="ai_runbook_hint">Convierte los comandos que ejecutó esta tarea en un snippet de tu vault personal, con comentarios y {{host}} para el host.</string>
+    <string name="ai_runbook_saved">Runbook guardado en tus snippets, con las etiquetas ai y runbook</string>
+    <string name="ai_runbook_failed">No se ha podido guardar el runbook</string>
+    <plurals name="ai_fan_out">
+        <item quantity="one">Una conversación por host (%d host)</item>
+        <item quantity="many">Una conversación por host (%d hosts)</item>
+        <item quantity="other">Una conversación por host (%d hosts)</item>
+    </plurals>
+    <plurals name="ai_hosts_approvals">
+        <item quantity="one">%d aprobación</item>
+        <item quantity="many">%d aprobaciones</item>
+        <item quantity="other">%d aprobaciones</item>
+    </plurals>
 </resources>

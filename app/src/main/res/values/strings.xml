@@ -1689,4 +1689,44 @@
         <item quantity="one">Selection · %d line</item>
         <item quantity="other">Selection · %d lines</item>
     </plurals>
+    <string name="ai_provider_reason_not_configured">Not set up on this server.</string>
+    <string name="ai_provider_reason_own_key">It needs your own API key: add it in Settings → AI.</string>
+    <string name="ai_provider_reason_plan">Your plan doesn\'t include it.</string>
+    <string name="ai_new_where">Where it runs</string>
+    <string name="ai_new_target_group">Group</string>
+    <string name="ai_new_target_tag">Tag</string>
+    <string name="ai_new_where_hosts_hint">Limit it to some hosts (optional): without any, the AI may use any host of this account.</string>
+    <string name="ai_new_where_group_hint">Every host of the group and of the groups inside it.</string>
+    <string name="ai_new_where_tag_hint">Every host with this tag.</string>
+    <string name="ai_fan_out_hint">The same request runs on each host on its own (up to 4 at a time), with its own approvals; you get a table with each host\'s result.</string>
+    <string name="ai_fan_out_off_hint">A single conversation goes through all the hosts.</string>
+    <string name="ai_model_section">Model</string>
+    <string name="ai_provider">Provider</string>
+    <string name="ai_provider_default">Default provider</string>
+    <string name="ai_provider_default_named">Default (%1$s)</string>
+    <string name="ai_provider_unavailable">%1$s (not available)</string>
+    <string name="ai_model">Model</string>
+    <string name="ai_model_default">Default model</string>
+    <string name="ai_model_default_named">Default (%1$s)</string>
+    <string name="ai_effort">Effort</string>
+    <string name="ai_effort_default">Default</string>
+    <string name="ai_effort_low">Low</string>
+    <string name="ai_effort_medium">Medium</string>
+    <string name="ai_effort_high">High</string>
+    <string name="ai_hosts_hint">Each host has its own conversation: tap one to see it.</string>
+    <string name="ai_plan_approved">Plan</string>
+    <string name="ai_plan_edited">Edited</string>
+    <string name="ai_runbook_save">Save as runbook</string>
+    <string name="ai_runbook_empty">This task ran no commands to save.</string>
+    <string name="ai_runbook_hint">Turns the commands this task ran into a snippet in your personal vault, with comments and {{host}} for the host.</string>
+    <string name="ai_runbook_saved">Runbook saved in your snippets, with the tags ai and runbook</string>
+    <string name="ai_runbook_failed">Couldn\'t save the runbook</string>
+    <plurals name="ai_fan_out">
+        <item quantity="one">One conversation per host (%d host)</item>
+        <item quantity="other">One conversation per host (%d hosts)</item>
+    </plurals>
+    <plurals name="ai_hosts_approvals">
+        <item quantity="one">%d approval</item>
+        <item quantity="other">%d approvals</item>
+    </plurals>
 </resources>

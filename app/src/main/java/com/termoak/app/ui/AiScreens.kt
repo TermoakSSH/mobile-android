@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreVert
@@ -110,7 +111,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-private fun statusStyle(status: AiTaskStatus): Pair<String, Color> = when (status) {
+internal fun statusStyle(status: AiTaskStatus): Pair<String, Color> = when (status) {
     AiTaskStatus.QUEUED -> stringResource(R.string.ai_status_queued) to MaterialTheme.colorScheme.onSurfaceVariant
     AiTaskStatus.RUNNING -> stringResource(R.string.ai_status_running) to Brand.Blue
     AiTaskStatus.WAITING_APPROVAL -> stringResource(R.string.ai_status_waiting) to Brand.Amber
@@ -134,8 +135,6 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
     var accountId by remember { mutableStateOf(app.accounts.aiAccount()?.id) }
     var tasks by remember { mutableStateOf<List<AiTask>>(emptyList()) }
     var approvals by remember { mutableStateOf<List<AiApproval>>(emptyList()) }
-    // What each approval shows (server 0.6: risk, diff, plan...).
-    var previews by remember { mutableStateOf<Map<String, ApprovalPreview>>(emptyMap()) }
     var loading by remember { mutableStateOf(false) }
 
     fun reload() {
@@ -146,7 +145,6 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
             try {
                 tasks = handle.listAiTasks(50u)
                 approvals = handle.listPendingApprovals()
-                previews = ApprovalPreview.byApproval(runCatching { handle.apiGet("/api/v1/ai/approvals") }.getOrNull())
                 app.accounts.refreshApprovals()
             } catch (e: TermoakException) {
                 snackbar.showSnackbar(e.userMessage(resources, R.string.ai_load_tasks_failed))
@@ -213,7 +211,7 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
                 if (approvals.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.ai_waiting_approval)) }
                     items(approvals, key = { "ap" + it.id }) { a ->
-                        ApprovalCard(a, taskTitle = tasks.firstOrNull { it.id == a.taskId }?.title, previews[a.id]) { d ->
+                        ApprovalCard(a, taskTitle = tasks.firstOrNull { it.id == a.taskId }?.title, ApprovalPreview.of(a.preview)) { d ->
                             scope.launch {
                                 runCatching { app.accounts.handleOrCurrent(accountId)?.decide(a.taskId, a.id, d) }
                                     .onFailure { snackbar.showSnackbar(it.userMessage(resources, R.string.error_decide_failed)) }
@@ -386,7 +384,7 @@ fun ApprovalCard(
                 Text(it, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             val shown = when {
-                plan -> preview?.plan.orEmpty()
+                plan -> preview.plan.orEmpty()
                 preview?.command != null -> preview.command
                 preview?.kind == "file" -> ""
                 else -> command
@@ -541,110 +539,6 @@ fun PermissionModeSelector(mode: AiPermissionMode, onChange: (AiPermissionMode) 
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-fun NewAiTaskScreen(app: TermoakApp, nav: NavHostController) {
-    val resources = LocalResources.current
-    val snackbar = LocalSnackbar.current
-    val scope = rememberCoroutineScope()
-    // The task runs on the AI section's account: only its hosts.
-    val account = remember { app.accounts.aiAccount() }
-    val hosts = remember {
-        account?.let { a ->
-            // The AI's tools reach hosts over SSH: not Telnet hosts.
-            runCatching { app.core.listHosts(app.accounts.scopeFilter(a.id)) }.getOrDefault(emptyList())
-                .filter { it.accountId == a.id && !it.isTelnet }
-        }.orEmpty().sortedBy { it.label.lowercase() }
-    }
-    var prompt by remember { mutableStateOf("") }
-    var selected by remember { mutableStateOf(setOf<String>()) }
-    var mode by remember { mutableStateOf(AiPermissionMode.ASK) }
-    // The AI proposes a plan first (server 0.6), to approve or edit before it acts.
-    var planFirst by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-
-    ScreenScaffold(
-        title = stringResource(R.string.ai_new_task),
-        navigationIcon = {
-            IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back)) }
-        },
-    ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).imePadding().navigationBarsPadding()
-                .verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            OutlinedTextField(
-                prompt, { prompt = it }, Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.ai_prompt_label)) },
-                placeholder = { Text(stringResource(R.string.ai_prompt_placeholder)) },
-                minLines = 4,
-            )
-            Text(stringResource(R.string.section_hosts), style = MaterialTheme.typography.titleSmall)
-            if (hosts.isEmpty()) {
-                Text(stringResource(R.string.ai_no_hosts), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    hosts.forEach { h ->
-                        FilterChip(
-                            selected = h.id in selected,
-                            onClick = { selected = if (h.id in selected) selected - h.id else selected + h.id },
-                            label = { Text(h.label) },
-                        )
-                    }
-                }
-            }
-            Text(stringResource(R.string.common_permissions), style = MaterialTheme.typography.titleSmall)
-            PermissionModeSelector(mode, { mode = it })
-            Text(
-                stringResource(permissionHint(mode)),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(
-                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { planFirst = !planFirst },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ai_plan_first), style = MaterialTheme.typography.titleSmall)
-                    Text(stringResource(R.string.ai_plan_first_hint), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(planFirst, { planFirst = it })
-            }
-            Button(
-                onClick = {
-                    busy = true
-                    scope.launch {
-                        try {
-                            val handle = account?.let { app.accounts.handle(it.id) } ?: throw TermoakException.NotLoggedIn("")
-                            val id = if (planFirst) {
-                                // Not in the engine's typed request yet: the server's own call.
-                                val body = org.json.JSONObject().put("prompt", prompt.trim()).put("mode", modeKey(mode))
-                                    .put("host_ids", org.json.JSONArray(selected.toList())).put("plan_first", true)
-                                org.json.JSONObject(handle.apiPost("/api/v1/ai/tasks", body.toString())).getString("id")
-                            } else {
-                                handle.createAiTask(
-                                    AiTaskRequest(prompt = prompt.trim(), title = null, mode = mode, provider = null,
-                                        hostIds = selected.toList(), sessionId = null, effort = null),
-                                ).id
-                            }
-                            nav.popBackStack()
-                            nav.navigate(Routes.aiTask(id, account.id))
-                        } catch (e: TermoakException) {
-                            busy = false
-                            snackbar.showAiError(e, R.string.ai_create_failed, resources) { nav.navigate(Routes.AI_KEYS) }
-                        } finally {
-                            busy = false
-                        }
-                    }
-                },
-                enabled = prompt.isNotBlank() && !busy,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            ) { Text(stringResource(if (busy) R.string.ai_creating else R.string.ai_start)) }
-        }
-    }
-}
-
 @Composable
 fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String, accountId: String? = null) {
     // The task's account (from the route), or the AI section's.
@@ -675,7 +569,7 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String, accoun
 
     val t = task
     val conversation = remember(t?.rawJson) { t?.let { parseConversation(it.rawJson) }.orEmpty() }
-    val previews = remember(t?.rawJson) { ApprovalPreview.byApproval(t?.rawJson) }
+    var runbookOpen by remember { mutableStateOf(false) }
     LaunchedEffect(conversation.size) { if (conversation.isNotEmpty()) list.animateScrollToItem(conversation.size + 1) }
     FollowKeyboard(list)
 
@@ -714,6 +608,13 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String, accoun
                         }
                         if (!t.active) {
                             HorizontalDivider()
+                            // What it ran, as a snippet to review and save.
+                            if (t.steps.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    { Text(stringResource(R.string.ai_runbook_save)) }, { menu = false; runbookOpen = true },
+                                    leadingIcon = { Icon(Icons.Outlined.Code, null) },
+                                )
+                            }
                             DropdownMenuItem(
                                 { Text(stringResource(R.string.ai_delete_task), color = MaterialTheme.colorScheme.error) },
                                 { menu = false; deleting = true },
@@ -730,10 +631,14 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String, accoun
                 return@Column
             }
             LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(vertical = 8.dp)) {
+                // The plan it follows (approved, or edited and approved), above the conversation.
+                t.plan?.takeIf { it.approved && it.text.isNotBlank() }?.let { p -> item { ApprovedPlan(p.text, p.edited) } }
+                // One conversation per host: each host's state, result, time, cost and approvals; a row opens its conversation.
+                if (t.hosts.isNotEmpty()) item { HostRunsTable(t.hosts) { run -> nav.navigate(Routes.aiTask(run.taskId, accountId)) } }
                 if (conversation.isEmpty()) item { TurnView(Turn.User(stripContext(t.prompt))) }
                 items(conversation.size) { i -> TurnView(conversation[i], running = t.active) }
                 items(t.pendingApprovals, key = { it.id }) { a ->
-                    ApprovalCard(a, null, previews[a.id]) { d ->
+                    ApprovalCard(a, null, ApprovalPreview.of(a.preview)) { d ->
                         scope.launch {
                             runCatching { api?.decide(a.taskId, a.id, d) }
                                 .onFailure { snackbar.showSnackbar(it.userMessage(resources, R.string.error_decide_failed)) }
@@ -789,10 +694,20 @@ fun AiTaskScreen(app: TermoakApp, nav: NavHostController, taskId: String, accoun
             stringResource(R.string.ai_delete_title), stringResource(R.string.ai_delete_text),
             stringResource(R.string.ai_delete_task), destructive = true, onDismiss = { deleting = false },
         ) {
+            deleting = false
             scope.launch {
-                runCatching { api?.apiDelete("/api/v1/ai/tasks/$taskId") }
+                runCatching { (api ?: throw TermoakException.NotLoggedIn("")).deleteAiTask(taskId) }
                     .onSuccess { nav.popBackStack() }
                     .onFailure { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) }
+            }
+        }
+    }
+    if (runbookOpen && api != null) {
+        RunbookDialog(api, taskId, onDismiss = { runbookOpen = false }) {
+            runbookOpen = false
+            scope.launch {
+                snackbar.showSnackbar(resources.getString(R.string.ai_runbook_saved))
+                accountId?.let { app.accounts.sync(it) }
             }
         }
     }
@@ -910,12 +825,4 @@ internal fun AiAccountPicker(accounts: List<com.termoak.ffi.AccountInfo>, select
             )
         }
     }
-}
-
-/** The server's name of a permission mode. */
-private fun modeKey(mode: AiPermissionMode): String = when (mode) {
-    AiPermissionMode.READ_ONLY -> "read_only"
-    AiPermissionMode.ASK -> "ask"
-    AiPermissionMode.CONFIRM -> "confirm"
-    AiPermissionMode.AUTO -> "auto"
 }

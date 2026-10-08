@@ -1,7 +1,9 @@
 package com.termoak.app.data
 
 import com.termoak.ffi.AccountHandle
-import org.json.JSONArray
+import com.termoak.ffi.AiApprovalPreview
+import com.termoak.ffi.AiDecision
+import com.termoak.ffi.AiRiskLevel
 import org.json.JSONObject
 
 /** Why an action is risky: a stable code (translated) and the server's English text. */
@@ -64,39 +66,45 @@ data class ApprovalPreview(
             )
         }
 
-        /** Previews by approval id, from `GET /ai/approvals` (an array) or a task (`pending_approvals`). */
-        fun byApproval(json: String?): Map<String, ApprovalPreview> {
-            val text = json?.trim().orEmpty()
-            if (text.isEmpty()) return emptyMap()
-            val list = runCatching {
-                if (text.startsWith("[")) JSONArray(text) else JSONObject(text).optJSONArray("pending_approvals")
-            }.getOrNull() ?: return emptyMap()
-            return (0 until list.length()).mapNotNull { list.optJSONObject(it) }
-                .mapNotNull { a -> parse(a.optJSONObject("preview"))?.let { a.optString("id") to it } }
-                .toMap()
+        /** What the engine says an approval is about (`AiApproval.preview`; `null` on servers before 0.6: its summary then). */
+        fun of(p: AiApprovalPreview?): ApprovalPreview? = p?.let {
+            ApprovalPreview(
+                kind = it.kind,
+                host = it.host,
+                command = it.command,
+                path = it.path,
+                diff = it.diff,
+                diffTruncated = it.truncated,
+                added = it.added?.toInt(),
+                removed = it.removed?.toInt(),
+                newFile = it.newFile,
+                diffError = it.diffError,
+                risk = when (it.risk) {
+                    AiRiskLevel.HIGH -> "high"
+                    AiRiskLevel.MEDIUM -> "medium"
+                    AiRiskLevel.LOW -> "low"
+                },
+                reasons = it.reasons.map { r -> RiskReason(r.code, r.text) },
+                explanation = it.explanation,
+                plan = it.plan,
+                editable = it.editable,
+            )
         }
-
-        /** The decision (`POST /ai/tasks/{id}/approvals/{approval_id}`): approve, always, the edited text and the reason. */
-        fun decisionBody(d: ApprovalDecision): String = JSONObject().apply {
-            put("approve", d.approve)
-            put("always", d.always)
-            d.edited?.let { put("edited", it) }
-            d.reason?.trim()?.takeIf { it.isNotEmpty() }?.let { put("reason", it) }
-        }.toString()
     }
 }
 
 /** What was decided: approve or deny, for the rest of the task, an edited command or plan, and why. */
 data class ApprovalDecision(val approve: Boolean, val always: Boolean = false, val edited: String? = null, val reason: String? = null)
 
-/**
- * Decides an approval on [handle]: with an edited text or a reason, through
- * the server's decision endpoint (server 0.6); otherwise the engine's call.
- */
+/** The engine's decision: the edit only when approving, empty texts left out. */
+fun ApprovalDecision.engine(): AiDecision = AiDecision(
+    approve = approve,
+    always = always,
+    edited = edited?.trim()?.takeIf { approve && it.isNotEmpty() },
+    reason = reason?.trim()?.takeIf { it.isNotEmpty() },
+)
+
+/** Decides an approval on [this] account, with an edited command or plan or a reason (the engine's typed call). */
 suspend fun AccountHandle.decide(taskId: String, approvalId: String, d: ApprovalDecision) {
-    if (d.edited == null && d.reason.isNullOrBlank()) {
-        decideApproval(taskId, approvalId, d.approve, d.always)
-    } else {
-        apiPost("/api/v1/ai/tasks/$taskId/approvals/$approvalId", ApprovalPreview.decisionBody(d))
-    }
+    decideApprovalWith(taskId, approvalId, d.engine())
 }

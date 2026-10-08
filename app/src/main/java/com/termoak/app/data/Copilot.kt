@@ -370,9 +370,8 @@ class CopilotChat internal constructor(
         status = task.status
         // After "Always approve" the task switches to Autonomous.
         mode = task.mode
-        val previews = ApprovalPreview.byApproval(task.rawJson)
         approvals = task.pendingApprovals.map {
-            CopilotApproval(it.id, it.tool, it.summary, toolSummary(it.inputJson), previews[it.id])
+            CopilotApproval(it.id, it.tool, it.summary, toolSummary(it.inputJson), ApprovalPreview.of(it.preview))
         }
         // What is already stored is no longer "live".
         val saved = conversation.filterIsInstance<Turn.Tool>()
