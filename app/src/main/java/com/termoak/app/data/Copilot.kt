@@ -114,7 +114,14 @@ class Copilot(private val context: Context, private val core: TermoakCore, priva
 data class LiveTool(val callId: String, val tool: String, val summary: String, val output: String? = null, val ok: Boolean = true)
 
 /** Action waiting for your permission. */
-data class CopilotApproval(val id: String, val tool: String, val summary: String, val command: String)
+data class CopilotApproval(
+    val id: String,
+    val tool: String,
+    val summary: String,
+    val command: String,
+    /** What it shows (server 0.6: risk, diff...). */
+    val preview: ApprovalPreview? = null,
+)
 
 /** A copilot conversation. Its state is Compose state: it is redrawn as it changes. */
 class CopilotChat internal constructor(
@@ -249,11 +256,11 @@ class CopilotChat internal constructor(
         }
     }
 
-    fun decide(approvalId: String, approve: Boolean, always: Boolean) {
+    fun decide(approvalId: String, decision: ApprovalDecision) {
         val id = taskId ?: return
         approvals = approvals.filterNot { it.id == approvalId }
         scope.launch {
-            runCatching { api().decideApproval(id, approvalId, approve, always) }
+            runCatching { api().decide(id, approvalId, decision) }
                 .onFailure { error = it.toUiText(R.string.error_decide_failed) }
             load()
         }
@@ -279,8 +286,9 @@ class CopilotChat internal constructor(
         status = task.status
         // After "Always approve" the task switches to Autonomous.
         mode = task.mode
+        val previews = ApprovalPreview.byApproval(task.rawJson)
         approvals = task.pendingApprovals.map {
-            CopilotApproval(it.id, it.tool, it.summary, toolSummary(it.inputJson))
+            CopilotApproval(it.id, it.tool, it.summary, toolSummary(it.inputJson), previews[it.id])
         }
         // What is already stored is no longer "live".
         val saved = conversation.filterIsInstance<Turn.Tool>()
@@ -327,7 +335,10 @@ class CopilotChat internal constructor(
                 val id = ev.optString("approval_id")
                 if (approvals.none { it.id == id }) {
                     approvals = approvals +
-                        CopilotApproval(id, ev.optString("tool"), ev.optString("summary"), toolSummary(ev.opt("input")))
+                        CopilotApproval(
+                            id, ev.optString("tool"), ev.optString("summary"), toolSummary(ev.opt("input")),
+                            ApprovalPreview.parse(ev.optJSONObject("preview")),
+                        )
                 }
             }
             "approval_decided" -> approvals = approvals.filterNot { it.id == ev.optString("approval_id") }

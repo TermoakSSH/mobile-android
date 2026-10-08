@@ -329,8 +329,8 @@ private fun CopilotConversation(chat: CopilotChat, onAiSettings: () -> Unit, mod
         }
         items(chat.approvals, key = { "ap" + it.id }) { a ->
             ApprovalCard(
-                stringResource(R.string.ai_asks_permission), a.summary, a.command,
-                onDecide = { approve, always -> chat.decide(a.id, approve, always) },
+                stringResource(R.string.ai_asks_permission), a.summary, a.command, a.preview,
+                onDecide = { d -> chat.decide(a.id, d) },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
