@@ -40,6 +40,8 @@ class LocalTerminal(
 ) : TermSession(label, hostId, accountId), TerminalListener, AuthHandler {
     @Volatile private var handle: TerminalHandle? = null
     override val persistent = false
+    /** Connected (each time: also after reconnecting). */
+    @Volatile var onConnected: () -> Unit = {}
 
     /**
      * Round trip to the host in milliseconds (an SSH keep-alive or a Telnet
@@ -149,6 +151,7 @@ class LocalTerminal(
                     telnetAutoLogin = telnetAutoLogin(),
                 )
                 _state.value = TermState.Running
+                onConnected()
             } catch (e: TermoakException) {
                 _state.value = TermState.Closed(
                     // A Strict vault: its hosts open through the server, which doesn't open Telnet sessions.

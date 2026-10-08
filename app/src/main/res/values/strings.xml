@@ -389,6 +389,10 @@
         <item quantity="one">%d open terminal</item>
         <item quantity="other">%d open terminals</item>
     </plurals>
+    <plurals name="notification_tunnels_running">
+        <item quantity="one">%d tunnel running</item>
+        <item quantity="other">%d tunnels running</item>
+    </plurals>
 
     <!-- Settings → AI: your own API keys and the AI credit -->
     <string name="settings_ai_hint">Your own API keys and this month\'s credit</string>
@@ -445,7 +449,7 @@
     <string name="forwards_empty_title">No tunnels</string>
     <string name="forwards_empty_text">Create a tunnel to reach internal services (databases, web panels…) through your SSH servers.</string>
     <string name="forwards_no_hosts">First create the host the tunnel will go through</string>
-    <string name="forwards_note">Tunnels sync with your devices and Termoak for desktop starts them.</string>
+    <string name="forwards_note">Tunnels sync with your devices. Start them here, from a host or from its terminal; the automatic ones start when a terminal of their host connects. While they run, Termoak keeps working in the background.</string>
     <string name="forwards_auto">automatic</string>
     <string name="forwards_route_local">%1$s → %2$s via %3$s</string>
     <string name="forwards_route_remote">%2$s on %1$s → %3$s</string>
@@ -461,6 +465,11 @@
     <string name="forwards_bind_address">Listen address</string>
     <string name="forwards_destination">Destination</string>
     <string name="forwards_auto_start">Start automatically when connecting to the host</string>
+    <string name="tunnels_start_failed">Couldn\'t start the tunnel</string>
+    <string name="tunnels_open_browser">Open in the browser</string>
+    <string name="tunnels_title">Tunnels · %1$s</string>
+    <string name="tunnels_remote_word">server</string>
+    <string name="tunnels_running">Running</string>
     <string name="import_title">Import SSH config</string>
     <string name="import_intro">Creates a host for each “Host” of an OpenSSH config file (~/.ssh/config), with its user, port, jump hosts (ProxyJump) and tunnels. Hosts that already exist with the same name are skipped, and keys (IdentityFile) are only found if their path exists on this phone.</string>
     <string name="import_choose_file">Choose a file</string>
@@ -677,6 +686,7 @@
     </plurals>
     <string name="activity_title">Activity</string>
     <string name="activity_open">Who typed</string>
+    <string name="activity_menu">Activity: who typed</string>
     <string name="activity_loading">Loading…</string>
     <string name="activity_not_recorded">This session was not recorded, so there is no record of who typed.</string>
     <string name="activity_failed">Couldn\'t load the activity: %1$s</string>
@@ -1339,4 +1349,8 @@
     <string name="common_font_larger">Larger text</string>
     <string name="settings_terminal_font">Font</string>
     <string name="settings_terminal_font_system">System monospace</string>
+    <plurals name="tunnels_connections">
+        <item quantity="one">%1$d open · %2$d in total</item>
+        <item quantity="other">%1$d open · %2$d in total</item>
+    </plurals>
 </resources>

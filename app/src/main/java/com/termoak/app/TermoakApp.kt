@@ -12,6 +12,7 @@ import com.termoak.app.term.CommandAssist
 import com.termoak.app.term.HardwareKeyboard
 import com.termoak.app.term.Sessions
 import com.termoak.app.term.SnippetRuns
+import com.termoak.app.term.Tunnels
 import com.termoak.ffi.LogLevel
 import com.termoak.ffi.LogListener
 import com.termoak.ffi.TermoakCore
@@ -32,8 +33,12 @@ class TermoakApp : Application() {
         Sessions(this, core, accounts).apply {
             telnetAutoLogin = { prefs.telnetAutoLogin.value }
             assist = CommandAssist(core) { prefs.commandSuggestions.value }
+            tunnelCount = { tunnels.running.value.size }
+            onLocalConnected = { tunnels.onTerminalConnected(it) }
         }
     }
+    /** Running tunnels (port forwarding). */
+    val tunnels: Tunnels by lazy { Tunnels(core, sessions) }
     /** A snippet sent to several terminals at once, and how it went. */
     val snippetRuns: SnippetRuns by lazy { SnippetRuns(sessions) }
     val copilot: Copilot by lazy { Copilot(this, core, accounts, sessions) }

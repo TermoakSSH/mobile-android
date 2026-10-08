@@ -1,92 +1,58 @@
 package com.termoak.app.ui
 
 import android.content.ClipData
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.outlined.Checklist
-import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.VerticalDivider
-import androidx.compose.runtime.key
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.unit.IntOffset
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Code
-import androidx.compose.material.icons.outlined.FolderOff
-import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.RadioButton
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import com.termoak.ffi.Snippet
-import com.termoak.ffi.TransferMode
-import com.termoak.ffi.VaultInfo
-import com.termoak.ffi.AccountInfo
-import com.termoak.app.data.uid
-import com.termoak.app.data.HostProtocol
-import com.termoak.app.data.isTelnet
-import com.termoak.app.data.QuickTarget
-import com.termoak.app.data.useOnly
-import com.termoak.app.data.canWrite
-import com.termoak.app.data.AccountView
-import com.termoak.app.term.TermSession
-import com.termoak.app.userMessage
-import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.Visibility
 import android.content.ClipboardManager
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
@@ -95,70 +61,105 @@ import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.FolderOff
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import androidx.navigation.NavHostController
 import com.termoak.app.MainActivity
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.AccountView
+import com.termoak.app.data.HostProtocol
+import com.termoak.app.data.QuickTarget
+import com.termoak.app.data.canWrite
+import com.termoak.app.data.isTelnet
+import com.termoak.app.data.uid
+import com.termoak.app.data.useOnly
 import com.termoak.app.term.ServerTerminal
+import com.termoak.app.term.TermSession
+import com.termoak.app.userMessage
+import com.termoak.ffi.AccountInfo
 import com.termoak.ffi.HostGroup
 import com.termoak.ffi.HostSettings
 import com.termoak.ffi.SecretChange
+import com.termoak.ffi.Snippet
 import com.termoak.ffi.SshHost
 import com.termoak.ffi.SyncMode
+import com.termoak.ffi.TransferMode
+import com.termoak.ffi.VaultInfo
 import kotlinx.coroutines.launch
 
 /**
@@ -188,6 +189,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     var actionsFor by remember { mutableStateOf<SshHost?>(null) }
     var groupActions by remember { mutableStateOf<HostGroup?>(null) }
     var deleting by remember { mutableStateOf<SshHost?>(null) }
+    var tunnelsOf by remember { mutableStateOf<SshHost?>(null) }
     var deletingGroup by remember { mutableStateOf<HostGroup?>(null) }
     var creating by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<HostGroup?>(null) }
@@ -357,6 +359,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         }
         if (!host.isTelnet) {
             add(ItemAction(Icons.Outlined.Folder, stringResource(R.string.files_sftp), 0) { nav.openFiles(filesSourceOf(app, host)) })
+            // Its tunnels: start, stop, stats (tunnels go over SSH).
+            add(ItemAction(Icons.Outlined.SwapHoriz, stringResource(R.string.section_tunnels), 0) { tunnelsOf = host })
         }
         val writable = host.access.canWrite()
         add(
@@ -764,6 +768,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             dismissButton = { TextButton(onClick = { editingGroup = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
+    tunnelsOf?.let { host -> HostTunnelsSheet(app, host) { tunnelsOf = null } }
     deleting?.let { host ->
         ConfirmDialog(
             title = stringResource(R.string.hosts_delete_title, host.label),

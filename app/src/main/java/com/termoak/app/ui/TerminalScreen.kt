@@ -47,6 +47,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.MoreVert
@@ -55,6 +56,7 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TextDecrease
 import androidx.compose.material.icons.outlined.TextIncrease
 import androidx.compose.material.icons.outlined.TouchApp
@@ -117,6 +119,7 @@ import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
 import com.termoak.app.asString
 import com.termoak.app.data.Prefs
+import com.termoak.app.data.isTelnet
 import com.termoak.app.data.uid
 import com.termoak.app.term.GestureMode
 import com.termoak.app.term.InitialConnecting
@@ -196,6 +199,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val scope = rememberCoroutineScope()
     var showShare by remember { mutableStateOf(false) }
     var showParticipants by remember { mutableStateOf(false) }
+    var tunnelsOf by remember { mutableStateOf<com.termoak.ffi.SshHost?>(null) }
+    var activityOf by remember { mutableStateOf<String?>(null) }
     val sharable = canShare(session, loggedIn == true, live.isOwner)
     // Notices of this terminal ("You have the keyboard", an action that wasn't allowed...).
     LaunchedEffect(session.id) { session.toasts.collect { snackbar.showSnackbar(it.resolve(resources)) } }
@@ -411,6 +416,17 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                 openFiles()
             }, leadingIcon = { Icon(Icons.Outlined.Folder, null) })
         }
+        // The host's tunnels (over SSH from the phone).
+        if (host != null && !host.isTelnet && (session as? LocalTerminal)?.telnet != true && live.isOwner) {
+            DropdownMenuItem({ Text(stringResource(R.string.section_tunnels)) }, { dismiss(); tunnelsOf = host },
+                leadingIcon = { Icon(Icons.Outlined.SwapHoriz, null) })
+        }
+        // Your session on the server: who typed when.
+        val activityId = (session as? ServerTerminal)?.takeIf { live.isOwner && loggedIn == true }?.sessionId
+        if (activityId != null) {
+            DropdownMenuItem({ Text(stringResource(R.string.activity_menu)) }, { dismiss(); activityOf = activityId },
+                leadingIcon = { Icon(Icons.Outlined.History, null) })
+        }
         HorizontalDivider()
         if (sharable && !inToolbar) {
             DropdownMenuItem({ Text(stringResource(R.string.share_action)) }, { dismiss(); showShare = true },
@@ -613,6 +629,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     if (showShare) {
         ShareSheet(app, session, title ?: session.label) { showShare = false }
     }
+    tunnelsOf?.let { h -> HostTunnelsSheet(app, h) { tunnelsOf = null } }
+    activityOf?.let { id -> ActivitySheet(app, id, title ?: session.label, onDismiss = { activityOf = null }, accountId = session.accountId) }
     if (showParticipants) {
         ParticipantsSheet(
             session, live,

@@ -394,6 +394,11 @@
         <item quantity="many">%d terminales abiertos</item>
         <item quantity="other">%d terminales abiertos</item>
     </plurals>
+    <plurals name="notification_tunnels_running">
+        <item quantity="one">%d túnel activo</item>
+        <item quantity="many">%d túneles activos</item>
+        <item quantity="other">%d túneles activos</item>
+    </plurals>
 
     <!-- Settings → AI: your own API keys and the AI credit -->
     <string name="settings_ai_hint">Tus propias claves de API y el crédito de este mes</string>
@@ -450,7 +455,7 @@
     <string name="forwards_empty_title">No hay túneles</string>
     <string name="forwards_empty_text">Crea un túnel para llegar a servicios internos (bases de datos, paneles web…) a través de tus servidores SSH.</string>
     <string name="forwards_no_hosts">Primero crea el host por el que pasará el túnel</string>
-    <string name="forwards_note">Los túneles se sincronizan con tus dispositivos y los arranca Termoak para escritorio.</string>
+    <string name="forwards_note">Los túneles se sincronizan con tus dispositivos. Arráncalos aquí, desde un host o desde su terminal; los automáticos arrancan al conectar un terminal de su host. Mientras funcionan, Termoak sigue activo en segundo plano.</string>
     <string name="forwards_auto">automático</string>
     <string name="forwards_route_local">%1$s → %2$s vía %3$s</string>
     <string name="forwards_route_remote">%2$s en %1$s → %3$s</string>
@@ -466,6 +471,11 @@
     <string name="forwards_bind_address">Dirección de escucha</string>
     <string name="forwards_destination">Destino</string>
     <string name="forwards_auto_start">Arrancar automáticamente al conectar con el host</string>
+    <string name="tunnels_start_failed">No se pudo arrancar el túnel</string>
+    <string name="tunnels_open_browser">Abrir en el navegador</string>
+    <string name="tunnels_title">Túneles · %1$s</string>
+    <string name="tunnels_remote_word">servidor</string>
+    <string name="tunnels_running">Activo</string>
     <string name="import_title">Importar configuración SSH</string>
     <string name="import_intro">Crea un host por cada «Host» de un fichero de configuración de OpenSSH (~/.ssh/config), con su usuario, puerto, saltos (ProxyJump) y túneles. Los hosts que ya existen con el mismo nombre se saltan, y las claves (IdentityFile) solo se encuentran si su ruta existe en este teléfono.</string>
     <string name="import_choose_file">Elegir un fichero</string>
@@ -695,6 +705,7 @@
     </plurals>
     <string name="activity_title">Actividad</string>
     <string name="activity_open">Quién escribió</string>
+    <string name="activity_menu">Actividad: quién escribió</string>
     <string name="activity_loading">Cargando…</string>
     <string name="activity_not_recorded">Esta sesión no se grabó, así que no hay registro de quién escribió.</string>
     <string name="activity_failed">No se pudo cargar la actividad: %1$s</string>
@@ -1386,4 +1397,9 @@
     <string name="common_font_larger">Texto más grande</string>
     <string name="settings_terminal_font">Fuente</string>
     <string name="settings_terminal_font_system">Monoespaciada del sistema</string>
+    <plurals name="tunnels_connections">
+        <item quantity="one">%1$d abierta · %2$d en total</item>
+        <item quantity="many">%1$d abiertas · %2$d en total</item>
+        <item quantity="other">%1$d abiertas · %2$d en total</item>
+    </plurals>
 </resources>

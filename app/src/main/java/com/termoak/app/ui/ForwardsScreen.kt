@@ -1,5 +1,6 @@
 package com.termoak.app.ui
 
+import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,20 +22,28 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,30 +52,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
-import com.termoak.app.data.canWrite
-import com.termoak.app.data.uid
-import com.termoak.app.userMessage
-import com.termoak.ffi.SyncMode
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.runtime.LaunchedEffect
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.canWrite
+import com.termoak.app.data.isTelnet
+import com.termoak.app.data.uid
+import com.termoak.app.term.TunnelText
+import com.termoak.app.userMessage
 import com.termoak.ffi.ForwardKind
+import com.termoak.ffi.ItemFilter
 import com.termoak.ffi.PortForward
 import com.termoak.ffi.SshHost
-import com.termoak.app.data.isTelnet
+import com.termoak.ffi.SyncMode
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.launch
 
 /**
  * Tunnels (port forwarding) saved in the vault: local, remote and dynamic
- * (SOCKS5). They sync with the other devices; the desktop app starts them.
+ * (SOCKS5). They sync with the other devices. Each one starts and stops
+ * here (with its live connections and bytes, and "Open in the browser" for
+ * a local one), from its host's menu or its terminal ([Tunnels]).
  */
 @Composable
 fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
@@ -84,6 +99,7 @@ fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
     val usable = hosts.filter { it.access.canWrite() && !it.isTelnet }
     var editing by remember { mutableStateOf<PortForward?>(null) }
     var deleting by remember { mutableStateOf<PortForward?>(null) }
+    TunnelPrompts(app)
 
     fun newForward() {
         if (usable.isEmpty()) {
@@ -130,7 +146,7 @@ fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
                 }
                 items(forwards, key = { it.uid }) { f ->
                     ForwardRow(
-                        f, byId[f.accountId to f.hostId] ?: byId[null to f.hostId],
+                        app, f, byId[f.accountId to f.hostId] ?: byId[null to f.hostId],
                         onClick = { if (f.access.canWrite()) editing = f }, onDelete = if (f.access.canWrite()) ({ deleting = f }) else null,
                     )
                 }
@@ -164,8 +180,106 @@ fun ForwardsScreen(app: TermoakApp, nav: NavHostController) {
             stringResource(R.string.common_delete_named, f.label), stringResource(R.string.hosts_delete_text),
             stringResource(R.string.common_delete), destructive = true, onDismiss = { deleting = null },
         ) {
+            app.tunnels.stop(f)
             runCatching { app.core.deleteForward(f.id, f.accountId) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
             forwards = load()
+            app.accounts.sync()
+        }
+    }
+}
+
+/** The questions of a tunnel's own connection (host key, password) and its errors, while this is on screen. */
+@Composable
+internal fun TunnelPrompts(app: TermoakApp) {
+    val resources = LocalResources.current
+    val snackbar = LocalSnackbar.current
+    val pending by app.tunnels.pending.collectAsState()
+    LaunchedEffect(Unit) { app.tunnels.errors.collect { snackbar.showSnackbar(it.resolve(resources)) } }
+    pending?.let { PendingDialog(it) }
+}
+
+/**
+ * The tunnels of one host (its menu, its terminal's menu), as on iOS: start
+ * and stop them, their stats, "Open in the browser", and create, edit or
+ * delete them.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun HostTunnelsSheet(app: TermoakApp, host: SshHost, onDismiss: () -> Unit) {
+    val resources = LocalResources.current
+    val snackbar = LocalSnackbar.current
+    val scope = rememberCoroutineScope()
+    // The host's account and This device (a This-device host may have older tunnels in an account).
+    fun load() = runCatching {
+        app.core.listForwards(host.id, ItemFilter(accountIds = host.accountId?.let { listOf(it) }, vaultIds = null, includeDevice = true))
+    }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() }
+    var list by remember { mutableStateOf(load()) }
+    var editing by remember { mutableStateOf<PortForward?>(null) }
+    var deleting by remember { mutableStateOf<PortForward?>(null) }
+    TunnelPrompts(app)
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.tunnels_title, host.label.ifBlank { host.address }), Modifier.weight(1f),
+                style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (host.access.canWrite()) {
+                IconButton(onClick = {
+                    editing = PortForward(
+                        id = "", label = "", hostId = host.id, kind = ForwardKind.LOCAL, destHost = "localhost",
+                        accountId = host.accountId, vaultId = host.vaultId,
+                    )
+                }) { Icon(Icons.Outlined.Add, stringResource(R.string.forwards_new)) }
+            }
+        }
+        if (list.isEmpty()) {
+            Text(
+                stringResource(R.string.forwards_empty_text), Modifier.padding(24.dp),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        LazyColumn(Modifier.padding(bottom = 24.dp)) {
+            items(list, key = { it.uid }) { f ->
+                ForwardRow(
+                    app, f, host, onClick = { if (f.access.canWrite()) editing = f },
+                    onDelete = if (f.access.canWrite()) ({ deleting = f }) else null,
+                )
+            }
+            if (list.isNotEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.forwards_note), Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+    editing?.let { f ->
+        ForwardDialog(f, listOf(host), onDismiss = { editing = null }) { chosen ->
+            val saved = if (f.id.isEmpty() && host.accountId == null && app.accounts.list.value.isNotEmpty()) {
+                chosen.copy(syncMode = SyncMode.DEVICE_ONLY)
+            } else chosen
+            try {
+                app.core.saveForward(saved)
+                list = load()
+                app.accounts.sync()
+                editing = null
+            } catch (e: TermoakException) {
+                scope.launch { snackbar.showSnackbar(e.userMessage(resources, R.string.error_save_failed)) }
+            }
+        }
+    }
+    deleting?.let { f ->
+        ConfirmDialog(
+            stringResource(R.string.common_delete_named, f.label), stringResource(R.string.hosts_delete_text),
+            stringResource(R.string.common_delete), destructive = true, onDismiss = { deleting = null },
+        ) {
+            app.tunnels.stop(f)
+            runCatching { app.core.deleteForward(f.id, f.accountId) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
+            list = load()
             app.accounts.sync()
         }
     }
@@ -184,8 +298,16 @@ private fun route(f: PortForward, host: String): String {
 }
 
 @Composable
-private fun ForwardRow(f: PortForward, host: SshHost?, onClick: () -> Unit, onDelete: (() -> Unit)?) {
+private fun ForwardRow(app: TermoakApp, f: PortForward, host: SshHost?, onClick: () -> Unit, onDelete: (() -> Unit)?) {
+    val context = LocalContext.current
     val hostLabel = host?.label ?: "?"
+    val running by app.tunnels.running.collectAsState()
+    val allStats by app.tunnels.stats.collectAsState()
+    val starting by app.tunnels.starting.collectAsState()
+    val active = running[f.uid]
+    val stats = allStats[f.uid]
+    val port = remember(active) { active?.let { runCatching { it.boundPort() }.getOrNull() } }
+    Column(Modifier.fillMaxWidth()) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -212,9 +334,22 @@ private fun ForwardRow(f: PortForward, host: SshHost?, onClick: () -> Unit, onDe
                 if (f.autoStart) Pill(stringResource(R.string.forwards_auto), Brand.Green)
             }
             Text(
-                route(f, hostLabel), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (active != null) TunnelText.summary(f, port, stringResource(R.string.tunnels_remote_word)) else route(f, hostLabel),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
+        }
+        // Start / stop on the phone (tunnels go over SSH: not through Telnet hosts).
+        if (host?.isTelnet != true) {
+            if (f.uid in starting) {
+                CircularProgressIndicator(Modifier.padding(horizontal = 12.dp).size(22.dp), strokeWidth = 2.dp)
+            } else {
+                val label = f.label.ifBlank { route(f, hostLabel) }
+                Switch(
+                    active != null, { on -> if (on) app.tunnels.start(f) else app.tunnels.stop(f) },
+                    Modifier.padding(horizontal = 4.dp).semantics { contentDescription = label },
+                )
+            }
         }
         if (onDelete != null) {
             IconButton(onClick = onDelete) {
@@ -223,6 +358,32 @@ private fun ForwardRow(f: PortForward, host: SshHost?, onClick: () -> Unit, onDe
         } else {
             Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.padding(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+    if (active != null) {
+        Row(
+            Modifier.padding(start = 74.dp, end = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Pill(stringResource(R.string.tunnels_running), Brand.Green)
+            if (stats != null) {
+                Text(
+                    pluralStringResource(
+                        R.plurals.tunnels_connections, stats.activeConnections.toInt(), stats.activeConnections.toInt(),
+                        stats.totalConnections.toInt(),
+                    ) + "  ↓ " + Formatter.formatShortFileSize(context, stats.bytesIn.toLong()) +
+                        "  ↑ " + Formatter.formatShortFileSize(context, stats.bytesOut.toLong()),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
+        }
+        TunnelText.browserUrl(f, port)?.let { url ->
+            TextButton(onClick = { openUrl(context, url) }, modifier = Modifier.padding(start = 66.dp)) {
+                Icon(Icons.Outlined.OpenInBrowser, null, Modifier.size(16.dp))
+                Text(stringResource(R.string.tunnels_open_browser), Modifier.padding(start = 6.dp))
+            }
+        }
+    }
     }
 }
 

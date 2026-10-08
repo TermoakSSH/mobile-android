@@ -25,6 +25,7 @@ class TerminalService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val count = intent?.getIntExtra(EXTRA_COUNT, 1) ?: 1
+        val tunnels = intent?.getIntExtra(EXTRA_TUNNELS, 0) ?: 0
         // In the app language (also on Android 12 and older).
         val res = localized().resources
         val manager = getSystemService(NotificationManager::class.java)
@@ -47,14 +48,25 @@ class TerminalService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         if (intent?.action == ACTION_CLOSE_ALL) {
-            (application as TermoakApp).sessions.closeAll()
+            (application as TermoakApp).let {
+                it.tunnels.stopAll()
+                it.sessions.closeAll()
+            }
             stopSelf()
             return START_NOT_STICKY
         }
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_terminal)
-            .setContentTitle(res.getQuantityString(R.plurals.notification_terminals_open, count, count))
-            .setContentText(res.getString(R.string.notification_tap_to_return))
+            .setContentTitle(
+                if (count > 0) res.getQuantityString(R.plurals.notification_terminals_open, count, count)
+                else res.getQuantityString(R.plurals.notification_tunnels_running, tunnels, tunnels),
+            )
+            .setContentText(
+                if (count > 0 && tunnels > 0) {
+                    res.getQuantityString(R.plurals.notification_tunnels_running, tunnels, tunnels) + " · " +
+                        res.getString(R.string.notification_tap_to_return)
+                } else res.getString(R.string.notification_tap_to_return),
+            )
             .setContentIntent(open)
             .addAction(0, res.getString(R.string.notification_close_all), closeAll)
             .setOngoing(true)
@@ -69,6 +81,7 @@ class TerminalService : Service() {
 
     companion object {
         const val EXTRA_COUNT = "count"
+        const val EXTRA_TUNNELS = "tunnels"
         const val ACTION_CLOSE_ALL = "com.termoak.CLOSE_ALL"
         private const val CHANNEL = "terminals"
         private const val NOTIFICATION_ID = 1

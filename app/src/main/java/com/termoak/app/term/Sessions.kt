@@ -57,6 +57,10 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     @Volatile var telnetAutoLogin: () -> Boolean = { true }
     /** Command suggestions and history for the terminals (set by the app). */
     @Volatile var assist: CommandAssist? = null
+    /** Running tunnels (set by the app): the service also stays for them. */
+    @Volatile var tunnelCount: () -> Int = { 0 }
+    /** A terminal from the phone connected (its automatic tunnels start; set by the app). */
+    @Volatile var onLocalConnected: (LocalTerminal) -> Unit = {}
 
     /** Gives a new terminal the suggestions, with its host's system. */
     private fun prepare(session: TermSession, os: String? = null) {
@@ -68,7 +72,10 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     fun openLocal(host: SshHost, activate: Boolean = true): TermSession =
         add(
             LocalTerminal(core, host.label, host.id, host.address, host.accountId, host.isTelnet, telnetAutoLogin)
-                .also { prepare(it, host.os) },
+                .also {
+                    prepare(it, host.os)
+                    it.onConnected = { onLocalConnected(it) }
+                },
             activate,
         )
 
@@ -257,14 +264,17 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
         updateService()
     }
 
-    private fun updateService() {
+    /** Starts, updates or stops the foreground service for the open terminals and the running tunnels. */
+    fun updateService() {
         val intent = Intent(context, TerminalService::class.java)
         // Sleeping tabs have no connection to keep alive.
         val connected = _list.value.count { !it.asleep }
-        if (connected == 0) {
+        val tunnels = tunnelCount()
+        if (connected == 0 && tunnels == 0) {
             context.stopService(intent)
         } else {
             intent.putExtra(TerminalService.EXTRA_COUNT, connected)
+            intent.putExtra(TerminalService.EXTRA_TUNNELS, tunnels)
             runCatching { ContextCompat.startForegroundService(context, intent) }
         }
     }
