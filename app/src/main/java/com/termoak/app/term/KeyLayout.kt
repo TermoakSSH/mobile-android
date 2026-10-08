@@ -41,6 +41,8 @@ sealed class BarAction {
     data class Steps(val steps: List<BarStep>) : BarAction()
     /** Pastes the clipboard. */
     data object Paste : BarAction()
+    /** Asks the AI for the command a `# request` line describes (typed, never run), like Ctrl+Enter. */
+    data object Ai : BarAction()
 }
 
 /** A key of the bar or of a panel group. [icon] is the iOS app's symbol name (drawn with a Material icon). */
@@ -72,6 +74,8 @@ data class BarKey(
         val ALT = BarKey("mod.alt", "alt", action = BarAction.Modifier(ctrl = false))
         const val PASTE_ID = "pegar"
         val PASTE = BarKey(PASTE_ID, "Paste", "doc.on.clipboard", BarAction.Paste)
+        const val AI_ID = "ia"
+        val AI = BarKey(AI_ID, "AI", "sparkles", BarAction.Ai)
 
         /** A custom key made in the editor. */
         fun custom(label: String, steps: List<BarStep>) =
@@ -104,8 +108,8 @@ data class KeyGroup(
 
 /** What can be customized: the bar above the keyboard and the groups of the quick access panel. */
 data class KeyboardLayout(val bar: List<BarKey>, val groups: List<KeyGroup>) {
-    /** Every key once (to add them to the bar). */
-    val all: List<BarKey> get() = (groups.flatMap { it.keys } + bar).distinctBy { it.id }
+    /** Every key once (to add them to the bar); the AI key also in layouts saved before it existed. */
+    val all: List<BarKey> get() = (groups.flatMap { it.keys } + bar + BarKey.AI).distinctBy { it.id }
 
     fun toJson(): String = JSONObject().apply {
         put("barra", JSONArray(bar.map(::keyJson)))
@@ -129,14 +133,14 @@ data class KeyboardLayout(val bar: List<BarKey>, val groups: List<KeyGroup>) {
         /** The default layout (the iOS app's). */
         val STANDARD = KeyboardLayout(
             bar = listOf(BarKey.PASTE, ENTER, ESC, BarKey.CTRL, BarKey.ALT, TAB) + ARROWS +
-                listOf(BarKey.control("c"), BarKey.text("|"), BarKey.text("/"), BarKey.text("-"), BarKey.text("~")),
+                listOf(BarKey.control("c"), BarKey.text("|"), BarKey.text("/"), BarKey.text("-"), BarKey.text("~"), BarKey.AI),
             groups = listOf(
                 KeyGroup(
                     "basicas", "",
                     listOf(
                         BarKey.PASTE, ENTER, ESC, TAB, BarKey.CTRL, BarKey.ALT, BarKey.special(BarSpecial.SHIFT_TAB, "shift+tab"),
                         BarKey.special(BarSpecial.BACKSPACE, "bksp", "delete.left", repeats = true),
-                        BarKey.special(BarSpecial.INS, "ins"), BarKey.special(BarSpecial.DEL, "del"),
+                        BarKey.special(BarSpecial.INS, "ins"), BarKey.special(BarSpecial.DEL, "del"), BarKey.AI,
                     ),
                 ),
                 KeyGroup(
@@ -202,6 +206,7 @@ data class KeyboardLayout(val bar: List<BarKey>, val groups: List<KeyGroup>) {
         private fun actionJson(a: BarAction): JSONObject = when (a) {
             is BarAction.Modifier -> JSONObject().put("modificador", JSONObject().put("_0", if (a.ctrl) "ctrl" else "alt"))
             BarAction.Paste -> JSONObject().put("pegar", JSONObject())
+            BarAction.Ai -> JSONObject().put("ai", JSONObject())
             is BarAction.Steps -> JSONObject().put("pasos", JSONObject().put("_0", JSONArray(a.steps.map(::stepJson))))
         }
 
@@ -223,6 +228,7 @@ data class KeyboardLayout(val bar: List<BarKey>, val groups: List<KeyGroup>) {
         private fun actionOf(o: JSONObject): BarAction = when {
             o.has("modificador") -> BarAction.Modifier(ctrl = o.getJSONObject("modificador").getString("_0") == "ctrl")
             o.has("pegar") -> BarAction.Paste
+            o.has("ai") -> BarAction.Ai
             o.has("pasos") -> o.getJSONObject("pasos").getJSONArray("_0").let { a ->
                 BarAction.Steps((0 until a.length()).map { stepOf(a.getJSONObject(it)) })
             }

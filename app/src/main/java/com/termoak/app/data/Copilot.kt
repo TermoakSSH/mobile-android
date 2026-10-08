@@ -18,8 +18,16 @@ import com.termoak.ffi.AiPermissionMode
 import com.termoak.ffi.AiTask
 import com.termoak.ffi.AiTaskRequest
 import com.termoak.ffi.AiTaskStatus
+import com.termoak.ffi.ContextChip
+import com.termoak.ffi.ContextChipKind
+import com.termoak.ffi.LastCommandInfo
 import com.termoak.ffi.TermoakCore
 import com.termoak.ffi.TermoakException
+import com.termoak.ffi.containsSecrets
+import com.termoak.ffi.contextChipLastCommand
+import com.termoak.ffi.contextChipSelection
+import com.termoak.ffi.copilotContextBlock
+import com.termoak.ffi.redactSecrets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,7 +67,11 @@ class Copilot(private val context: Context, private val core: TermoakCore, priva
         // Not a Telnet host: the AI's host tools (commands, files) are SSH; it uses the shared terminal.
         val telnet = session is LocalTerminal && session.telnet
         val hosts = listOfNotNull(session.hostId).takeIf { session.accountId != null && session.accountId == chat.accountId && !telnet }.orEmpty()
-        chat.send(text, hosts) { first ->
+        // What goes with it, as the chips show it (host, last command, selection; the engine redacts their text).
+        val name = if (session.hostId == null) "local terminal" else (where ?: session.label)
+        val chips = chat.chips
+        val attached = if (chips.isEmpty()) "" else runCatching { copilotContextBlock(name, chips) }.getOrDefault("")
+        chat.send(text, hosts, chips) { first ->
             var sid = when (session) {
                 is ServerTerminal -> session.sessionId
                 is LocalTerminal -> session.sharedId.value
@@ -70,12 +82,13 @@ class Copilot(private val context: Context, private val core: TermoakCore, priva
                 sid = session.share(title, forCopilot = true)
                 if (sid == null) chat.shareFailed = true
             }
+            val message = attached + text
             val prompt = when {
-                // Without a session the AI can't read the terminal: attach the screen.
-                sid == null -> withScreenContext(session, where ?: "local terminal", text)
+                // Without a session the AI can't read the terminal: attach the screen (its secrets hidden here).
+                sid == null -> withScreenContext(session, where ?: "local terminal", message) { chat.screenRedacted = true }
                 !first && sid != chat.sessionId ->
-                    "<context>\nThe user's terminal is now session $sid: use it with read_terminal and send_to_terminal.\n</context>\n\n$text"
-                else -> text
+                    "<context>\nThe user's terminal is now session $sid: use it with read_terminal and send_to_terminal.\n</context>\n\n$message"
+                else -> message
             }
             prompt to sid
         }
@@ -189,6 +202,71 @@ class CopilotChat internal constructor(
         sending = null
         clearLive()
         notices = emptyList()
+        sentCommand = null
+        selection = null
+        removed = emptySet()
+        screenRedacted = false
+    }
+
+    // ----- Context chips (what goes with the next message; removable) -----
+
+    private var hostChip by mutableStateOf<ContextChip?>(null)
+    private var lastCommand by mutableStateOf<LastCommandInfo?>(null)
+    /** The last command already sent (its chip isn't offered again). */
+    private var sentCommand by mutableStateOf<LastCommandInfo?>(null)
+    private var selection by mutableStateOf<String?>(null)
+    private var selectionLabel by mutableStateOf("")
+    /** Chips removed by hand (until the context changes). */
+    private var removed by mutableStateOf<Set<ContextChip>>(emptySet())
+    /** The screen sent in this conversation had secrets (hidden). */
+    var screenRedacted by mutableStateOf(false)
+        internal set
+
+    /** Makes the last command chip's label in the app's language ("make · exit 2"; set by the panel). */
+    var lastCommandLabel: (LastCommandInfo) -> String = { it.command ?: "" }
+
+    /** What goes with the next message: the host (before the first one), the last command, the selection. */
+    val chips: List<ContextChip>
+        get() {
+            val out = mutableListOf<ContextChip>()
+            if (taskId == null && sending == null) hostChip?.let { out += it }
+            lastCommand?.takeIf { it != sentCommand }?.let { last ->
+                runCatching { contextChipLastCommand(last, lastCommandLabel(last)) }.getOrNull()?.let { out += it }
+            }
+            selection?.let { t -> runCatching { contextChipSelection(t, selectionLabel) }.getOrNull()?.let { out += it } }
+            return out.filter { it !in removed }
+        }
+
+    /** Something attached (the chips, or the screen) had secrets, hidden before leaving the device. */
+    val secretsHidden: Boolean
+        get() = screenRedacted || chips.any { c ->
+            when (c.kind) {
+                ContextChipKind.SELECTION -> selection?.let { runCatching { containsSecrets(it) }.getOrDefault(false) } == true
+                ContextChipKind.LAST_COMMAND -> lastCommand?.let {
+                    runCatching { containsSecrets(it.output) || containsSecrets(it.command.orEmpty()) }.getOrDefault(false)
+                } == true
+                else -> false
+            }
+        }
+
+    /** The terminal in front of the panel: its host and the last command that ended in it. */
+    fun updateContext(host: ContextChip?, last: LastCommandInfo?) {
+        hostChip = host
+        lastCommand = last
+    }
+
+    /** "Ask AI about the selection": the selected text goes with the next message (replacing a previous one). */
+    fun attachSelection(text: String, label: String) {
+        if (text.isBlank()) return
+        selection = text
+        selectionLabel = label
+        removed = removed.filter { it.kind != ContextChipKind.SELECTION }.toSet()
+    }
+
+    /** The chip's ×: it doesn't go with the message. */
+    fun remove(chip: ContextChip) {
+        removed = removed + chip
+        if (chip.kind == ContextChipKind.SELECTION) selection = null
     }
 
     /** The last server session given to the AI (the one it works in). */
@@ -203,8 +281,10 @@ class CopilotChat internal constructor(
      * the first one, the session the AI will work in. The first message
      * creates the task with [hostIds]; the next ones continue the conversation.
      */
-    fun send(text: String, hostIds: List<String>, prepare: suspend (first: Boolean) -> Pair<String, String?>) {
+    fun send(text: String, hostIds: List<String>, chips: List<ContextChip>, prepare: suspend (first: Boolean) -> Pair<String, String?>) {
         if (sending != null) return
+        val usedLast = if (chips.any { it.kind == ContextChipKind.LAST_COMMAND }) lastCommand else null
+        val usedSelection = chips.any { it.kind == ContextChipKind.SELECTION }
         sending = text
         error = null
         notices = emptyList()
@@ -224,6 +304,10 @@ class CopilotChat internal constructor(
                 }
                 if (gen != generation) return@launch
                 if (session != null) sessionId = session
+                // What was attached went with it: not offered again.
+                usedLast?.let { sentCommand = it }
+                if (usedSelection) selection = null
+                removed = emptySet()
                 taskId = task.id
                 status = task.status
                 load()
@@ -380,10 +464,13 @@ private const val MaxScreenContext = 4000
  * has no server session to read it by itself). This text is for the AI, not
  * for the user: it stays in English.
  */
-private fun withScreenContext(session: TermSession, where: String, text: String): String {
+private fun withScreenContext(session: TermSession, where: String, text: String, onRedacted: () -> Unit): String {
     var screen = runCatching { session.screen.screenText() }.getOrDefault("")
         .lines().map { it.trimEnd() }.dropLastWhile { it.isEmpty() }.joinToString("\n").trim('\n')
     if (screen.length > MaxScreenContext) screen = screen.takeLast(MaxScreenContext).substringAfter('\n')
     if (screen.isBlank()) return text
+    // Nothing leaves the device with its secrets (passwords, tokens, keys): hidden here first.
+    if (runCatching { containsSecrets(screen) }.getOrDefault(false)) onRedacted()
+    screen = runCatching { redactSecrets(screen) }.getOrDefault(screen)
     return "<context>\nWhat the user's terminal shows last ($where):\n```\n$screen\n```\n</context>\n\n$text"
 }

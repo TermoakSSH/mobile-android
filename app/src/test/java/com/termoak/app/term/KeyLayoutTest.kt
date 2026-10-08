@@ -22,11 +22,15 @@ class KeyLayoutTest {
         assertEquals(
             listOf(
                 "pegar", "esp.intro", "esp.esc", "mod.ctrl", "mod.alt", "esp.tab", "esp.izquierda", "esp.derecha", "esp.arriba",
-                "esp.abajo", "ctl.c", "txt.|", "txt./", "txt.-", "txt.~",
+                "esp.abajo", "ctl.c", "txt.|", "txt./", "txt.-", "txt.~", "ia",
             ),
             bar,
         )
         assertEquals(KeyGroup.BuiltIn, KeyboardLayout.STANDARD.groups.map { it.id })
+        // The AI key (# request → command), stored like the iOS app's; also offered in layouts saved before it existed.
+        val ai = KeyboardLayout.fromJson(KeyboardLayout.STANDARD.toJson()).bar.last()
+        assertEquals(BarAction.Ai, ai.action)
+        assertTrue(KeyboardLayout(emptyList(), emptyList()).all.any { it.id == BarKey.AI_ID })
         // Enter, Paste, ^C and backspace are there; arrows and delete repeat.
         assertTrue(KeyboardLayout.STANDARD.all.single { it.id == "esp.retroceso" }.repeats)
         assertTrue(KeyboardLayout.STANDARD.bar.filter { it.id.startsWith("esp.") && it.label in setOf("←", "→", "↑", "↓") }.all { it.repeats })

@@ -3,7 +3,10 @@ package com.termoak.app.term
 import com.termoak.app.R
 import com.termoak.app.UiText
 import com.termoak.app.uiText
+import com.termoak.ffi.CommandEnded
 import com.termoak.ffi.CommandSuggestion
+import com.termoak.ffi.CommandWatcher
+import com.termoak.ffi.LastCommandInfo
 import com.termoak.ffi.HostKeyChange
 import com.termoak.ffi.KeyModifiers
 import com.termoak.ffi.LineTracker
@@ -107,6 +110,98 @@ abstract class TermSession(
         runCatching { screen.setTheme(id) }
         onScreenChanged()
     }
+
+    // ----- Commands and the AI in the terminal (the desktop's, through the engine) -----
+
+    /** Follows the commands (shell integration OSC 133/633, or the prompt coming back). */
+    private val watcher = CommandWatcher(screen)
+    private val _lastCommand = MutableStateFlow<LastCommandInfo?>(null)
+    /** The last command that ended here (the copilot's chip; not full-screen programs). */
+    val lastCommand: StateFlow<LastCommandInfo?> = _lastCommand
+    private val _failed = MutableStateFlow<LastCommandInfo?>(null)
+    /** A command that failed: "Command failed · Explain · Fix" (`null`: no chip). */
+    val failedCommand: StateFlow<LastCommandInfo?> = _failed
+    /** The chip can show: the setting is on and there is an AI to ask (set by [Sessions]). */
+    @Volatile var fixChipAllowed: () -> Boolean = { false }
+    /** The key bar's AI key or Ctrl+Enter: a `# request` line becomes a command (set by the screen). */
+    @Volatile var onAiRequest: () -> Unit = {}
+    /** Enter at the shell's line (set by [Sessions]). */
+    @Volatile var onEnter: () -> Unit = {}
+    private var idleJob: kotlinx.coroutines.Job? = null
+    private var chipJob: kotlinx.coroutines.Job? = null
+
+    /** The chip's ×, or Explain / Fix taken. */
+    fun dismissFailed() {
+        _failed.value = null
+    }
+
+    private fun commandEnded(e: CommandEnded) {
+        val last = e.last ?: return
+        _lastCommand.value = last
+        if (last.failure == null || !canType || !fixChipAllowed()) return
+        _failed.value = last
+        chipJob?.cancel()
+        chipJob = scope.launch {
+            kotlinx.coroutines.delay(FIX_CHIP_MS)
+            if (_failed.value == last) _failed.value = null
+        }
+    }
+
+    /** Enter at the shell's line: a command may start ([command]: the typed line if it's known). */
+    private fun commandEntered(command: String?, prompt: String) {
+        _failed.value = null
+        onEnter()
+        if (!watcher.enter(command, prompt)) return
+        // Without shell integration it ends when the prompt is back and the output is quiet.
+        idleJob?.cancel()
+        idleJob = scope.launch {
+            while (watcher.waitingForPrompt()) {
+                kotlinx.coroutines.delay(500)
+                val (before, afterBlank) = cursorProbe()
+                watcher.idle(screen.alternateScreen(), before, afterBlank)?.let {
+                    commandEnded(it)
+                    return@launch
+                }
+            }
+        }
+    }
+
+    /** The text before the cursor on its row, and whether the rest of the row is blank. */
+    private fun cursorProbe(): Pair<String, Boolean> {
+        val snap = screen.snapshot()
+        val c = snap.cursor ?: return "" to true
+        val cells = Suggestions.cells(snap.lines.getOrNull(c.row.toInt()), snap.cols.toInt())
+        val col = c.col.toInt().coerceIn(0, cells.size)
+        return cells.copyOfRange(0, col).joinToString("") to cells.copyOfRange(col, cells.size).all { it.isBlank() }
+    }
+
+    /**
+     * The line being typed, as the screen shows it with the cursor at its
+     * end (`null` in full-screen programs or when it isn't known): for a
+     * `# request`.
+     */
+    fun typedLine(): String? {
+        if (screen.alternateScreen() || !line.atEnd()) return null
+        val current = line.current()?.takeIf { it.isNotEmpty() } ?: return null
+        return current.takeIf { commandEchoed(it, cursorLine(), true) }
+    }
+
+    /**
+     * Types a command the AI proposed, never with Enter: in place of its
+     * `# request` line ([replacing]) if that is still the line being typed.
+     * Only here (not broadcast to other panes).
+     */
+    fun typeAiCommand(command: String, replacing: String?) {
+        val text = runCatching { com.termoak.ffi.typeableCommand(command) }.getOrDefault(command.trim())
+        if (text.isEmpty()) return
+        val erase = if (replacing != null && typedLine() == replacing) TerminalAiRules.eraseBytes(replacing) else ByteArray(0)
+        write(erase + text.toByteArray())
+    }
+
+    /** What the AI gets about the screen: its end (the engine hides secrets before sending it). */
+    fun screenTail(): String = runCatching {
+        com.termoak.ffi.textTail(screen.screenText(), 60u, 4000u)
+    }.getOrDefault("")
 
     /** Grows with every piece of output (find refreshes its count when it changed). */
     @Volatile var outputSerial = 0L
@@ -228,6 +323,10 @@ abstract class TermSession(
                 is ScreenEvent.Bell -> onBell()
             }
         }
+        // Commands start and end (the Explain/Fix chip, the copilot's context).
+        val ev = runCatching { watcher.output(data, screen.alternateScreen()) }.getOrNull()
+        if (ev?.started == true) _failed.value = null
+        ev?.ended?.let { e -> scope.launch { commandEnded(e) } }
         val after = screen.historySize()
         if (historyShift >= 0) historyShift = if (after > before || after < SCROLLBACK) historyShift + (after.toLong() - before.toLong()).coerceAtLeast(0) else -1
         outputSerial++
@@ -270,7 +369,14 @@ abstract class TermSession(
         }
         val a = assist
         val pending = line.current()
-        val echoed = a != null && !pending.isNullOrEmpty() && commandEchoed(pending, cursorLine(), true)
+        val screenLine = cursorLine()
+        val known = !pending.isNullOrEmpty() && commandEchoed(pending, screenLine, true)
+        val echoed = a != null && known
+        // Enter at the shell's line (not a bracketed paste, which the shell doesn't run): a command may start.
+        if (bytes.contains(0x0d) && !TerminalAiRules.isBracketedPaste(bytes)) {
+            val typed = if (known) pending else null
+            commandEntered(typed, TerminalAiRules.prompt(screenLine, typed))
+        }
         val sent = line.feed(bytes)
         val host = hostId
         if (a != null && echoed && sent != null && sent == pending && host != null) {
@@ -322,6 +428,10 @@ abstract class TermSession(
 
     /** New, unknown line (after reconnecting). */
     private fun forgetLine() {
+        watcher.reset()
+        idleJob?.cancel()
+        _failed.value = null
+        _lastCommand.value = null
         line.reset()
         query.incrementAndGet()
         _suggestions.value = emptyList()
@@ -382,6 +492,10 @@ abstract class TermSession(
             BarAction.Paste -> {
                 takeStickyModifiers()
                 onPaste()
+            }
+            BarAction.Ai -> {
+                takeStickyModifiers()
+                onAiRequest()
             }
             is BarAction.Steps -> {
                 if (a.steps == listOf(BarStep.Special(BarSpecial.RIGHT)) && acceptFirstSuggestion()) return
@@ -477,6 +591,7 @@ abstract class TermSession(
     open fun close() {
         release()
         scope.cancel()
+        watcher.close()
         screen.close()
         line.close()
     }
@@ -484,5 +599,7 @@ abstract class TermSession(
     private companion object {
         /** The emulator's scrollback (TerminalScreen with 0: 10,000 lines). */
         const val SCROLLBACK = 10_000u
+        /** How long the "Command failed" chip stays if nothing else happens (the desktop's). */
+        const val FIX_CHIP_MS = 60_000L
     }
 }

@@ -72,6 +72,7 @@ import com.termoak.app.term.KeyboardLayout
 internal fun describeKey(action: BarAction): String = when (action) {
     is BarAction.Modifier -> stringResource(R.string.keys_describe_modifier, if (action.ctrl) "ctrl" else "alt")
     BarAction.Paste -> stringResource(R.string.keys_describe_paste)
+    BarAction.Ai -> stringResource(R.string.keys_describe_ai)
     is BarAction.Steps -> KeyCombination.describe(action.steps)
 }
 

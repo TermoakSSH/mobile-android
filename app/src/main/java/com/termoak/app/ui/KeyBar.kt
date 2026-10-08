@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentPaste
@@ -92,12 +93,17 @@ internal fun barIcon(name: String?): ImageVector? = when (name) {
     "return" -> Icons.AutoMirrored.Outlined.KeyboardReturn
     "delete.left" -> Icons.AutoMirrored.Outlined.Backspace
     "doc.on.clipboard" -> Icons.Outlined.ContentPaste
+    "sparkles" -> Icons.Outlined.AutoAwesome
     else -> null
 }
 
 /** What a key shows: its label, or Paste in the app's language. */
 @Composable
-internal fun barKeyTitle(key: BarKey): String = if (key.id == BarKey.PASTE_ID) stringResource(R.string.common_paste) else key.label
+internal fun barKeyTitle(key: BarKey): String = when (key.id) {
+    BarKey.PASTE_ID -> stringResource(R.string.common_paste)
+    BarKey.AI_ID -> stringResource(R.string.keys_ai)
+    else -> key.label
+}
 
 /** Icon of where a suggestion comes from. */
 internal fun suggestionIcon(source: SuggestionSource): ImageVector = when (source) {

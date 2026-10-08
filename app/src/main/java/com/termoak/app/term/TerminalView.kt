@@ -762,6 +762,17 @@ class TerminalView(context: Context) : View(context) {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val s = session ?: return super.onKeyDown(keyCode, event)
         if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyDown(keyCode, event)
+        // Ctrl+Enter on a `# request` line: the AI proposes the command (typed, never run).
+        if ((keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) && event.isCtrlPressed &&
+            !event.isAltPressed && !event.isShiftPressed && !event.isMetaPressed
+        ) {
+            val line = s.typedLine()
+            if (line != null && runCatching { com.termoak.ffi.nlRequest(line) }.getOrNull() != null) {
+                s.onAiRequest()
+                taken += keyCode
+                return true
+            }
+        }
         // → with a suggestion next to the cursor types its rest, like on the desktop.
         if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && event.hasNoModifiers() && s.acceptFirstSuggestion()) {
             taken += keyCode

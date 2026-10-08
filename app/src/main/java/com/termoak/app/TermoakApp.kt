@@ -41,6 +41,8 @@ class TermoakApp : Application() {
                 detectOs(it)
             }
             onHostOpened = { shortcuts.record(it) }
+            fixChipAllowed = { prefs.aiFixChip.value && terminalAi.accountFor(it) != null }
+            onCommandEntered = { terminalAi.commandSent(it) }
         }
     }
     /** The app's shortcuts (touch and hold its icon). */
@@ -54,6 +56,8 @@ class TermoakApp : Application() {
     /** A snippet sent to several terminals at once, and how it went. */
     val snippetRuns: SnippetRuns by lazy { SnippetRuns(sessions) }
     val copilot: Copilot by lazy { Copilot(this, core, accounts, sessions) }
+    /** The AI in the terminals: Explain/Fix of failed commands and `# request` lines. */
+    val terminalAi: com.termoak.app.data.TerminalAi by lazy { com.termoak.app.data.TerminalAi(this, accounts) }
     val shareNotices: ShareNotices by lazy { ShareNotices(this, sessions, accounts) }
     /** New versions of the app (APK published on the server). */
     val updates: Updates by lazy { Updates(this, prefs) }

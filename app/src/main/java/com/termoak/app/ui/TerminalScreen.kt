@@ -306,6 +306,16 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             copyScreen = { copyScreen(s) },
             copySelection = { v -> copySelection(v) },
             onParticipants = { showParticipants = true },
+            onAskAi = { text ->
+                // The selection goes with the next message to the copilot, as a removable chip.
+                val lines = com.termoak.app.data.CopilotChipLabel.lines(text).coerceAtLeast(1)
+                app.copilot.chat(s).attachSelection(text, resources.getQuantityString(R.plurals.copilot_chip_selection, lines, lines))
+                if (s.id != app.sessions.active.value) app.sessions.select(s.id)
+                if (!copilotOpen) {
+                    copilotOpen = true
+                    if (!wide) focusedView()?.hideKeyboard()
+                }
+            },
         )
     }
 
@@ -1017,6 +1027,7 @@ private fun TerminalPane(
     copyScreen: () -> Unit,
     copySelection: (TerminalView?) -> Boolean,
     onParticipants: () -> Unit,
+    onAskAi: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
@@ -1047,6 +1058,18 @@ private fun TerminalPane(
                 is TermState.Closed, TermState.Asleep -> Unit
             }
         }
+    }
+    // The key bar's AI key and Ctrl+Enter: the `# request` being typed becomes a command.
+    val snackbar = LocalSnackbar.current
+    val paneScope = rememberCoroutineScope()
+    val resources = LocalResources.current
+    DisposableEffect(session) {
+        session.onAiRequest = {
+            if (!app.terminalAi.askForLine(session)) {
+                paneScope.launch { snackbar.showSnackbar(resources.getString(R.string.terminal_ai_request_hint)) }
+            }
+        }
+        onDispose { session.onAiRequest = {} }
     }
     DisposableEffect(session, vibrate) {
         session.onCopy = { text -> clipboard?.setPrimaryClip(ClipData.newPlainText("terminal", text)) }
@@ -1094,6 +1117,11 @@ private fun TerminalPane(
                 if (hasSelection) {
                     DropdownMenuItem({ Text(stringResource(R.string.term_copy)) }, { longPressMenu = false; copySelection(view[0]) },
                         leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+                    // The selection to the copilot (redacted on the device before it is sent).
+                    DropdownMenuItem({ Text(stringResource(R.string.terminal_ask_ai)) }, {
+                        longPressMenu = false
+                        view[0]?.selectedText()?.takeIf { it.isNotBlank() }?.let(onAskAi)
+                    }, leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) })
                 } else {
                     DropdownMenuItem(
                         { Text(stringResource(R.string.term_select)) },
@@ -1164,6 +1192,8 @@ private fun TerminalPane(
                 )
             }
         }
+        // A failed command's Explain/Fix chip and the AI's proposed command (bottom right; never run by itself).
+        if (state == TermState.Running && live.canWrite) TerminalAiOverlay(app, session, Modifier.align(Alignment.BottomEnd))
         RequestBanners(session, live, Modifier.align(Alignment.TopCenter), onParticipants)
         if (findOpen) FindBar(session, onCloseFind, Modifier.align(Alignment.TopEnd))
         // "With a button" and the button on: so you know what one finger does.

@@ -127,6 +127,14 @@ class Prefs(context: Context) {
         sp.edit { putString("terminal_theme", id) }
     }
 
+    private val _aiFixChip = MutableStateFlow(sp.getBoolean("ai_fix_chip", true))
+    /** "Command failed · Explain · Fix" under a command that failed (the AI is only asked when tapped; nothing runs by itself). */
+    val aiFixChip: StateFlow<Boolean> = _aiFixChip
+    fun setAiFixChip(on: Boolean) {
+        _aiFixChip.value = on
+        sp.edit { putBoolean("ai_fix_chip", on) }
+    }
+
     private val _suggestions = MutableStateFlow(SuggestionMode.of(sp.getString("command_suggestions", null)))
     /** Where command suggestions show while typing (Settings → Terminal; the iOS app's setting). */
     val commandSuggestions: StateFlow<SuggestionMode> = _suggestions

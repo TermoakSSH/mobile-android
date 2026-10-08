@@ -115,6 +115,7 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
     var choosingSuggestions by remember { mutableStateOf(false) }
     val terminalFont by app.prefs.terminalFont.collectAsState()
     val terminalTheme by app.prefs.terminalTheme.collectAsState()
+    val aiFixChip by app.prefs.aiFixChip.collectAsState()
     val lockOn by app.appLock.enabled.collectAsState()
     val lockDelay by app.appLock.delay.collectAsState()
     var choosingLockDelay by remember { mutableStateOf(false) }
@@ -236,6 +237,10 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             }
             SwitchRow(stringResource(R.string.settings_confirm_paste), stringResource(R.string.settings_confirm_paste_hint), confirmPaste) {
                 app.prefs.setConfirmMultilinePaste(it)
+            }
+            // The AI in the terminal: Explain / Fix of failed commands (and the # request hint).
+            SwitchRow(stringResource(R.string.settings_ai_fix_chip), stringResource(R.string.settings_ai_fix_chip_hint), aiFixChip) {
+                app.prefs.setAiFixChip(it)
             }
             SwitchRow(stringResource(R.string.settings_key_bar_keyboard), stringResource(R.string.settings_key_bar_keyboard_hint), keyBar) {
                 app.prefs.setKeyBarWithKeyboard(it)

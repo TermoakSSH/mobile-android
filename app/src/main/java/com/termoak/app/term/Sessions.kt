@@ -106,6 +106,10 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     @Volatile var telnetAutoLogin: () -> Boolean = { true }
     /** Command suggestions and history for the terminals (set by the app). */
     @Volatile var assist: CommandAssist? = null
+    /** The "Command failed · Explain · Fix" chip can show in a terminal (the setting, and an AI to ask). */
+    @Volatile var fixChipAllowed: (TermSession) -> Boolean = { false }
+    /** Enter at a terminal's shell line (the AI's typed proposal is done). */
+    @Volatile var onCommandEntered: (TermSession) -> Unit = {}
     /** Running tunnels (set by the app): the service also stays for them. */
     @Volatile var tunnelCount: () -> Int = { 0 }
     /** A terminal from the phone connected (its automatic tunnels start; set by the app). */
@@ -142,6 +146,8 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
     /** Gives a new terminal the suggestions, with its host's system. */
     private fun prepare(session: TermSession, os: String? = null) {
         session.assist = assist
+        session.fixChipAllowed = { fixChipAllowed(session) }
+        session.onEnter = { onCommandEntered(session) }
         session.hostOs = os ?: session.hostId?.let { runCatching { core.getHost(it, session.accountId) }.getOrNull()?.os }
     }
 

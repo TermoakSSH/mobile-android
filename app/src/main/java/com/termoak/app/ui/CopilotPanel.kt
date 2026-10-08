@@ -36,6 +36,8 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Terminal
@@ -46,6 +48,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,10 +79,13 @@ import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
 import com.termoak.app.data.CopilotChat
+import com.termoak.app.data.CopilotChipLabel
 import com.termoak.app.data.Turn
 import com.termoak.app.term.LocalTerminal
 import com.termoak.app.term.TermSession
 import com.termoak.ffi.AiTaskStatus
+import com.termoak.ffi.ContextChipKind
+import com.termoak.ffi.contextChipHost
 import com.termoak.ffi.SshHost
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -109,6 +116,24 @@ fun CopilotPanel(
     val online by app.accounts.online.collectAsState()
     val chat = remember(session.id) { app.copilot.chat(session) }
     val hostLabel = host?.label ?: session.label.takeIf { session.hostId != null }
+    // What goes with the next message, as removable chips: the host (before the first message) and the last command.
+    val last by session.lastCommand.collectAsState()
+    val hostChip = remember(host?.id, hostLabel) {
+        hostLabel?.let { runCatching { contextChipHost(it, host?.os) }.getOrNull() }
+    }
+    val resources = LocalResources.current
+    LaunchedEffect(chat) {
+        chat.lastCommandLabel = { l ->
+            val command = CopilotChipLabel.command(l.command) ?: resources.getString(R.string.copilot_chip_last_command)
+            val code = l.exitCode
+            when {
+                code != null && code != 0 -> resources.getString(R.string.copilot_chip_exit, command, code)
+                l.failure != null -> resources.getString(R.string.copilot_chip_failed, command)
+                else -> command
+            }
+        }
+    }
+    LaunchedEffect(chat, hostChip, last) { chat.updateContext(hostChip, last) }
 
     // Swipe right to close.
     var drag by remember { mutableFloatStateOf(0f) }
@@ -165,6 +190,7 @@ fun CopilotPanel(
                     Text(stringResource(R.string.copilot_stop), Modifier.padding(start = 8.dp))
                 }
             }
+            ContextChips(chat)
             CopilotInput(chat) { text -> app.copilot.send(session, hostLabel, text) }
         }
     }
@@ -369,6 +395,46 @@ private fun ErrorLine(text: String) {
     Row(verticalAlignment = Alignment.Top) {
         Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
         Text(text, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/** What goes with the next message (host, last command, selection), each with its ×; and that secrets are hidden. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ContextChips(chat: CopilotChat) {
+    val chips = chat.chips
+    if (chips.isEmpty() && !chat.secretsHidden) return
+    Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            chips.forEach { c ->
+                val remove = stringResource(R.string.copilot_chip_remove, c.label)
+                InputChip(
+                    selected = false, onClick = { chat.remove(c) },
+                    label = { Text(c.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = {
+                        Icon(
+                            when (c.kind) {
+                                ContextChipKind.HOST -> Icons.Outlined.Dns
+                                ContextChipKind.DIRECTORY -> Icons.Outlined.Folder
+                                ContextChipKind.LAST_COMMAND -> Icons.Outlined.Terminal
+                                ContextChipKind.SELECTION -> Icons.Outlined.TextFields
+                            },
+                            null, Modifier.size(16.dp),
+                        )
+                    },
+                    trailingIcon = { Icon(Icons.Outlined.Close, remove, Modifier.size(16.dp)) },
+                )
+            }
+        }
+        if (chat.secretsHidden) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Shield, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    stringResource(R.string.copilot_secrets_hidden), Modifier.padding(start = 6.dp),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
