@@ -96,6 +96,7 @@ import androidx.core.graphics.toColorInt
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.data.AddressSplit
+import com.termoak.app.data.GroupDefaults
 import com.termoak.app.data.HostLogos
 import com.termoak.app.data.HostProtocol
 import com.termoak.app.data.Place
@@ -252,6 +253,8 @@ fun HostEditor(
     var theme by remember { mutableStateOf(s0.theme) }
     var record by remember { mutableStateOf(s0.recordSessions == true) }
     var advancedOpen by remember { mutableStateOf(HostForm.hasAdvanced(s0)) }
+    // What its groups give it (shown in the empty fields; the engine applies it when connecting).
+    val inherited = remember(groupId, groups) { GroupDefaults.inherited(groupId, groups) }
     var errors by remember { mutableStateOf<Map<HostField, String>>(emptyMap()) }
     var deleting by remember { mutableStateOf(false) }
 
@@ -536,7 +539,8 @@ fun HostEditor(
                 Row {
                     Box(Modifier.weight(1f)) {
                         FormField(
-                            stringResource(R.string.common_username), user, { user = it.trim() }, placeholder = "root",
+                            stringResource(R.string.common_username), user, { user = it.trim() },
+                            placeholder = inherited.username?.let { stringResource(R.string.editor_from_group, it) } ?: "root",
                             modifier = Modifier.focusRequester(focusUser),
                             imeAction = ImeAction.Next, onIme = { runCatching { focusPort.requestFocus() } },
                         )
@@ -545,7 +549,7 @@ fun HostEditor(
                         FormField(
                             stringResource(R.string.common_port), port,
                             { port = it.filter(Char::isDigit).take(5); clearError(HostField.PORT) },
-                            placeholder = HostProtocol.defaultPort(protocol).toString(), keyboard = KeyboardType.Number,
+                            placeholder = (inherited.port ?: HostProtocol.defaultPort(protocol)).toString(), keyboard = KeyboardType.Number,
                             modifier = Modifier.focusRequester(focusPort),
                             error = errors[HostField.PORT],
                             imeAction = if (auth == Auth.PASSWORD) ImeAction.Next else ImeAction.Done,
@@ -784,7 +788,7 @@ fun HostEditor(
                         FormField(
                             stringResource(R.string.editor_keepalive), keepalive,
                             { keepalive = it.filter(Char::isDigit).take(6); clearError(HostField.KEEPALIVE) },
-                            placeholder = "30", keyboard = KeyboardType.Number,
+                            placeholder = inherited.keepaliveSecs?.let { stringResource(R.string.editor_from_group, it.toString()) } ?: "30", keyboard = KeyboardType.Number,
                             error = errors[HostField.KEEPALIVE] ?: stringResource(R.string.editor_keepalive_hint),
                             isError = HostField.KEEPALIVE in errors,
                             imeAction = ImeAction.Done, onIme = { save(false) },
@@ -809,7 +813,8 @@ fun HostEditor(
                             FormDivider()
                         }
                         FormField(
-                            stringResource(R.string.editor_term), term, { term = it.trim() }, placeholder = "xterm-256color",
+                            stringResource(R.string.editor_term), term, { term = it.trim() },
+                            placeholder = inherited.term?.let { stringResource(R.string.editor_from_group, it) } ?: "xterm-256color",
                             error = stringResource(R.string.editor_term_hint), isError = false,
                             imeAction = ImeAction.Done, onIme = { save(false) },
                         )
@@ -947,7 +952,7 @@ private fun placeOptions(accounts: List<AccountInfo>, vaults: List<VaultInfo>): 
 /** The host's color: the desktop's palette, or none (the system's or the name's). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ColorChoice(selected: String?, onSelect: (String?) -> Unit) {
+internal fun ColorChoice(selected: String?, onSelect: (String?) -> Unit) {
     fun same(a: String?, b: String?) = a?.trim()?.removePrefix("#").equals(b?.trim()?.removePrefix("#"), ignoreCase = true)
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),

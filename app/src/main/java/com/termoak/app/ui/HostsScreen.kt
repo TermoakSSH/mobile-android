@@ -57,7 +57,6 @@ import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.FileDownload
@@ -95,7 +94,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -476,7 +474,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             }
         }
         if (g.access.canWrite()) {
-            add(ItemAction(Icons.Outlined.DriveFileRenameOutline, stringResource(R.string.hosts_rename), 0) { editingGroup = g })
+            add(ItemAction(Icons.Outlined.Edit, stringResource(R.string.group_edit_title), 0) { editingGroup = g })
             if (accountList.isNotEmpty()) {
                 add(ItemAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to), 0) {
                     transfer = TransferRequest(TransferMode.MOVE, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
@@ -840,33 +838,17 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         }
     }
     editingGroup?.let { g ->
-        var name by remember(g) { mutableStateOf(g.name) }
-        var place by remember(g) { mutableStateOf(com.termoak.app.data.Place(g.accountId, g.vaultId)) }
-        AlertDialog(
-            onDismissRequest = { editingGroup = null },
-            title = { Text(stringResource(if (g.id.isEmpty()) R.string.hosts_new_group else R.string.hosts_rename)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
-                    // A new group at the top: where it goes (inside a group, its parent's place).
-                    if (g.id.isEmpty() && g.parentId == null) PlacePicker(app, place) { place = it }
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = name.isNotBlank(), onClick = {
-                    val saved = if (g.id.isEmpty() && g.parentId == null) {
-                        app.accounts.rememberPlace(place)
-                        g.copy(accountId = place.account, vaultId = place.vault, syncMode = place.syncMode(accountList.isNotEmpty()))
-                    } else g
-                    runCatching { app.core.saveGroup(saved.copy(name = name.trim())) }
-                        .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
-                    editingGroup = null
-                    reload()
-                    app.accounts.sync()
-                }) { Text(stringResource(R.string.common_save)) }
-            },
-            dismissButton = { TextButton(onClick = { editingGroup = null }) { Text(stringResource(R.string.common_cancel)) } },
-        )
+        GroupEditorDialog(app, g, onDismiss = { editingGroup = null }) { edited, newPlace ->
+            val saved = if (newPlace != null) {
+                app.accounts.rememberPlace(newPlace)
+                edited.copy(accountId = newPlace.account, vaultId = newPlace.vault, syncMode = newPlace.syncMode(accountList.isNotEmpty()))
+            } else edited
+            runCatching { app.core.saveGroup(saved) }
+                .onFailure { scope.launch { snackbar.showSnackbar(it.userMessage(resources, R.string.error_save_failed)) } }
+            editingGroup = null
+            reload()
+            app.accounts.sync()
+        }
     }
     tunnelsOf?.let { host -> HostTunnelsSheet(app, host) { tunnelsOf = null } }
     deleting?.let { host ->

@@ -1928,4 +1928,13 @@
     <string name="palette_kind_tab">Pestaña abierta</string>
     <string name="palette_no_matches">No hay coincidencias</string>
     <string name="palette_placeholder">Hosts, pestañas, sesiones, snippets, acciones o usuario@host</string>
+    <string name="editor_from_group">Del grupo: %1$s</string>
+    <string name="group_edit_title">Editar grupo</string>
+    <string name="group_color">Color</string>
+    <string name="group_defaults">Valores para sus hosts</string>
+    <string name="group_defaults_hint">Para los hosts de este grupo y sus subgrupos: el valor propio de un host manda, y el grupo más cercano manda sobre los de arriba.</string>
+    <string name="group_defaults_not_set">Sin definir</string>
+    <string name="group_defaults_on">Activado</string>
+    <string name="group_defaults_off">Desactivado</string>
+    <string name="group_defaults_credential">Identidad o clave</string>
 </resources>

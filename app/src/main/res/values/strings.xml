@@ -1860,4 +1860,13 @@
     <string name="palette_kind_tab">Open tab</string>
     <string name="palette_no_matches">Nothing matches</string>
     <string name="palette_placeholder">Hosts, tabs, sessions, snippets, actions or user@host</string>
+    <string name="editor_from_group">From the group: %1$s</string>
+    <string name="group_edit_title">Edit group</string>
+    <string name="group_color">Colour</string>
+    <string name="group_defaults">Defaults for its hosts</string>
+    <string name="group_defaults_hint">For the hosts in this group and its subgroups: a host\'s own value wins, and the nearest group wins over the ones above.</string>
+    <string name="group_defaults_not_set">Not set</string>
+    <string name="group_defaults_on">On</string>
+    <string name="group_defaults_off">Off</string>
+    <string name="group_defaults_credential">Identity or key</string>
 </resources>

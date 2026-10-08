@@ -132,15 +132,16 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
     LaunchedEffect(loggedIn) { reload() }
     LaunchedEffect(Unit) { app.accounts.changes.collect { if (it == "session" || it == "lagged") reload() } }
 
-    val currentAccount = remember(lists) { runCatching { app.core.currentAccount()?.id }.getOrNull() }
-    /** Downloads a recording (`.cast`, asciicast) and hands it to another app to share or save it. */
+    /** Downloads a recording (`.cast`, asciicast) of its account's session and hands it to another app to share or save it. */
     fun downloadRecording(id: String, title: String) {
         if (downloading != null) return
         downloading = id
         scope.launch {
             val file = java.io.File(Recordings.folder(context), Recordings.fileName(title, id))
             try {
-                app.core.downloadRecording(id, file.path, null)
+                // Through the session's own account (the engine's per-account download).
+                val handle = sessionAccount[id]?.let { app.accounts.handle(it) }
+                if (handle != null) handle.downloadRecording(id, file.path, null) else app.core.downloadRecording(id, file.path, null)
                 if (!Recordings.share(context, file)) snackbar.showSnackbar(resources.getString(R.string.recording_share_failed))
             } catch (e: TermoakException) {
                 file.parentFile?.deleteRecursively()
@@ -262,10 +263,10 @@ fun ConnectionsScreen(app: TermoakApp, nav: NavHostController) {
                             trailingContent = if (r.recording) {
                                 {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        // The .cast file (asciicast), of the sessions of the current account (the engine downloads those).
+                                        // The .cast file (asciicast), through the session's account.
                                         if (downloading == r.id) {
                                             CircularProgressIndicator(Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp)
-                                        } else if (sessionAccount[r.id] == currentAccount) {
+                                        } else {
                                             IconButton(onClick = { downloadRecording(r.id, title) }, enabled = downloading == null) {
                                                 Icon(
                                                     Icons.Outlined.FileDownload, stringResource(R.string.sessions_recording_download), Modifier.size(20.dp),
