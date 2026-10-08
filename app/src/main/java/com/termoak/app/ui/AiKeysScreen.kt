@@ -2,6 +2,7 @@ package com.termoak.app.ui
 
 import android.content.res.Resources
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -16,10 +17,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -30,6 +33,8 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -62,8 +68,8 @@ import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
 import com.termoak.app.aiSetupError
 import com.termoak.app.asString
-import com.termoak.app.toUiText
 import com.termoak.app.data.AccountAiKeys
+import com.termoak.app.toUiText
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.AiAccessInfo
 import com.termoak.ffi.AiKeyInfo
@@ -172,6 +178,13 @@ fun AiKeysScreen(app: TermoakApp, nav: NavHostController) {
             Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         ) {
             AccessCard(info)
+            ListItem(
+                modifier = Modifier.clickable { nav.navigate(Routes.aiMemories(accountId)) },
+                headlineContent = { Text(stringResource(R.string.ai_memories)) },
+                leadingContent = { Icon(Icons.Outlined.Psychology, null) },
+                trailingContent = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            )
             SectionLabel(stringResource(R.string.ai_keys_providers))
             info.providers.forEach { p ->
                 if (api != null) {

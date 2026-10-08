@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -185,6 +186,12 @@ fun AiScreen(app: TermoakApp, nav: NavHostController) {
                 }
             }
         } else null,
+        actions = {
+            // What the AI keeps between tasks.
+            IconButton(onClick = { nav.navigate(Routes.aiMemories(accountId)) }) {
+                Icon(Icons.Outlined.Psychology, stringResource(R.string.ai_memories))
+            }
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { nav.navigate(Routes.AI_NEW) },

@@ -1583,4 +1583,13 @@
     <string name="vault_audit_transfer">Items moved or copied</string>
     <string name="vault_audit_update">Vault changed</string>
     <string name="shortcut_host_gone">That host is no longer there</string>
+    <string name="ai_memories">Memories</string>
+    <string name="ai_memories_content_hint">What the AI should remember, e.g. “The web servers restart with systemctl restart app”.</string>
+    <string name="ai_memories_delete_title">Delete this memory?</string>
+    <string name="ai_memories_edit">Edit memory</string>
+    <string name="ai_memories_empty">No memories yet.</string>
+    <string name="ai_memories_footer">Facts the AI keeps between tasks, about you or about a host. They are saved in the account\'s vault and synced.</string>
+    <string name="ai_memories_host">Host</string>
+    <string name="ai_memories_new">New memory</string>
+    <string name="ai_memories_no_host">Any host</string>
 </resources>

@@ -131,6 +131,8 @@ object Routes {
     const val HOST_EDIT = "host/{id}?account={account}&group={group}"
     const val AI_TASK = "ai/{id}?account={account}"
     const val AI_NEW = "ai-new"
+    /** The AI's memories of an account (`null`: the AI section's). */
+    const val AI_MEMORIES = "ai-memories?account={account}"
     /** The keychain; `action` opens the generate (`generate`) or import (`import`) dialog. */
     const val KEYS = "keys?action={action}"
     /** A key's page: details, QR code, install on a host, export. */
@@ -156,6 +158,7 @@ object Routes {
         "host/${id ?: "new"}" + listOfNotNull(account?.let { "account=$it" }, group?.let { "group=$it" })
             .joinToString("&").let { if (it.isEmpty()) "" else "?$it" }
     fun group(id: String, account: String? = null) = "group/$id" + (account?.let { "?account=$it" } ?: "")
+    fun aiMemories(account: String? = null) = "ai-memories" + (account?.let { "?account=$it" } ?: "")
     fun aiTask(id: String, account: String? = null) = "ai/$id" + (account?.let { "?account=$it" } ?: "")
     fun vault(account: String, id: String) = "vault/$account/$id"
     fun login(mode: String? = null, server: String? = null, email: String? = null, invite: String? = null): String =
@@ -192,14 +195,14 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
-    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
+    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES,
 )
 
 private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
-    Routes.AI, Routes.AI_TASK, Routes.AI_NEW -> Tab.AI
+    Routes.AI, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES -> Tab.AI
     Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
     else -> null
 }
@@ -450,6 +453,10 @@ fun AppRoot(app: TermoakApp) {
                             )
                         }
                         composable(Routes.AI_NEW) { NewAiTaskScreen(app, nav) }
+                        composable(
+                            Routes.AI_MEMORIES,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e -> AiMemoriesScreen(app, nav, e.arguments?.getString("account")) }
                         composable(
                             Routes.AI_TASK,
                             arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),

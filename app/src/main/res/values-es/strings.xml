@@ -1633,4 +1633,13 @@
     <string name="vault_audit_transfer">Elementos movidos o copiados</string>
     <string name="vault_audit_update">Vault modificado</string>
     <string name="shortcut_host_gone">Ese host ya no existe</string>
+    <string name="ai_memories">Memorias</string>
+    <string name="ai_memories_content_hint">Lo que la IA debe recordar, p. ej. «Los servidores web se reinician con systemctl restart app».</string>
+    <string name="ai_memories_delete_title">¿Borrar esta memoria?</string>
+    <string name="ai_memories_edit">Editar memoria</string>
+    <string name="ai_memories_empty">Todavía no hay memorias.</string>
+    <string name="ai_memories_footer">Datos que la IA conserva entre tareas, sobre ti o sobre un host. Se guardan en el vault de la cuenta y se sincronizan.</string>
+    <string name="ai_memories_host">Host</string>
+    <string name="ai_memories_new">Nueva memoria</string>
+    <string name="ai_memories_no_host">Cualquier host</string>
 </resources>
