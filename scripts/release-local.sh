@@ -3,13 +3,17 @@
 # version in gradle.properties (termoakVersion), as the android-vX.Y.Z
 # release: APKs signed with your keystore, one per ABI plus a universal one
 # with both (Termoak-android-vX.Y.Z-arm64-v8a.apk, ...-armeabi-v7a.apk and
-# ...-universal.apk). x86_64 (emulator) only goes into debug builds.
+# ...-universal.apk). x86_64 (emulator) only goes into debug builds. With the
+# upload key it also builds the App Bundle for Google Play, in dist/play/
+# (Termoak-android-vX.Y.Z.aab, not published to GitHub).
 #
 #   scripts/release-local.sh status
 #   scripts/release-local.sh version android [X.Y.Z]
 #   scripts/release-local.sh build android
 #   scripts/release-local.sh publish android
 #   scripts/release-local.sh android-keystore
+#   scripts/release-local.sh play-upload-key
+#   scripts/release-local.sh play-signing-key encryption_public_key.pem
 #
 # build compiles the engine (termoak-ffi, from the core/ submodule, with
 # core's size-optimized `mobile` profile) and the APKs in the
@@ -24,6 +28,16 @@
 # android-keystore creates the keystore used to sign the APK, in
 # ~/.config/termoak/android/ (with its password in keystore.env). Keep a copy
 # off this machine: without it, updates cannot be installed over the app.
+#
+# Google Play signs what it delivers with that same key (Play App Signing
+# with our own key, so the Play, GitHub and F-Droid builds update each other)
+# and takes the App Bundle signed with a separate upload key:
+# - play-upload-key creates the upload key (upload.jks and upload.env in the
+#   same folder) and its certificate, upload_certificate.pem, for the Play
+#   Console. If it is lost, Google can reset it; the app's key stays.
+# - play-signing-key encrypts the app's key for the Play Console with Google's
+#   PEPK tool ("Export and upload a key from Java keystore": the Console gives
+#   encryption_public_key.pem), leaving play-signing-key.zip in that folder.
 #
 # Variables:
 #   GITHUB_TOKEN  GitHub token (publish and download). If unset, it is read
@@ -184,33 +198,111 @@ build_android() {
     official=(-e "TERMOAK_OFFICIAL_SERVER=$TERMOAK_OFFICIAL_SERVER")
     server_prop="-PtermoakServer=$TERMOAK_OFFICIAL_SERVER"
   fi
+  # The App Bundle for Google Play is signed with the upload key (play-upload-key).
+  local upload=() bundle=""
+  if [[ -f "$dir/upload.jks" && -f "$dir/upload.env" ]]; then
+    upload=(--env-file "$dir/upload.env")
+    # Without the ABI splits (Gradle refuses both at once), so in its own build
+    # before the APKs' one; it is kept in target/android across their clean.
+    bundle="
+      rm -f target/android/app-release.aab
+      TERMOAK_ANDROID_KEYSTORE=/ks/upload.jks TERMOAK_ANDROID_KEY_ALIAS=upload \\
+        TERMOAK_ANDROID_KEYSTORE_PASSWORD=\$TERMOAK_ANDROID_UPLOAD_PASSWORD \\
+        ./gradlew --no-daemon -q clean bundleRelease -PtermoakBundle=1 $server_prop
+      cp app/build/outputs/bundle/release/app-release.aab target/android/"
+  else
+    say "No upload key (play-upload-key): no App Bundle for Google Play"
+  fi
   docker run --rm -v "$root:/src" -v "$dir:/ks:ro" -w /src \
     -e CARGO_HOME=/src/target/android/cargo-home -e CARGO_TARGET_DIR=/src/target/android \
     -e GRADLE_USER_HOME=/src/target/android/gradle ${official[@]+"${official[@]}"} \
-    --env-file "$dir/keystore.env" -e TERMOAK_ANDROID_KEYSTORE=/ks/keystore.jks \
+    --env-file "$dir/keystore.env" -e TERMOAK_ANDROID_KEYSTORE=/ks/keystore.jks ${upload[@]+"${upload[@]}"} \
     termoak-android-builder bash -c "set -e
       export PATH=/usr/local/cargo/bin:\$PATH
       rm -rf core/bindings/kotlin/src/main/jniLibs
       cd core
       cargo ndk ${targets[*]} --platform 26 -o bindings/kotlin/src/main/jniLibs \
         build -p termoak-ffi --lib --profile mobile --locked
-      cd ..
+      cd ..$bundle
       ./gradlew --no-daemon -q clean assembleRelease $server_prop"
   # Gradle's ABI splits (app/build.gradle.kts): app-<abi>-release.apk and
   # app-universal-release.apk.
   for apk in "${abis[@]}" universal; do
     cp "app/build/outputs/apk/release/app-$apk-release.apk" "$dist/Termoak-android-v$version-$apk.apk"
   done
+  if [[ -n "$bundle" ]]; then
+    rm -rf "$root/dist/play"
+    mkdir -p "$root/dist/play"
+    mv target/android/app-release.aab "$root/dist/play/Termoak-android-v$version.aab"
+  fi
 }
 
 cmd_build() { # android
   select_component "${1:-}" build
-  rm -rf "$dist"
+  rm -rf "$dist" "$root/dist/play"
   mkdir -p "$dist"
   echo "$tag" >"$dist/.version"
   build_android
   say "Done: $tag in dist/android/"
   ls -l "$dist"
+  if [[ -d "$root/dist/play" ]]; then ls -l "$root/dist/play"; fi
+}
+
+# --- Google Play --------------------------------------------------------------
+
+cmd_play_upload_key() {
+  local dir pass
+  dir="$(android_dir)"
+  if [[ -f "$dir/upload.jks" ]]; then
+    say "There is already an upload key in $dir: leaving it alone"
+  else
+    command -v docker >/dev/null || die "Docker is missing"
+    build_android_image
+    install -d -m 700 "$dir"
+    pass="$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | cut -c1-32)"
+    docker run --rm -v "$dir:/ks" termoak-android-builder \
+      keytool -genkeypair -keystore /ks/upload.jks -storetype PKCS12 -alias upload \
+      -keyalg RSA -keysize 4096 -validity 36500 -storepass "$pass" \
+      -dname "CN=Termoak upload, O=Ohz Digital SL" >/dev/null
+    (
+      umask 077
+      printf 'TERMOAK_ANDROID_UPLOAD_PASSWORD=%s\n' "$pass" >"$dir/upload.env"
+    )
+    chmod 600 "$dir/upload.jks"
+    say "Upload key created in $dir. Keep a copy of upload.jks and upload.env off this machine."
+  fi
+  docker run --rm -v "$dir:/ks" --env-file "$dir/upload.env" termoak-android-builder bash -c \
+    'keytool -exportcert -rfc -keystore /ks/upload.jks -alias upload -storepass "$TERMOAK_ANDROID_UPLOAD_PASSWORD" >/ks/upload_certificate.pem'
+  say "Certificate for the Play Console: $dir/upload_certificate.pem"
+}
+
+cmd_play_signing_key() { # encryption_public_key.pem (or the hex key the Console shows)
+  local dir key="${1:-}" enc=()
+  dir="$(android_dir)"
+  [[ -n "$key" ]] || die "give the encryption_public_key.pem of the Play Console"
+  if [[ -f "$key" ]]; then
+    enc=(-v "$(cd "$(dirname "$key")" && pwd)/$(basename "$key"):/key.pem:ro" -e "PEPK_ENC=--rsa-aes-encryption --encryption-key-path=/key.pem")
+  elif [[ "$key" =~ ^[0-9a-fA-F]+$ ]]; then
+    enc=(-e "PEPK_ENC=--encryptionkey=$key")
+  else
+    die "$key: neither the Console's encryption_public_key.pem nor its hex key"
+  fi
+  [[ -f "$dir/keystore.jks" && -f "$dir/keystore.env" ]] || die "the Android keystore is missing"
+  command -v docker >/dev/null || die "Docker is missing"
+  build_android_image
+  local pepk="$root/target/android/pepk.jar"
+  if [[ ! -f "$pepk" ]]; then
+    mkdir -p "$(dirname "$pepk")"
+    curl -fsSL -o "$pepk.tmp" https://www.gstatic.com/play-apps-publisher-rapid/signing-tool/prod/pepk.jar &&
+      mv "$pepk.tmp" "$pepk" || die "could not download pepk.jar"
+  fi
+  rm -f "$dir/play-signing-key.zip"
+  docker run --rm -v "$dir:/ks" -v "$pepk:/pepk.jar:ro" "${enc[@]}" \
+    --env-file "$dir/keystore.env" termoak-android-builder bash -c \
+    'java -jar /pepk.jar --keystore=/ks/keystore.jks --alias="$TERMOAK_ANDROID_KEY_ALIAS" \
+      --keystore-pass="$TERMOAK_ANDROID_KEYSTORE_PASSWORD" --output=/ks/play-signing-key.zip --include-cert $PEPK_ENC'
+  chmod 600 "$dir/play-signing-key.zip"
+  say "Upload $dir/play-signing-key.zip to the Play Console"
 }
 
 # --- GitHub API (curl) --------------------------------------------------------
@@ -354,5 +446,7 @@ case "${1:-}" in
   build) shift; cmd_build "$@"; exit ;;
   publish) shift; cmd_publish "$@"; exit ;;
   android-keystore) cmd_android_keystore; exit ;;
+  play-upload-key) cmd_play_upload_key; exit ;;
+  play-signing-key) shift; cmd_play_signing_key "$@"; exit ;;
   *) awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"; exit 1 ;;
 esac

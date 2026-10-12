@@ -72,10 +72,11 @@ android {
     // One APK per ABI plus a universal one (scripts/release-local.sh): each
     // device downloads only its engine (libtermoak_ffi.so is most of the APK).
     // x86_64 (emulator) only goes into the debug universal APK: the ABIs that
-    // are packaged are chosen in androidComponents below.
+    // are packaged are chosen in androidComponents below. Off for the App
+    // Bundle of Google Play (-PtermoakBundle=1), which splits by ABI itself.
     splits {
         abi {
-            isEnable = true
+            isEnable = providers.gradleProperty("termoakBundle").getOrElse("") != "1"
             reset()
             include(*releaseAbis.toTypedArray())
             isUniversalApk = true
