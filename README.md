@@ -167,6 +167,23 @@ only installs an update over the app if it is signed with the same key, and
 the App Links of the invitation links are verified against its SHA-256
 fingerprint (public-web's `site/.well-known/assetlinks.json`).
 
+### Store listing
+
+The texts and images of Google Play and F-Droid are in
+`fastlane/metadata/android/<en-US|es-ES>/` (fastlane layout): title, short
+and full description, eight screenshots per device type (phone 1080×2160,
+7" tablet 1920×1200, 10" tablet 2560×1600), the feature graphic (1024×500)
+and the icon (512×512). The images are rendered from the real app, without
+an emulator: `scripts/screenshots.sh` draws AppRoot with Robolectric at each
+device's size and density, with demo data in place of the engine (which
+can't load on the JVM), in the same Docker image as the releases:
+
+```sh
+scripts/screenshots.sh                                    # everything (about a minute)
+scripts/screenshots.sh --only 'phone-es'                  # some of them
+scripts/screenshots.sh --fdroid ../packages/fdroid/metadata/com.termoak
+```
+
 ## Documentation
 
 - [Mobile apps and the FFI layer](https://github.com/TermoakSSH/core/blob/main/docs/MOBILE.md) (in core)

@@ -107,6 +107,16 @@ android {
     testOptions {
         // Robolectric (the screenshot tests of app/src/test/.../ui) needs the app's resources.
         unitTests.isIncludeAndroidResources = true
+        // The store screenshots (StoreScreenshotTest, scripts/screenshots.sh): only with
+        // -PtermoakStore=1, optionally -PtermoakStoreOnly=<regex of "device-lang-shot">.
+        val store = providers.gradleProperty("termoakStore").getOrElse("")
+        val storeOnly = providers.gradleProperty("termoakStoreOnly").getOrElse("")
+        unitTests.all { test ->
+            test.systemProperty("termoak.store", store)
+            test.systemProperty("termoak.store.only", storeOnly)
+            test.systemProperty("java.awt.headless", "true")
+            if (store == "1") test.maxHeapSize = "2g"
+        }
     }
 
     packaging {

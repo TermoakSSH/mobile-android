@@ -1,5 +1,6 @@
 package com.termoak.app.term
 
+import com.termoak.app.EngineObjects
 import com.termoak.app.R
 import com.termoak.app.UiText
 import com.termoak.app.uiText
@@ -97,7 +98,7 @@ abstract class TermSession(
     val id: String = UUID.randomUUID().toString()
     /** When the tab was opened (for the Connections list). */
     val openedAt: Long = System.currentTimeMillis()
-    val screen = TerminalScreen(80u, 24u, 0u)
+    val screen: TerminalScreen = EngineObjects.newScreen()
 
     /** The colour theme in use (an id of [TerminalThemes]; `null`: the emulator's default until one is set). */
     @Volatile var themeId: String? = null
@@ -114,7 +115,7 @@ abstract class TermSession(
     // ----- Commands and the AI in the terminal (the desktop's, through the engine) -----
 
     /** Follows the commands (shell integration OSC 133/633, or the prompt coming back). */
-    private val watcher = CommandWatcher(screen)
+    private val watcher: CommandWatcher = EngineObjects.newWatcher(screen)
     private val _lastCommand = MutableStateFlow<LastCommandInfo?>(null)
     /** The last command that ended here (the copilot's chip; not full-screen programs). */
     val lastCommand: StateFlow<LastCommandInfo?> = _lastCommand
@@ -261,7 +262,7 @@ abstract class TermSession(
     /** The host's system (`SshHost.os`), to suggest the right package manager. */
     @Volatile var hostOs: String? = null
     /** What is typed, to know the command sent with Enter and to complete it. */
-    private val line = LineTracker()
+    private val line: LineTracker = EngineObjects.newLineTracker()
     private val _suggestions = MutableStateFlow<List<CommandSuggestion>>(emptyList())
     /** How to continue the line being typed (history, snippets, commands). */
     val suggestions: StateFlow<List<CommandSuggestion>> = _suggestions

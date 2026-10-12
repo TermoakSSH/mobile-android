@@ -1574,7 +1574,10 @@ private fun DesktopSearchField(query: String, focus: FocusRequester, onChange: (
         Icon(Icons.Outlined.Search, null, Modifier.size(18.dp), tint = muted)
         Box(Modifier.weight(1f).padding(start = 8.dp), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) {
-                Text(stringResource(R.string.desktop_search_hosts), color = muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                Text(
+                    stringResource(R.string.desktop_search_hosts), color = muted, style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
             BasicTextField(
                 query, onChange, Modifier.fillMaxWidth().focusRequester(focus), singleLine = true,

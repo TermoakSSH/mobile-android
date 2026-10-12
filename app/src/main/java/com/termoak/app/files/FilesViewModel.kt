@@ -9,6 +9,7 @@ import android.webkit.MimeTypeMap
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.termoak.app.EngineObjects
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
 import com.termoak.app.UiText
@@ -595,7 +596,7 @@ class FilesViewModel(private val app: TermoakApp, private val sourceId: String) 
 
     /** Runs a transfer in its turn, with progress, and leaves it done, failed or cancelled. */
     private fun transfer(id: Long, action: suspend (TransferListener, TransferHandle) -> Unit) {
-        val handle = TransferHandle()
+        val handle = EngineObjects.newTransferHandle()
         handles[id] = handle
         jobs[id] = viewModelScope.launch {
             val listener = ProgressRelay { done, total ->
