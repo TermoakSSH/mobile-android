@@ -435,7 +435,8 @@ fun UseOnlyBadge() {
 /**
  * Settings → Accounts: every account with its status, server and last
  * sync; sync now, sign in again, enter the code, sign out (its data on this
- * phone is deleted) and add another one.
+ * phone is deleted), add another one and, in the danger zone, delete the
+ * account on its server.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -448,6 +449,10 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
     val context = LocalContext.current
     var signingOut by remember { mutableStateOf<AccountInfo?>(null) }
     var naming by remember { mutableStateOf<AccountInfo?>(null) }
+    var deleting by remember { mutableStateOf<AccountInfo?>(null) }
+    val resources = LocalResources.current
+    val snackbar = LocalSnackbar.current
+    val scope = rememberCoroutineScope()
     ScreenScaffold(
         title = stringResource(R.string.accounts_title),
         navigationIcon = {
@@ -591,9 +596,16 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                 stringResource(R.string.accounts_footer), Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // Deleting the account on its server (the stores ask for it in the app).
+            DangerZoneSection(accounts) { deleting = it }
         }
     }
     naming?.let { a -> AccountAliasDialog(app, a) { naming = null } }
+    deleting?.let { a ->
+        DeleteAccountFlow(app, a, onDone = { deleting = null }) {
+            scope.launch { snackbar.showSnackbar(resources.getString(R.string.account_delete_done)) }
+        }
+    }
     signingOut?.let { a -> SignOutFlow(app, a, onDone = { signingOut = null }) }
 }
 

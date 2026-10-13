@@ -500,7 +500,7 @@ private fun EmailField(email: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun PasswordField(
+internal fun PasswordField(
     password: String,
     show: Boolean,
     onChange: (String) -> Unit,

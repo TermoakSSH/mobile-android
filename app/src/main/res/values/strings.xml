@@ -1870,4 +1870,28 @@
     <string name="kb_ai_request">A # line becomes a command (AI)</string>
     <string name="snippets_tags">Tags</string>
     <string name="snippets_tags_hint">Separated by commas; the first one is its folder in the terminal.</string>
+    <!-- Deleting the account (Settings → Accounts → Danger zone), texts of the web's account.delete.* -->
+    <string name="account_delete_section">Danger zone</string>
+    <string name="account_delete_button">Delete my account…</string>
+    <string name="account_delete_subtitle">Deleting the account is permanent.</string>
+    <string name="account_delete_title">Delete your account</string>
+    <string name="account_delete_text">Your account and all your data on this server (%1$s) will be deleted. This cannot be undone.</string>
+    <string name="account_delete_item_data">Your hosts, keys, snippets and the rest of your synced data are deleted.</string>
+    <string name="account_delete_item_vaults">Your personal vault and the vaults you created are deleted with everything in them; you lose access to the vaults shared with you.</string>
+    <string name="account_delete_item_sessions">Your sessions on the server are closed and their recordings deleted.</string>
+    <string name="account_delete_item_teams">You leave all your teams. If you are the only owner of a team with other people, first make someone else owner or delete it.</string>
+    <string name="account_delete_code_hint">The one from your authenticator app or a recovery code.</string>
+    <string name="account_delete_confirm_label">Type %1$s to confirm</string>
+    <string name="account_delete_confirm_word">DELETE</string>
+    <string name="account_delete_submit">Delete my account forever</string>
+    <string name="account_delete_done">Your account has been deleted. Thanks for trying Termoak!</string>
+    <string name="account_delete_vaults_title">Delete your shared vaults too?</string>
+    <string name="account_delete_vaults_text">Your vaults shared with other people will be deleted with your account, with everything in them, and they will lose access to them.</string>
+    <string name="account_delete_vaults_confirm">Delete them with my account</string>
+    <string name="account_delete_wrong_password">The password is not correct.</string>
+    <string name="account_delete_code_required">This account has two-step verification: enter its code.</string>
+    <string name="account_delete_last_admin">You\'re the only administrator of this server: appoint another one before deleting your account.</string>
+    <string name="account_delete_last_owner">You\'re the only owner of %1$s: appoint another owner or delete the team first.</string>
+    <string name="account_delete_unsupported">This server doesn\'t support deleting the account from the app; do it from its website.</string>
+    <string name="account_delete_failed">Couldn\'t delete the account</string>
 </resources>

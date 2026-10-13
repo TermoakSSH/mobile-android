@@ -437,15 +437,27 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         // That server stops notifying this device (push), before the account goes.
         if (discard || unsynced(id) == 0L) unregisterPush(id)
         val report = core.signOutAccount(id, discard)
-        if (report.signedOut) {
-            stopEvents(id)
-            handles.remove(id)?.close()
-            approvals.remove(id)
-            if (_verification.value?.accountId == id) _verification.value = null
-            refreshNow()
-            _itemsChanged.tryEmit(Unit)
-        }
+        if (report.signedOut) forget(id)
         return report
+    }
+
+    /**
+     * An account just deleted on its server ([AccountDeletion]) leaves this
+     * device as when signing out discarding what wasn't uploaded: the
+     * server's logout fails quietly and its push tokens went with the
+     * account. The caller closes that account's terminals.
+     */
+    suspend fun removeDeleted(id: String) {
+        if (core.signOutAccount(id, true).signedOut) forget(id)
+    }
+
+    private fun forget(id: String) {
+        stopEvents(id)
+        handles.remove(id)?.close()
+        approvals.remove(id)
+        if (_verification.value?.accountId == id) _verification.value = null
+        refreshNow()
+        _itemsChanged.tryEmit(Unit)
     }
 
     /** Changes not uploaded yet of an account. */
