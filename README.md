@@ -4,6 +4,11 @@ The Android app of [Termoak](https://termoak.com), the open-source SSH client
 with an optional self-hosted server: Jetpack Compose on top of the same Rust
 engine as the desktop app and the CLI (through UniFFI).
 
+Install it from [Google Play](https://play.google.com/store/apps/details?id=com.termoak),
+as an APK from the [releases](https://github.com/TermoakSSH/mobile-android/releases)
+or from Termoak's F-Droid repository (`https://pkg.termoak.com/fdroid/repo`):
+all three are signed with the same key, so any of them updates the others.
+
 The app is built in Docker, with nothing else to install:
 `scripts/release-local.sh build android` puts the signed APKs in
 `dist/android/` (see [Releases](#releases)). It uses AGP 9
