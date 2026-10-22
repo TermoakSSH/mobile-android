@@ -733,7 +733,7 @@ fun HostEditor(
                         FormSection(stringResource(R.string.networks_picker_label)) {
                             NetworkField(
                                 app, place.account, place.vault, groupId, allGroups, networkId, outlined = false,
-                                proxySet = proxyKind != null, onChange = { networkId = it },
+                                proxySet = proxyKind != null, hostAddress = address, onChange = { networkId = it },
                             )
                         }
                     }

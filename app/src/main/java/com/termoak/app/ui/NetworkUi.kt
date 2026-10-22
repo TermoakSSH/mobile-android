@@ -73,10 +73,13 @@ internal fun NetworkField(
     current: String?,
     outlined: Boolean,
     proxySet: Boolean = false,
+    /** A host's address (`null` for a group): a tailnet says what it can be. */
+    hostAddress: String? = null,
     onChange: (String?) -> Unit,
 ) {
     if (account == null) return
     if (!NetworkBook.supported(account) && current == null) return
+    val resources = LocalResources.current
     val networks = remember(account, vault) {
         runCatching { app.core.listNetworks(ItemFilter(accountIds = listOf(account), vaultIds = null, includeDevice = false)) }
             .getOrDefault(emptyList()).filter { it.vaultId == vault }
@@ -101,16 +104,29 @@ internal fun NetworkField(
             net == null -> stringResource(R.string.networks_picker_missing_hint)
             else -> {
                 val state = if (NetworkBook.isUnknown(net.id)) NetState.UNKNOWN else NetworkBook.state(net.id, net.kind)
-                val handshake = NetworkBook.status(net.id)?.lastHandshakeAt?.let { " · " + stringResource(R.string.networks_handshake, relativeTime(it)) } ?: ""
+                val status = NetworkBook.status(net.id)
+                val handshake = when {
+                    net.kind == Networks.TAILSCALE && state == NetState.UP && status != null ->
+                        " · " + Networks.tailnetSummary(status) { resources.getQuantityString(R.plurals.networks_ts_devices, it, it) }
+                    else -> status?.lastHandshakeAt?.let { " · " + stringResource(R.string.networks_handshake, relativeTime(it)) } ?: ""
+                }
                 val from = (chosen as? NetworkChoice.Inherit)?.inherited?.let { stringResource(R.string.networks_picker_inherited_from, it.group.name) + " " } ?: ""
-                from + "${Networks.kindLabel(net.kind)} · ${stateLabel(state)}$handshake. " + stringResource(R.string.networks_picker_how)
+                from + "${Networks.kindLabel(net.kind)} · ${stateLabel(state, kind = net.kind)}$handshake. " + stringResource(R.string.networks_picker_how)
             }
         }
+        // A host in a tailnet: what its address can be.
+        val tailnet = net?.kind == Networks.TAILSCALE && hostAddress != null
         Text(
             hint, Modifier.padding(horizontal = if (outlined) 0.dp else 16.dp, vertical = 2.dp),
             style = MaterialTheme.typography.bodySmall,
             color = if (effective != null && net == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (tailnet) {
+            Text(
+                stringResource(R.string.networks_ts_address_hint), Modifier.padding(horizontal = if (outlined) 0.dp else 16.dp).testTag("tailnet-address-hint"),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (effective != null && proxySet) {
             Text(
                 stringResource(R.string.networks_picker_proxy_ignored), Modifier.padding(horizontal = if (outlined) 0.dp else 16.dp),

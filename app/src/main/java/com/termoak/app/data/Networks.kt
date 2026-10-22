@@ -2,6 +2,7 @@ package com.termoak.app.data
 
 import com.termoak.app.R
 import com.termoak.app.UiText
+import com.termoak.app.toUiText
 import com.termoak.app.uiText
 import org.json.JSONArray
 import org.json.JSONObject
@@ -76,10 +77,14 @@ enum class NetState {
     STARTING,
     /** Running, but the WireGuard peer never answered (no handshake yet). */
     WAITING,
-    /** Running, and the other side answered. */
+    /** Running, and the other side answered (Tailscale: the node is in the tailnet). */
     UP,
-    /** The server's node waits to be authorized (Tailscale, ZeroTier). */
+    /** The server's node waits to be authorized (ZeroTier, or a Tailscale state this version doesn't know). */
     NEEDS_AUTH,
+    /** Tailscale: the server's node must be logged in (an Editor opens the login URL). */
+    NEEDS_LOGIN,
+    /** Tailscale: the node is logged in and waits for approval in the admin console. */
+    NEEDS_APPROVAL,
     ERROR,
     /** Not asked yet, or the server didn't answer (netd down): not an error page. */
     UNKNOWN,
@@ -95,7 +100,49 @@ data class NetStatus(
     val streams: Long? = null,
     val nodeAddresses: List<String> = emptyList(),
     val since: Long? = null,
+    /** Tailscale, with `needs_auth`: `login` or `approval`. */
+    val auth: String? = null,
+    /** Tailscale: the control server (`null`: Tailscale's). */
+    val controlUrl: String? = null,
+    val tailnet: String? = null,
+    val magicDnsSuffix: String? = null,
+    /** Tailscale: devices the server's node sees. */
+    val peerCount: Int? = null,
+    val ephemeral: Boolean? = null,
+    /** Tailscale: the last error as the control server said it. */
+    val lastError: String? = null,
+    /** The server's node: its name, MagicDNS name and id. */
+    val nodeName: String? = null,
+    val nodeDnsName: String? = null,
+    val nodeId: String? = null,
+    /** Tailscale: the login page (only Editors get it). */
+    val authUrl: String? = null,
 )
+
+/** Tailscale/Headscale settings of a network (`tailscale`); `ephemeral` `null`: yes with an auth key, no without one. */
+data class TsConfig(
+    /** `null`: Tailscale's control server; otherwise a Headscale URL. */
+    val controlUrl: String? = null,
+    val hostname: String? = null,
+    val tags: List<String> = emptyList(),
+    val ephemeral: Boolean? = null,
+)
+
+/** What an update does with the stored secret (Tailscale's auth key). */
+sealed interface SecretChange {
+    /** No `secret` in the body: the stored one stays. */
+    data object Keep : SecretChange
+    /** `secret: {auth_key}`. */
+    data class Set(val authKey: String) : SecretChange
+    /** `secret: null` removes it (`{}` would store an empty secret and `has_secret` would stay true). */
+    data object Clear : SecretChange
+}
+
+/** Why Tailscale settings can't be saved (the core's rules, checked again by the server). */
+enum class TsProblem { CONTROL_URL_MISSING, CONTROL_URL, HOSTNAME, TAGS, TAGS_MAX, AUTH_KEY, KEY_MISSING }
+
+/** A host of a vault as the devices list sees it (to mark devices already added). */
+data class HostRef(val id: String, val label: String, val address: String, val networkId: String?)
 
 /** A network as the REST API gives it (`GET /networks`): the whole object is kept to send it back on PUT. */
 data class NetworkItem(
@@ -113,8 +160,11 @@ data class NetworkItem(
     val peers: List<WgPeer>,
     /** The JSON as read (PUT sends it back whole, with the changes). */
     val json: String,
+    /** Tailscale settings (kind `tailscale`). */
+    val tailscale: TsConfig? = null,
 ) {
     val isWireguard: Boolean get() = kind == Networks.WIREGUARD
+    val isTailscale: Boolean get() = kind == Networks.TAILSCALE
 }
 
 /** A device of a network (`GET /networks/{id}/peers`); WireGuard: its configured peers. */
@@ -126,7 +176,22 @@ data class NetPeer(
     val lastSeen: Long? = null,
     val publicKey: String? = null,
     val endpoint: String? = null,
+    val os: String? = null,
+    /** Tailscale: ACL tags. */
+    val tags: List<String> = emptyList(),
+    /** Tailscale: subnets the device routes (exit nodes: `/0`). */
+    val routes: List<String> = emptyList(),
 ) {
+    /** Its MagicDNS name without the trailing dot (`nas.tail1234.ts.net`). */
+    val bareDnsName: String? get() = dnsName?.trim()?.trimEnd('.')?.takeIf { it.isNotEmpty() }
+
+    /** Tailscale: where a host on this device connects: its MagicDNS name, or its first IP. */
+    val deviceAddress: String?
+        get() = bareDnsName ?: addresses.firstOrNull()?.substringBefore('/')?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** Tailscale: the subnets of [routes] a host can be in (never an exit node's `/0`). */
+    val hostRoutes: List<String> get() = routes.map { it.trim() }.filter { it.isNotEmpty() && !it.endsWith("/0") }
+
     /** Its name, DNS name, endpoint or the start of its key. */
     val title: String
         get() = name?.takeIf { it.isNotBlank() } ?: dnsName?.takeIf { it.isNotBlank() } ?: endpoint?.takeIf { it.isNotBlank() }
@@ -146,6 +211,7 @@ data class HostTest(
     val networkId: String? = null,
     val networkName: String? = null,
     val at: Long = 0L,
+    val networkKind: String? = null,
 )
 
 /** A group as the network inheritance sees it. */
@@ -186,6 +252,19 @@ object Networks {
     /** Polls of the state after Test, about once a second, until the handshake (wireguard-go only shakes hands with traffic). */
     const val TEST_POLLS = 6
 
+    /** Polls of a Tailscale network's state after Test while it is starting (`up` already waits 10 s): about 30 s. */
+    const val TS_TEST_POLLS = 30
+
+    /** A login or an approval is followed every 2 s for 5 minutes at most. */
+    const val LOGIN_POLL_MS = 2_000L
+    const val LOGIN_WAIT_MS = 5 * 60_000L
+
+    /** Most tags a node may ask for (the core's `TailscaleConfig::MAX_TAGS`). */
+    const val MAX_TAGS = 20
+
+    private val TS_HOSTNAME = Regex("^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+    private val TS_TAG = Regex("^tag:[A-Za-z0-9][A-Za-z0-9_-]{0,62}$")
+
     private val WG_KEY = Regex("^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
     private val ENDPOINT = Regex("""^(\[[0-9a-fA-F:.]+]|[^\s:\[\]]+):(\d{1,5})$""")
 
@@ -197,6 +276,18 @@ object Networks {
     fun supported(infoJson: String): Boolean = runCatching {
         JSONObject(infoJson).optJSONObject("features")?.optBoolean(FEATURE, false) ?: false
     }.getOrDefault(false)
+
+    /**
+     * Kinds of network the server can join (`features.network_kinds`): a
+     * server without the field (0.7.0-next.2) joins WireGuard only; none
+     * without `features.networks`.
+     */
+    fun kinds(infoJson: String): List<String> = runCatching {
+        val f = JSONObject(infoJson).optJSONObject("features") ?: return emptyList()
+        if (!f.optBoolean(FEATURE, false)) return emptyList()
+        val a = f.optJSONArray("network_kinds") ?: return listOf(WIREGUARD)
+        (0 until a.length()).mapNotNull { a.optString(it, "").ifEmpty { null } }
+    }.getOrDefault(emptyList())
 
     /** A WireGuard key: 32 bytes in standard base64. */
     fun validKey(text: String): Boolean = WG_KEY.matches(text.trim())
@@ -368,23 +459,46 @@ object Networks {
 
     fun status(json: String): NetStatus? = runCatching { status(JSONObject(json)) }.getOrNull()
 
-    fun status(o: JSONObject): NetStatus = NetStatus(
-        state = o.optString("state", ""),
-        message = o.str("message"),
-        lastHandshakeAt = o.long("last_handshake_at")?.takeIf { it > 0 },
-        rxBytes = o.long("rx_bytes"),
-        txBytes = o.long("tx_bytes"),
-        streams = o.long("streams"),
-        nodeAddresses = o.optJSONObject("node")?.optJSONArray("addresses").strings(),
-        since = o.long("since"),
-    )
+    private fun JSONObject.bool(key: String): Boolean? = if (has(key) && !isNull(key)) optBoolean(key) else null
 
-    /** The state shown: `up` without a WireGuard handshake is "waiting". */
+    fun status(o: JSONObject): NetStatus {
+        val node = o.optJSONObject("node")
+        return NetStatus(
+            state = o.optString("state", ""),
+            message = o.str("message"),
+            lastHandshakeAt = o.long("last_handshake_at")?.takeIf { it > 0 },
+            rxBytes = o.long("rx_bytes"),
+            txBytes = o.long("tx_bytes"),
+            streams = o.long("streams"),
+            nodeAddresses = node?.optJSONArray("addresses").strings(),
+            since = o.long("since"),
+            auth = o.str("auth"),
+            controlUrl = o.str("control_url"),
+            tailnet = o.str("tailnet"),
+            magicDnsSuffix = o.str("magic_dns_suffix"),
+            peerCount = o.long("peer_count")?.toInt(),
+            ephemeral = o.bool("ephemeral"),
+            lastError = o.str("last_error"),
+            nodeName = node?.str("name"),
+            nodeDnsName = node?.str("dns_name"),
+            nodeId = node?.str("node_id"),
+            authUrl = node?.str("auth_url"),
+        )
+    }
+
+    /**
+     * The state shown: `up` without a WireGuard handshake is "waiting"; a
+     * Tailscale node that needs authorization needs a login or an approval.
+     */
     fun state(status: NetStatus?, kind: String): NetState = when (status?.state) {
         null -> NetState.UNKNOWN
         "down" -> NetState.DOWN
         "starting" -> NetState.STARTING
-        "needs_auth" -> NetState.NEEDS_AUTH
+        "needs_auth" -> when {
+            kind != TAILSCALE -> NetState.NEEDS_AUTH
+            status.auth == "approval" -> NetState.NEEDS_APPROVAL
+            else -> NetState.NEEDS_LOGIN
+        }
         "error" -> NetState.ERROR
         "up" -> if (kind == WIREGUARD && status.lastHandshakeAt == null) NetState.WAITING else NetState.UP
         else -> NetState.UNKNOWN
@@ -416,6 +530,9 @@ object Networks {
             mtu = wg?.long("mtu")?.toInt(),
             peers = peersOf(wg?.optJSONArray("peers")),
             json = o.toString(),
+            tailscale = o.optJSONObject("tailscale")?.let { ts ->
+                TsConfig(ts.str("control_url"), ts.str("hostname"), ts.optJSONArray("tags").strings(), ts.bool("ephemeral"))
+            },
         )
     }
 
@@ -432,6 +549,7 @@ object Networks {
                 name = p.str("name"), dnsName = p.str("dns_name"), addresses = p.optJSONArray("addresses").strings(),
                 online = if (p.has("online") && !p.isNull("online")) p.optBoolean("online") else null,
                 lastSeen = p.long("last_seen")?.takeIf { it > 0 }, publicKey = p.str("public_key"), endpoint = p.str("endpoint"),
+                os = p.str("os"), tags = p.optJSONArray("tags").strings(), routes = p.optJSONArray("routes").strings(),
             )
         }
     }.getOrDefault(emptyList())
@@ -448,6 +566,7 @@ object Networks {
             networkId = net?.str("id"),
             networkName = net?.str("name"),
             at = now,
+            networkKind = net?.str("kind"),
         )
     }.getOrNull()
 
@@ -506,6 +625,126 @@ object Networks {
         .put("settings", JSONObject().put("port", port).put("username", username ?: JSONObject.NULL).put("network_id", network.id))
         .apply { network.vaultId?.let { put("vault_id", it) } }
         .toString()
+
+    // ----- Tailscale / Headscale -----
+
+    /** The node's name when none is set: `termoak-` and the last 8 hex digits of the id (as netd does). */
+    fun defaultHostname(id: String?): String {
+        val hex = id.orEmpty().replace("-", "").lowercase()
+        return "termoak-" + if (hex.length >= 8) hex.takeLast(8) else "xxxxxxxx"
+    }
+
+    /** `tag:a, tag:b` → `[tag:a, tag:b]`. */
+    fun parseTags(text: String): List<String> = text.split(',', ' ', '\n').map { it.trim() }.filter { it.isNotEmpty() }
+
+    /** `https://hs.example.com/` → `https://hs.example.com`. */
+    fun cleanControlUrl(url: String): String = url.trim().trimEnd('/')
+
+    /**
+     * What stops saving Tailscale settings and a new auth key (the core's
+     * rules, NETWORKS.md §8.1; the server checks them again): [controlUrl]
+     * `null` is Tailscale's control server, `""` a Headscale without its
+     * URL. `null`: it can be saved. The key is never part of the text.
+     */
+    fun tailscaleProblem(controlUrl: String?, hostname: String?, tags: List<String>, authKey: String?): TsProblem? {
+        if (controlUrl != null) {
+            val url = controlUrl.trim()
+            if (url.isEmpty()) return TsProblem.CONTROL_URL_MISSING
+            val rest = url.removePrefix("https://").takeIf { it != url } ?: url.removePrefix("http://").takeIf { it != url }
+                ?: return TsProblem.CONTROL_URL
+            val authority = rest.substringBefore('/')
+            if (authority.isEmpty() || authority.contains('@') || url.contains('?') || url.contains('#') ||
+                url.any { it.isWhitespace() || it.isISOControl() }
+            ) return TsProblem.CONTROL_URL
+        }
+        val h = hostname?.trim().orEmpty()
+        if (h.isNotEmpty() && !TS_HOSTNAME.matches(h)) return TsProblem.HOSTNAME
+        if (tags.size > MAX_TAGS) return TsProblem.TAGS_MAX
+        if (tags.any { !TS_TAG.matches(it.trim()) }) return TsProblem.TAGS
+        val k = authKey?.trim()
+        if (!k.isNullOrEmpty() && (k.length > 1024 || k.any { it.code !in 0x21..0x7e })) return TsProblem.AUTH_KEY
+        return null
+    }
+
+    /**
+     * Body of a Tailscale network's create (`vaultId` set) or update (the
+     * network as read, in [base], sent back whole with `ephemeral`): name,
+     * description, kind and settings; the secret as [secret] says (`Keep`:
+     * no `secret`, `Set`: `{auth_key}`, `Clear`: `null`).
+     */
+    fun tailscaleBody(base: String?, vaultId: String?, name: String, description: String, ts: TsConfig, secret: SecretChange): String {
+        val o = base?.let { JSONObject(it) } ?: JSONObject()
+        o.remove("id")
+        o.put("name", name)
+        o.put("description", description)
+        o.put("kind", TAILSCALE)
+        val t = o.optJSONObject("tailscale") ?: JSONObject()
+        t.put("control_url", ts.controlUrl?.let { cleanControlUrl(it) }?.ifEmpty { null } ?: JSONObject.NULL)
+        t.put("hostname", ts.hostname?.trim()?.ifEmpty { null } ?: JSONObject.NULL)
+        t.put("tags", JSONArray(ts.tags.map { it.trim() }.filter { it.isNotEmpty() }))
+        t.put("ephemeral", ts.ephemeral ?: JSONObject.NULL)
+        o.put("tailscale", t)
+        if (vaultId != null) o.put("vault_id", vaultId)
+        when (secret) {
+            SecretChange.Keep -> o.remove("secret")
+            is SecretChange.Set -> o.put("secret", JSONObject().put("auth_key", secret.authKey.trim()))
+            SecretChange.Clear -> o.put("secret", JSONObject.NULL)
+        }
+        return o.toString()
+    }
+
+    /** "Tailscale", or the Headscale server's host (`https://hs.example.com:8080/x` → `hs.example.com:8080`). */
+    fun controlServerLabel(url: String?): String {
+        val u = url?.trim()?.takeIf { it.isNotEmpty() } ?: return "Tailscale"
+        return u.substringAfter("://").substringBefore('/').ifEmpty { u }
+    }
+
+    /** The node's address and the devices it sees ("100.64.0.3 · 4 devices"); [devices] makes the count's text. */
+    fun tailnetSummary(status: NetStatus, devices: (Int) -> String): String =
+        listOfNotNull(status.nodeAddresses.firstOrNull(), devices(status.peerCount ?: 0)).joinToString(" · ")
+
+    /** `nas.tail1234.ts.net.` → `nas.tail1234.ts.net` (lowercase). */
+    private fun bare(s: String?): String = s.orEmpty().trim().trimEnd('.').lowercase()
+
+    /**
+     * The host of [hosts] that already reaches [peer] through the network
+     * [networkId]: same network, and its address is the device's name,
+     * MagicDNS name (or its first label) or one of its IPs, or its label is
+     * the device's name.
+     */
+    fun importedHost(peer: NetPeer, networkId: String, hosts: List<HostRef>): HostRef? {
+        val names = mutableSetOf<String>()
+        bare(peer.dnsName).takeIf { it.isNotEmpty() }?.let { names += it; names += it.substringBefore('.') }
+        bare(peer.name).takeIf { it.isNotEmpty() }?.let { names += it }
+        peer.addresses.forEach { a -> bare(a.substringBefore('/')).takeIf { it.isNotEmpty() }?.let { names += it } }
+        val name = bare(peer.name)
+        return hosts.firstOrNull { h ->
+            h.networkId == networkId && (bare(h.address) in names || (name.isNotEmpty() && bare(h.label) == name))
+        }
+    }
+
+    /** Devices of a tailnet that can be added at once: not added yet and with an address. */
+    fun newDevices(peers: List<NetPeer>, networkId: String, hosts: List<HostRef>): List<NetPeer> =
+        peers.filter { it.deviceAddress != null && importedHost(it, networkId, hosts) == null }
+
+    /** Online devices first, then by name. */
+    fun sortDevices(peers: List<NetPeer>): List<NetPeer> =
+        peers.sortedWith(compareBy<NetPeer>({ it.online != true }, { it.title.lowercase() }))
+
+    /** `GET /hosts?vault_id=…` as [HostRef]s. */
+    fun hostRefs(json: String): List<HostRef> = runCatching {
+        val a = JSONArray(json)
+        (0 until a.length()).mapNotNull { i ->
+            val h = a.optJSONObject(i) ?: return@mapNotNull null
+            HostRef(h.optString("id", ""), h.optString("label", ""), h.optString("address", ""), h.optJSONObject("settings")?.str("network_id"))
+        }
+    }.getOrDefault(emptyList())
+
+    /** `POST /hosts` body for a device of a tailnet: its name, its MagicDNS name (or first IP), port 22. */
+    fun deviceHostBody(peer: NetPeer, network: NetworkItem): String? {
+        val address = peer.deviceAddress ?: return null
+        return hostBody(peer.name?.takeIf { it.isNotBlank() } ?: address, address, 22, null, network)
+    }
 
     // ----- Peers → host addresses -----
 
@@ -631,7 +870,11 @@ object Networks {
             else uiText(R.string.error_plan_limit_networks_unknown)
             "relay_limit" -> relayLimit(d)
             "network_dial_failed" -> when {
+                netd == "needs_auth" && d.optString("auth") == "login" -> uiText(R.string.networks_ts_netd_needs_login)
+                netd == "needs_auth" && d.optString("auth") == "approval" -> uiText(R.string.networks_ts_netd_needs_approval)
                 NETD[netd] != null -> uiText(NETD.getValue(netd))
+                // Through the relay the engine keeps netd's English message only: a tailnet's says what happened.
+                detail != null && tailscaleMessageText(detail, null) != null -> tailscaleMessageText(detail, null)
                 // Through the relay the engine keeps the server's message only: a full relay, or what netd said.
                 detail != null && detail.contains("relay_limit") -> relayLimit(d)
                 detail != null && device -> uiText(R.string.error_network_dial_failed_detail, detail)
@@ -652,9 +895,115 @@ object Networks {
     private fun relayLimit(d: JSONObject): UiText =
         if (d.has("max") && !d.isNull("max")) uiText(R.string.error_relay_limit, d.optInt("max")) else uiText(R.string.error_relay_limit_unknown)
 
+    /** netd's English reason without its `the network "X" could not start: ` prefix. */
+    fun tailscaleReason(message: String): String {
+        for (marker in listOf("\" could not start: ", "\" waits for authorization: ", "\" is still starting: ")) {
+            val i = message.indexOf(marker)
+            if (i >= 0) return message.substring(i + marker.length).trim()
+        }
+        return message.trim()
+    }
+
+    /** The network's name in netd's `the network "X" …` message. */
+    private fun quotedName(message: String): String? =
+        Regex("""the network "(.*?)" (could not start|waits for authorization|is still starting)""").find(message)?.groupValues?.get(1)
+
+    /** A dial that failed inside a tailnet: netd's words and, for an address or name it can't see, why. */
+    fun tailnetDialText(message: String): UiText {
+        val text = message.trim().trimEnd('.').replaceFirstChar { it.uppercase() }
+        return if (message.contains("outside the tailnet") || message.contains("no device named")) uiText(R.string.networks_ts_error_dial_acl, text)
+        else UiText.Raw("$text.")
+    }
+
+    /**
+     * What netd's English message says about a tailnet (host tests and
+     * connections only carry it): a login or an approval, still starting,
+     * could not join ([kindKnown]: the network is a tailnet), or a dial
+     * outside the tailnet. `null`: none of those.
+     */
+    fun tailscaleMessageText(message: String, name: String?, kindKnown: Boolean = false): UiText? {
+        val n = name ?: quotedName(message)
+        val wait = message.indexOf("waits for authorization")
+        return when {
+            wait >= 0 -> {
+                val rest = message.substring(wait)
+                // "the node is logged in but must be approved": approval; "must be logged in": login.
+                val approval = rest.contains("approv")
+                when {
+                    n == null -> uiText(if (approval) R.string.networks_ts_netd_needs_approval else R.string.networks_ts_netd_needs_login)
+                    approval -> uiText(R.string.networks_ts_error_approval, n)
+                    else -> uiText(R.string.networks_ts_error_login, n)
+                }
+            }
+            // Any kind can be "still starting": "the tailnet" only when it is one.
+            kindKnown && message.contains("is still starting") -> uiText(R.string.networks_ts_error_timeout)
+            kindKnown && message.contains("could not start") && n != null -> uiText(R.string.networks_ts_error_network_error, n, tailscaleReason(message))
+            message.contains("outside the tailnet") || message.contains("no device named") -> tailnetDialText(message)
+            else -> null
+        }
+    }
+
+    /**
+     * Text of an error of a Tailscale network [name] on its screens (Test,
+     * devices): what netd found (`netd_code` and `auth` of the error's
+     * details), in words, with the network's name. Other errors as usual.
+     */
+    fun tailscaleErrorText(code: String, detailsJson: String?, message: String?, name: String): UiText? {
+        val d = runCatching { JSONObject(detailsJson ?: "{}") }.getOrElse { JSONObject() }
+        val netd = d.optString("netd_code", "")
+        val msg = message.orEmpty()
+        return when {
+            code == "network_dial_failed" && netd == "needs_auth" ->
+                uiText(if (d.optString("auth") == "approval") R.string.networks_ts_error_approval else R.string.networks_ts_error_login, name)
+            code == "network_dial_failed" && netd == "network_error" -> uiText(R.string.networks_ts_error_network_error, name, tailscaleReason(msg))
+            code == "network_dial_failed" && netd == "dial_failed" && msg.isNotBlank() -> tailnetDialText(msg)
+            code == "network_dial_failed" && netd == "timeout" -> uiText(R.string.networks_ts_error_timeout)
+            code == "network_dial_failed" && netd == "limit" -> uiText(R.string.networks_ts_error_limit)
+            code == "network_unavailable" && netd == "unsupported_kind" -> uiText(R.string.networks_ts_unsupported)
+            else -> null
+        }
+    }
+
+    /** Text of an error on a network's screens (Test, devices): a tailnet's in words, otherwise as everywhere. */
+    fun errorFor(e: Throwable, n: NetworkItem, @androidx.annotation.StringRes fallback: Int): UiText {
+        if (n.isTailscale) {
+            ApiErrors.of(e)?.let { info -> tailscaleErrorText(info.code, info.detailsJson, info.message, n.name)?.let { return it } }
+        }
+        return e.toUiText(fallback)
+    }
+
+    /** Text of an error saving a network: the server's own reason for a `400` (bad settings). */
+    fun saveErrorText(e: Throwable): UiText {
+        val info = ApiErrors.of(e)
+        if (info != null && info.status.toInt() == 400 && info.message.isNotBlank()) {
+            return uiText(R.string.networks_form_error_server, info.message.trim())
+        }
+        return e.toUiText(R.string.networks_save_failed)
+    }
+
+    /** Whether an error of the devices list means "log the server in first". */
+    fun needsLogin(code: String?, detailsJson: String?): Boolean =
+        code == "network_dial_failed" && runCatching { JSONObject(detailsJson ?: "{}").optString("netd_code") }.getOrNull() == "needs_auth"
+
+    /** Text of a Tailscale settings problem. */
+    fun tsProblemText(p: TsProblem): UiText = when (p) {
+        TsProblem.CONTROL_URL_MISSING -> uiText(R.string.networks_ts_error_control_url_missing)
+        TsProblem.CONTROL_URL -> uiText(R.string.networks_ts_error_control_url)
+        TsProblem.HOSTNAME -> uiText(R.string.networks_ts_error_hostname)
+        TsProblem.TAGS -> uiText(R.string.networks_ts_error_tags)
+        TsProblem.TAGS_MAX -> uiText(R.string.networks_ts_error_tags_max, MAX_TAGS)
+        TsProblem.AUTH_KEY -> uiText(R.string.networks_ts_error_auth_key)
+        TsProblem.KEY_MISSING -> uiText(R.string.networks_ts_error_key_missing)
+    }
+
     /** The text of a failed host test: its `error_code`, else the server's text. */
     fun hostTestError(t: HostTest): UiText {
         val code = t.errorCode.orEmpty()
+        // A tailnet says more: netd's English reason (the test carries no netd_code), in words.
+        if (code == "network_dial_failed" && t.networkKind == TAILSCALE && !t.error.isNullOrBlank()) {
+            val e = t.error
+            return tailscaleMessageText(e, t.networkName, kindKnown = true) ?: tailnetDialText(e)
+        }
         val known = when (code) {
             "host_key_unknown" -> R.string.networks_test_host_key_unknown
             "host_key_changed" -> R.string.networks_test_host_key_changed

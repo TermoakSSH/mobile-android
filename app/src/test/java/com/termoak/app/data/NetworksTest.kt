@@ -181,7 +181,9 @@ class NetworksTest {
         assertEquals(NetState.UP, Networks.state(waiting, "tailscale"))
         assertEquals(NetState.DOWN, Networks.state(Networks.status("""{"state":"down"}"""), "wireguard"))
         assertEquals(NetState.ERROR, Networks.state(Networks.status("""{"state":"error","message":"bad key"}"""), "wireguard"))
-        assertEquals(NetState.NEEDS_AUTH, Networks.state(Networks.status("""{"state":"needs_auth"}"""), "tailscale"))
+        // A tailnet's node needs a login (or an approval, TailscaleNetworksTest); other kinds are "authorize".
+        assertEquals(NetState.NEEDS_LOGIN, Networks.state(Networks.status("""{"state":"needs_auth"}"""), "tailscale"))
+        assertEquals(NetState.NEEDS_AUTH, Networks.state(Networks.status("""{"state":"needs_auth"}"""), "zerotier"))
         // Not asked, or the server didn't answer: unknown (not an error page).
         assertEquals(NetState.UNKNOWN, Networks.state(null, "wireguard"))
         assertNull(Networks.status("not json"))

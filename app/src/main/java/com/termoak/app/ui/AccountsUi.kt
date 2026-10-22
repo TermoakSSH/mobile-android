@@ -605,7 +605,10 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                 ListItem(
                     modifier = Modifier.clickable { nav.navigate(Routes.networks()) },
                     headlineContent = { Text(stringResource(R.string.networks_title)) },
-                    supportingContent = { Text(stringResource(R.string.networks_entry_hint)) },
+                    supportingContent = {
+                        val tailnets = accounts.any { com.termoak.app.data.NetworkBook.kindSupported(it.id, com.termoak.app.data.Networks.TAILSCALE) }
+                        Text(stringResource(if (tailnets) R.string.networks_ts_entry_hint else R.string.networks_entry_hint))
+                    },
                     leadingContent = { Icon(Icons.Outlined.Hub, null, tint = MaterialTheme.colorScheme.primary) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 )

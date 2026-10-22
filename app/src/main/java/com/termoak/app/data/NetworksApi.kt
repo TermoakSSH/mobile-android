@@ -23,6 +23,9 @@ class NetworksApi(
     /** `features.networks` of the account's server, read again (it can change while the app runs). */
     suspend fun supported(): Boolean = Networks.supported(request(HttpMethod.GET, "$BASE/info", null))
 
+    /** The kinds of network the account's server joins (`features.network_kinds`; empty without networks). */
+    suspend fun kinds(): List<String> = Networks.kinds(request(HttpMethod.GET, "$BASE/info", null))
+
     /** The networks of every vault you can see. */
     suspend fun list(): List<NetworkItem> = Networks.networks(request(HttpMethod.GET, "$BASE/networks", null))
 
@@ -49,13 +52,18 @@ class NetworksApi(
     /**
      * Test: brings it up, then asks its state about once a second for a few
      * seconds until the WireGuard handshake appears (wireguard-go only
-     * shakes hands with traffic or a keep-alive). [onStatus] sees each one.
+     * shakes hands with traffic or a keep-alive). A Tailscale node: while it
+     * is starting, about 30 s (`up` already waited 10 s). [onStatus] sees
+     * each one.
      */
     suspend fun test(id: String, kind: String, onStatus: (NetStatus) -> Unit = {}): NetStatus {
         var st = up(id)
         onStatus(st)
         var polls = 0
-        while (polls < Networks.TEST_POLLS && Networks.state(st, kind).let { it == NetState.WAITING || it == NetState.STARTING }) {
+        val tailnet = kind == Networks.TAILSCALE
+        val max = if (tailnet) Networks.TS_TEST_POLLS else Networks.TEST_POLLS
+        fun pending(s: NetStatus) = Networks.state(s, kind).let { it == NetState.STARTING || (!tailnet && it == NetState.WAITING) }
+        while (polls < max && pending(st)) {
             pause(1000)
             st = status(id) ?: st
             onStatus(st)
@@ -63,6 +71,32 @@ class NetworksApi(
         }
         return st
     }
+
+    /**
+     * A login or an approval of a Tailscale node: its state every 2 s until
+     * it is no longer waiting (up, an error, or `down` when the network went
+     * idle meanwhile: Test brings it back up already logged in), 5 minutes
+     * at most. Returns the last state (`null`: never read). The caller
+     * cancels it when the screen closes.
+     */
+    suspend fun watchLogin(id: String, onStatus: (NetStatus) -> Unit = {}): NetStatus? {
+        var last: NetStatus? = null
+        var waited = 0L
+        while (waited < Networks.LOGIN_WAIT_MS) {
+            pause(Networks.LOGIN_POLL_MS)
+            waited += Networks.LOGIN_POLL_MS
+            val st = status(id) ?: continue
+            last = st
+            onStatus(st)
+            if (st.state != "needs_auth" && st.state != "starting") break
+        }
+        return last
+    }
+
+    /** The hosts of a vault (to mark the devices already added); empty when they can't be read. */
+    suspend fun hosts(vaultId: String?): List<HostRef> = runCatching {
+        Networks.hostRefs(request(HttpMethod.GET, "$BASE/hosts" + (vaultId?.let { "?vault_id=$it" } ?: ""), null))
+    }.getOrDefault(emptyList())
 
     /** Devices of the network (it brings it up; Editors). */
     suspend fun peers(id: String): List<NetPeer> = Networks.peers(request(HttpMethod.GET, "$BASE/networks/$id/peers", null))

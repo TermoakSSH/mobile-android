@@ -17,6 +17,8 @@ import com.termoak.ffi.TermoakCore
  */
 object NetworkBook {
     private val supported = mutableStateMapOf<String, Boolean>()
+    /** Account → the kinds of network its server joins (`features.network_kinds`). */
+    private val kinds = mutableStateMapOf<String, List<String>>()
     private val statuses = mutableStateMapOf<String, NetStatus>()
     private val statusAt = mutableMapOf<String, Long>()
     /** Networks whose state couldn't be read (netd down...): "unknown". */
@@ -37,15 +39,28 @@ object NetworkBook {
     /** Some account has them. */
     fun anySupported(): Boolean = supported.values.any { it }
 
+    /** Whether the account's server joins networks of [kind] (Tailscale only when `/info` lists it). */
+    fun kindSupported(accountId: String?, kind: String): Boolean = accountId != null && kinds[accountId]?.contains(kind) == true
+
+    /** The kinds the account's server joins (empty: none, or not read yet). */
+    fun kinds(accountId: String?): List<String> = accountId?.let { kinds[it] } ?: emptyList()
+
     /** Reads `/api/v1/info` of the account's server again; keeps the last answer when it fails. */
     suspend fun refreshFeatures(accountId: String, handle: AccountHandle?) {
         val h = handle ?: return
-        runCatching { NetworksApi(h).supported() }.onSuccess { supported[accountId] = it }
+        runCatching { NetworksApi(h).kinds() }.onSuccess { setKinds(accountId, it) }
+    }
+
+    /** What `/info` said: networks, and of which kinds (none: no networks). */
+    fun setKinds(accountId: String, list: List<String>) {
+        supported[accountId] = list.isNotEmpty()
+        kinds[accountId] = list
     }
 
     /** Signed out: forget it. */
     fun forget(accountId: String) {
         supported.remove(accountId)
+        kinds.remove(accountId)
     }
 
     // ----- State in the server -----
@@ -138,7 +153,7 @@ object NetworkBook {
 
     /** For tests. */
     internal fun reset() {
-        supported.clear(); statuses.clear(); statusAt.clear(); unknown.clear(); tests.clear(); testing.clear()
+        supported.clear(); kinds.clear(); statuses.clear(); statusAt.clear(); unknown.clear(); tests.clear(); testing.clear()
         hostNetworks.clear(); names.clear()
     }
 }
