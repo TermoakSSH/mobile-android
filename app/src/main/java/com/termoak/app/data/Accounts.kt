@@ -155,6 +155,8 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     private val subscriptions = mutableMapOf<String, EventSubscription>()
     /** Accounts whose server already has the push token (this run). */
     private val pushRegistered = mutableSetOf<String>()
+    /** Accounts whose server's features were read again (this run). */
+    private val featuresRead = mutableSetOf<String>()
 
     // ----- State -----
 
@@ -194,6 +196,10 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         (activeIds - pushRegistered).forEach { registerPush(it) }
         pushRegistered.clear()
         pushRegistered += activeIds
+        // Private networks: the server's features may have changed since the account last started (NETWORKS.md §8.1).
+        (activeIds - featuresRead).forEach { id -> scope.launch { NetworkBook.refreshFeatures(id, handle(id)) } }
+        featuresRead.retainAll(activeIds)
+        featuresRead += activeIds
         activeIds.forEach { startEvents(it) }
         checkLayoutNotice(accounts)
     }
@@ -453,6 +459,7 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
 
     private fun forget(id: String) {
         stopEvents(id)
+        NetworkBook.forget(id)
         handles.remove(id)?.close()
         approvals.remove(id)
         if (_verification.value?.accountId == id) _verification.value = null

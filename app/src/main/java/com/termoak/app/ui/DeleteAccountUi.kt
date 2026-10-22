@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -45,6 +46,7 @@ import com.termoak.app.UiText
 import com.termoak.app.asString
 import com.termoak.app.data.AccountDeletion
 import com.termoak.app.data.DeleteOutcome
+import com.termoak.app.data.SharedVault
 import com.termoak.app.data.displayEmail
 import com.termoak.app.data.serverHost
 import com.termoak.app.toUiText
@@ -76,6 +78,9 @@ class DeleteAccountForm(private val deletion: AccountDeletion, val word: String)
         private set
     /** Showing the second confirmation for the shared vaults. */
     var askVaults by mutableStateOf(false)
+        private set
+    /** The shared vaults the server listed (named in that confirmation). */
+    var sharedVaults by mutableStateOf<List<SharedVault>>(emptyList())
         private set
     private var deleteShared = false
 
@@ -126,7 +131,10 @@ class DeleteAccountForm(private val deletion: AccountDeletion, val word: String)
                     r.message != null -> UiText.Raw(r.message)
                     else -> uiText(R.string.account_delete_failed)
                 }
-                DeleteOutcome.SharedVaults -> askVaults = true
+                is DeleteOutcome.SharedVaults -> {
+                    sharedVaults = r.vaults
+                    askVaults = true
+                }
                 DeleteOutcome.Unsupported -> error = uiText(R.string.account_delete_unsupported)
                 is DeleteOutcome.Failed -> error = r.error.toUiText(R.string.account_delete_failed)
             }
@@ -207,6 +215,7 @@ fun DeleteAccountFlow(app: TermoakApp, a: AccountInfo, onDone: () -> Unit, onDel
     )
     if (form.askVaults) {
         SharedVaultsDialog(
+            form.sharedVaults,
             onConfirm = { scope.launch { finish(form.confirmVaults(remove)) } },
             onDismiss = { form.cancelVaults() },
         )
@@ -270,12 +279,26 @@ internal fun DeleteAccountDialog(form: DeleteAccountForm, server: String, onSubm
 
 /** Second confirmation: your shared vaults with members go with the account. */
 @Composable
-internal fun SharedVaultsDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+internal fun SharedVaultsDialog(vaults: List<SharedVault>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Outlined.WarningAmber, null, tint = MaterialTheme.colorScheme.error) },
         title = { Text(stringResource(R.string.account_delete_vaults_title)) },
-        text = { Text(stringResource(R.string.account_delete_vaults_text)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.account_delete_vaults_text))
+                // The vaults the server listed, with how many people use them.
+                if (vaults.isNotEmpty()) {
+                    Column(Modifier.testTag("delete-account-vaults"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        vaults.forEach { v ->
+                            Bullet(
+                                v.members?.let { pluralStringResource(R.plurals.account_delete_vault_members, it, v.name, it) } ?: v.name,
+                            )
+                        }
+                    }
+                }
+            }
+        },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.account_delete_vaults_confirm), color = MaterialTheme.colorScheme.error)

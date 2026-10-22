@@ -177,5 +177,8 @@ dependencies {
     // Screenshot tests of the layout on the JVM (Robolectric with its native graphics): no device needed.
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.compose.ui:ui-test-junit4")
+    // The opt-in live test (LiveNetworksTest) loads the engine built for this computer on the JVM:
+    // JNA's jar has the desktop's libjnidispatch (the engine's module only ships Android's).
+    testImplementation("net.java.dev.jna:jna:5.17.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

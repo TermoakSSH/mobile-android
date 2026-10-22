@@ -1,9 +1,13 @@
 package com.termoak.app.data
 
 import com.termoak.ffi.AccountHandle
+import com.termoak.ffi.ApiErrorInfo
 import com.termoak.ffi.HttpMethod
 import com.termoak.ffi.TermoakException
 import org.json.JSONObject
+
+/** A shared vault that would go with the account: its name and how many people use it. */
+data class SharedVault(val name: String, val members: Int?)
 
 /** What the server answered to deleting the account (`DELETE /api/v1/me`). */
 sealed interface DeleteOutcome {
@@ -21,18 +25,17 @@ sealed interface DeleteOutcome {
     data object LastAdmin : DeleteOutcome
 
     /**
-     * The only owner of teams with other people: [teams] are their names (read
-     * from the server's message, the engine's error has no details), or
-     * empty, and then [message] is the server's own text.
+     * The only owner of teams with other people: [teams] are their names (the
+     * error's `teams`), or empty, and then [message] is the server's own text.
      */
     data class LastTeamOwner(val teams: List<String>, val message: String?) : DeleteOutcome
 
     /**
      * The account has vaults shared with other people: confirm and send again
-     * with `delete_shared_vaults`. The server lists them, but the engine's
-     * error keeps only its message, so the confirmation doesn't name them.
+     * with `delete_shared_vaults`. [vaults] are the ones the server listed
+     * (the error's `vaults`), to name them in the confirmation.
      */
-    data object SharedVaults : DeleteOutcome
+    data class SharedVaults(val vaults: List<SharedVault>) : DeleteOutcome
 
     /** An older server without `DELETE /api/v1/me`: it's done on its web. */
     data object Unsupported : DeleteOutcome
@@ -87,36 +90,36 @@ class AccountDeletion(private val request: suspend (HttpMethod, String, String?)
             if (user.has("totp_enabled")) user.optBoolean("totp_enabled") else null
         }.getOrNull()
 
-        private val API_ERROR = Regex("""responded (\d{3})[^(]*\(([A-Za-z0-9_.-]+)\):\s*(.*)""", RegexOption.DOT_MATCHES_ALL)
+        /** The `teams` of a `last_team_owner` refusal. */
+        fun teamsOf(info: ApiErrorInfo): List<String> {
+            val a = ApiErrors.details(info).optJSONArray("teams") ?: return emptyList()
+            return (0 until a.length()).mapNotNull { a.optString(it, "").ifBlank { null } }
+        }
 
-        /**
-         * The HTTP status, the server's error code and its message, from the
-         * engine's error text ("the server responded 409 (last_admin): …"):
-         * the engine keeps only that of the server's error.
-         */
-        fun apiError(e: Throwable): Triple<Int, String, String>? =
-            e.message?.let { API_ERROR.find(it) }?.let { m ->
-                Triple(m.groupValues[1].toInt(), m.groupValues[2], m.groupValues[3].trim())
+        /** The `vaults` of a `shared_vaults` refusal (`[{id, name, member_count}]`). */
+        fun vaultsOf(info: ApiErrorInfo): List<SharedVault> {
+            val a = ApiErrors.details(info).optJSONArray("vaults") ?: return emptyList()
+            return (0 until a.length()).mapNotNull { i ->
+                val v = a.optJSONObject(i) ?: return@mapNotNull null
+                val name = v.optString("name", "").ifBlank { return@mapNotNull null }
+                SharedVault(name, if (v.has("member_count") && !v.isNull("member_count")) v.optInt("member_count") else null)
             }
+        }
 
-        /** The team names, quoted in the server's `last_team_owner` message. */
-        fun teamsOf(message: String): List<String> =
-            Regex("\"([^\"]+)\"").findAll(message).map { it.groupValues[1] }.toList()
-
-        fun outcomeOf(e: Throwable): DeleteOutcome {
+        /** What a refusal means, from the error's status, code and details ([ApiErrors], the engine's `apiError`). */
+        fun outcomeOf(e: Throwable, info: ApiErrorInfo? = ApiErrors.of(e)): DeleteOutcome {
             if (e is TermoakException.TotpRequired) return DeleteOutcome.TotpRequired
             if (e is TermoakException.TotpInvalid) return DeleteOutcome.TotpInvalid
-            val api = apiError(e)
-            return when (api?.second) {
+            return when (info?.code) {
                 "invalid_password" -> DeleteOutcome.InvalidPassword
                 "totp_required" -> DeleteOutcome.TotpRequired
                 "totp_invalid" -> DeleteOutcome.TotpInvalid
                 "last_admin" -> DeleteOutcome.LastAdmin
-                "last_team_owner" -> DeleteOutcome.LastTeamOwner(teamsOf(api.third), api.third.ifBlank { null })
-                "shared_vaults" -> DeleteOutcome.SharedVaults
+                "last_team_owner" -> DeleteOutcome.LastTeamOwner(teamsOf(info), info.message.ifBlank { null })
+                "shared_vaults" -> DeleteOutcome.SharedVaults(vaultsOf(info))
                 else -> when {
                     // No such route (or method) on an older server.
-                    api?.first == 404 || api?.first == 405 -> DeleteOutcome.Unsupported
+                    info?.status?.toInt() == 404 || info?.status?.toInt() == 405 -> DeleteOutcome.Unsupported
                     e is TermoakException.NotFound -> DeleteOutcome.Unsupported
                     else -> DeleteOutcome.Failed(e)
                 }

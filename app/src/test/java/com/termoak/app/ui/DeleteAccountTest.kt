@@ -13,6 +13,8 @@ import androidx.compose.ui.test.performTextInput
 import com.termoak.app.R
 import com.termoak.app.UiText
 import com.termoak.app.data.AccountDeletion
+import com.termoak.app.data.FakeApiErrors
+import com.termoak.app.data.SharedVault
 import com.termoak.ffi.HttpMethod
 import com.termoak.ffi.TermoakException
 import kotlinx.coroutines.runBlocking
@@ -21,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,7 +60,10 @@ class DeleteAccountTest {
         }
     }
 
-    private fun refusal(status: Int, code: String, message: String) = "the server responded $status ($code): $message"
+    private fun refusal(status: Int, code: String, message: String, details: String = "{}") = FakeApiErrors.with(status, code, message, details)
+
+    @Before
+    fun engineErrors() = FakeApiErrors.install()
 
     @Test
     fun buttonNeedsPasswordWordAndCode() {
@@ -87,7 +93,9 @@ class DeleteAccountTest {
     fun sharedVaultsAskThenResendWithTheSameCode() = runBlocking {
         val server = FakeServer(
             totp = true,
-            TermoakException.Conflict(refusal(409, "shared_vaults", "your shared vaults with members will be deleted")),
+            TermoakException.Conflict(
+                refusal(409, "shared_vaults", "your shared vaults with members will be deleted", """{"vaults":[{"id":"v","name":"Ops","member_count":4}]}"""),
+            ),
         )
         val form = DeleteAccountForm(server.deletion, "DELETE").apply {
             password = "pw"; typed = "DELETE"; needsCode = true; code = "123456"
@@ -95,6 +103,7 @@ class DeleteAccountTest {
         var removed = 0
         assertFalse(form.submit { removed++ })
         assertTrue(form.askVaults)
+        assertEquals(listOf(SharedVault("Ops", 4)), form.sharedVaults)
         assertNull(form.error)
         assertFalse(server.bodies[0].has("delete_shared_vaults"))
         assertTrue(form.confirmVaults { removed++ })
@@ -123,7 +132,7 @@ class DeleteAccountTest {
             TermoakException.TotpRequired(refusal(401, "totp_required", "enter the two-step verification code")),
             TermoakException.TotpInvalid(refusal(401, "totp_invalid", "the verification code is not correct")),
             TermoakException.Conflict(refusal(409, "last_admin", "you are the only administrator")),
-            TermoakException.Conflict(refusal(409, "last_team_owner", "you are the only owner of \"Ops\": appoint another owner")),
+            TermoakException.Conflict(refusal(409, "last_team_owner", "you are the only owner of \"Ops\": appoint another owner", """{"teams":["Ops"]}""")),
             TermoakException.Server(refusal(405, "error", "")),
         )
         val form = DeleteAccountForm(server.deletion, "DELETE").apply { password = "wrong"; typed = "DELETE" }
@@ -147,5 +156,13 @@ class DeleteAccountTest {
         assertEquals(UiText.Res(R.string.account_delete_unsupported), form.error)
         assertFalse(form.busy)
         assertEquals(6, server.bodies.size)
+    }
+
+    @Test
+    fun sharedVaultsAreNamed() {
+        rule.setContent { MaterialTheme { SharedVaultsDialog(listOf(SharedVault("Ops", 4), SharedVault("Family", null)), onConfirm = {}, onDismiss = {}) } }
+        rule.onNodeWithText(rule.activity.resources.getQuantityString(R.plurals.account_delete_vault_members, 4, "Ops", 4)).assertExists()
+        rule.onNodeWithText("Family").assertExists()
+        rule.onNodeWithText(string(R.string.account_delete_vaults_confirm)).assertExists()
     }
 }

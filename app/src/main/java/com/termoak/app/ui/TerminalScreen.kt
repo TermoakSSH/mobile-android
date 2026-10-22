@@ -109,6 +109,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
@@ -253,6 +254,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     // Notices of this terminal ("You have the keyboard", an action that wasn't allowed...).
     LaunchedEffect(session.id) { session.toasts.collect { snackbar.showSnackbar(it.resolve(resources)) } }
     val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it, session.accountId) }.getOrNull() } }
+    // The private network the host goes through (own or its group's): "via Office" in the bar.
+    val network = rememberTerminalNetwork(app, session.hostId, session.accountId)
 
     // ----- Split view: the panes that fit this window (none on a phone) -----
     val panes = if (split.maximized != null) emptyList() else
@@ -581,7 +584,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             if (desktop) {
                 // ----- Desktop layout: the tabs are on top of the window; the terminal's toolbar -----
                 DesktopTerminalToolbar(
-                    session, state, title, live, sharable = sharable, canBrowse = canBrowse,
+                    session, state, title, network, live, sharable = sharable, canBrowse = canBrowse,
                     copilotOpen = copilotOpen, splitShown = splitShown, hardwareKeyboard = hardwareKeyboard,
                     splitButton = { SplitButton() },
                     cursorButton = { if (gestureMode == GestureMode.BUTTON && live.canWrite) CursorToggleButton(session) },
@@ -617,6 +620,10 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                                 color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                            network?.let {
+                                Text(" · ", color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
+                                TerminalVia(it, KeyFg.copy(alpha = 0.6f))
+                            }
                             // The round trip to the host (terminals from the phone), or to the server (server sessions).
                             if (session is LocalTerminal || session is ServerTerminal) {
                                 Text(" · ", color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
@@ -858,6 +865,8 @@ private fun DesktopTerminalToolbar(
     session: TermSession,
     state: TermState,
     title: String?,
+    /** The private network it goes through (its name), or `null`. */
+    network: String?,
     live: LiveShare,
     sharable: Boolean,
     canBrowse: Boolean,
@@ -898,6 +907,7 @@ private fun DesktopTerminalToolbar(
             Pill(kind, kindColor, Modifier.padding(start = 8.dp))
             if (session is LocalTerminal && session.telnet) Pill("Telnet", Brand.Amber, Modifier.padding(start = 4.dp))
             if (sharedLocally != null) Pill(stringResource(R.string.term_kind_shared), Brand.Green, Modifier.padding(start = 4.dp))
+            network?.let { Pill(stringResource(R.string.networks_via, it), Brand.Blue, Modifier.padding(start = 4.dp).testTag("terminal-via")) }
             // The round trip to the host (terminals from this device) or to the server (server sessions), next to the kind.
             if (session is LocalTerminal || session is ServerTerminal) LatencyPill(session, state, Modifier.padding(start = 4.dp))
             Text(

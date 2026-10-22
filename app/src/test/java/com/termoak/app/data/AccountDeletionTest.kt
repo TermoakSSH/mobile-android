@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -18,8 +19,11 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class) // org.json is the Android one.
 @Config(sdk = [34], application = Application::class)
 class AccountDeletionTest {
-    /** The engine's text of a server error (`ClientError::Api`). */
-    private fun api(status: Int, code: String, message: String) = "the server responded $status ($code): $message"
+    /** The engine's text of a server error (`ClientError::Api`), with its details (`apiError`). */
+    private fun api(status: Int, code: String, message: String, details: String = "{}") = FakeApiErrors.with(status, code, message, details)
+
+    @Before
+    fun engineErrors() = FakeApiErrors.install()
 
     @Test
     fun body() {
@@ -61,11 +65,31 @@ class AccountDeletionTest {
         assertEquals(DeleteOutcome.TotpInvalid, outcome(TermoakException.TotpInvalid(api(401, "totp_invalid", "not correct"))))
         assertEquals(DeleteOutcome.LastAdmin, outcome(TermoakException.Conflict(api(409, "last_admin", "you are the only administrator"))))
         val owner = "you are the only owner of \"Ops\", \"Web team\": appoint another owner or delete the team first"
+        // The team names come from the error's details (`teams`), not from its text.
         assertEquals(
             DeleteOutcome.LastTeamOwner(listOf("Ops", "Web team"), owner),
-            outcome(TermoakException.Conflict(api(409, "last_team_owner", owner))),
+            outcome(TermoakException.Conflict(api(409, "last_team_owner", owner, """{"teams":["Ops","Web team"]}"""))),
         )
-        assertEquals(DeleteOutcome.SharedVaults, outcome(TermoakException.Conflict(api(409, "shared_vaults", "confirm with delete_shared_vaults"))))
+        assertEquals(
+            DeleteOutcome.LastTeamOwner(emptyList(), "only owner"),
+            outcome(TermoakException.Conflict(api(409, "last_team_owner", "only owner"))),
+        )
+        // The shared vaults that block it, from `vaults` ({id, name, member_count}).
+        assertEquals(
+            DeleteOutcome.SharedVaults(listOf(SharedVault("Ops", 3), SharedVault("Family", null))),
+            outcome(
+                TermoakException.Conflict(
+                    api(
+                        409, "shared_vaults", "confirm with delete_shared_vaults",
+                        """{"vaults":[{"id":"v1","name":"Ops","member_count":3},{"id":"v2","name":"Family"},{"id":"v3","name":""}]}""",
+                    ),
+                ),
+            ),
+        )
+        assertEquals(DeleteOutcome.SharedVaults(emptyList()), outcome(TermoakException.Conflict(api(409, "shared_vaults", "confirm"))))
+        // Without the engine's details (an error it doesn't know): not parsed from the text any more.
+        val unknown = TermoakException.Conflict("something else (shared_vaults)")
+        assertEquals(DeleteOutcome.Failed(unknown), outcome(unknown))
         // Older servers: no DELETE on /api/v1/me.
         assertEquals(DeleteOutcome.Unsupported, outcome(TermoakException.Server(api(405, "error", ""))))
         assertEquals(DeleteOutcome.Unsupported, outcome(TermoakException.NotFound(api(404, "not_found", "no route"))))

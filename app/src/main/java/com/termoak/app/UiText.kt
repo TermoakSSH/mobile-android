@@ -6,6 +6,8 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import com.termoak.app.data.ApiErrors
+import com.termoak.app.data.Networks
 import com.termoak.ffi.TermoakException
 
 /**
@@ -33,12 +35,25 @@ fun uiText(@StringRes id: Int, vararg args: Any): UiText = UiText.Res(id, args.t
  * without one, [fallback].
  */
 fun Throwable.toUiText(@StringRes fallback: Int): UiText =
-    knownError(this)?.let { UiText.Res(it) }
+    networkError(this)
+        ?: knownError(this)?.let { UiText.Res(it) }
         ?: message?.takeIf { it.isNotBlank() }?.let { UiText.Raw(it) }
         ?: UiText.Res(fallback)
 
 /** [toUiText], resolved: for snackbars. */
 fun Throwable.userMessage(resources: Resources, @StringRes fallback: Int): String = toUiText(fallback).resolve(resources)
+
+/**
+ * The friendly text of a private network error (0.7), from its code and
+ * details (`apiError`): the server's (`network_dial_failed` with its
+ * `netd_code`, `plan_limit` of `max_networks`, `key_exists`...) and the
+ * engine's own (a network host on This device or signed out). `null`: not
+ * one of them.
+ */
+fun networkError(e: Throwable): UiText? {
+    val info = ApiErrors.of(e) ?: return if (e is TermoakException.NetworkUnavailable) UiText.Res(R.string.error_network_unavailable) else null
+    return Networks.errorText(info.code, info.detailsJson, info.message, device = info.status.toInt() == 0)
+}
 
 /** Translated message of the errors that have a fixed meaning for the user (`null`: use the message). */
 @StringRes

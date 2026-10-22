@@ -151,6 +151,9 @@ object Routes {
     const val VAULT = "vault/{account}/{id}"
     /** Your teams on the servers (the sidebar of wide windows). */
     const val TEAMS = "teams"
+    /** Private networks of the accounts whose server has them (`account`: the one shown first). */
+    const val NETWORKS = "networks?account={account}"
+    fun networks(account: String? = null) = "networks" + (account?.let { "?account=$it" } ?: "")
     /** Remote files (SFTP) of a host or a terminal: `id` of a [com.termoak.app.files.FileSources] entry. */
     const val FILES = "files/{id}"
     /** Joining a shared session with an invitation link. */
@@ -198,14 +201,14 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
     Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
-    Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES,
+    Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES, Routes.NETWORKS,
 )
 
 private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES -> Tab.AI
-    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS -> Tab.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS, Routes.NETWORKS -> Tab.SETTINGS
     else -> null
 }
 
@@ -435,6 +438,10 @@ fun AppRoot(app: TermoakApp) {
                             Routes.TWO_FACTOR,
                             arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
                         ) { e -> TwoFactorScreen(app, nav, e.arguments?.getString("account")) }
+                        composable(
+                            Routes.NETWORKS,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e -> NetworksScreen(app, nav, e.arguments?.getString("account")) }
                         // The terminal keeps a plain fade, as before.
                         composable(
                             Routes.TERMINAL,

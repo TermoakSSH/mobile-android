@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.MarkEmailUnread
@@ -74,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -544,6 +546,13 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                                     Icon(Icons.Outlined.Groups, null, Modifier.size(16.dp))
                                     Text(stringResource(R.string.teams_title), Modifier.padding(start = 6.dp))
                                 }
+                                // Private networks: only when its server has them (never This device).
+                                if (com.termoak.app.data.NetworkBook.supported(a.id)) {
+                                    TextButton(onClick = { nav.navigate(Routes.networks(a.id)) }, modifier = Modifier.testTag("account-networks")) {
+                                        Icon(Icons.Outlined.Hub, null, Modifier.size(16.dp))
+                                        Text(stringResource(R.string.networks_title), Modifier.padding(start = 6.dp))
+                                    }
+                                }
                                 TextButton(onClick = { openUrl(context, "${a.serverUrl}/app/account") }) {
                                     Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(16.dp))
                                     Text(stringResource(R.string.settings_my_account), Modifier.padding(start = 6.dp))
@@ -589,6 +598,15 @@ fun ManageAccountsScreen(app: TermoakApp, nav: NavHostController) {
                     headlineContent = { Text(stringResource(R.string.vaults_title)) },
                     supportingContent = { Text(stringResource(R.string.vaults_hint)) },
                     leadingContent = { Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.primary) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+            }
+            if (accounts.any { it.status == AccountStatus.ACTIVE && com.termoak.app.data.NetworkBook.supported(it.id) }) {
+                ListItem(
+                    modifier = Modifier.clickable { nav.navigate(Routes.networks()) },
+                    headlineContent = { Text(stringResource(R.string.networks_title)) },
+                    supportingContent = { Text(stringResource(R.string.networks_entry_hint)) },
+                    leadingContent = { Icon(Icons.Outlined.Hub, null, tint = MaterialTheme.colorScheme.primary) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 )
             }

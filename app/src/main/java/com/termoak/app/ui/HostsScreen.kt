@@ -253,6 +253,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             .filter { groupId == null || it.accountId == groupAccount }
         groups = runCatching { app.core.listGroups(filter) }.getOrDefault(emptyList())
             .filter { groupId == null || it.accountId == groupAccount }.sortedBy { it.name.lowercase() }
+        // The network of each host (its own or its groups'): "via Office" on the rows.
+        com.termoak.app.data.NetworkBook.index(app.core, hosts, groups)
     }
     LaunchedEffect(Unit) {
         reload()
@@ -377,6 +379,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         )
     }
 
+    /** A host being tested from the server through its network. */
+    var networkTest by remember { mutableStateOf<SshHost?>(null) }
     val statusChecks by app.prefs.hostStatusChecks.collectAsState()
     val statusOff by app.prefs.hostStatusOff.collectAsState()
     /**
@@ -429,6 +433,13 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             })
         }
         add(ItemAction(Icons.Outlined.Link, stringResource(R.string.hosts_copy_address), 1) { copyAddress(host) })
+        // Through its private network: the server tests it (only when asked; the status check skips these hosts).
+        com.termoak.app.data.NetworkBook.networkOf(host)?.let { net ->
+            if (com.termoak.app.data.NetworkBook.supported(host.accountId) && !host.isTelnet) {
+                val name = com.termoak.app.data.NetworkBook.name(host.accountId, net) ?: stringResource(R.string.networks_missing)
+                add(ItemAction(Icons.Outlined.NetworkCheck, stringResource(R.string.networks_test_host, name), 1) { networkTest = host })
+            }
+        }
         // Its status check, with the setting on (behind jump hosts or in a Strict vault the engine skips it anyway).
         if (statusChecks) {
             val checked = host.id !in statusOff
@@ -851,6 +862,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         }
     }
     tunnelsOf?.let { host -> HostTunnelsSheet(app, host) { tunnelsOf = null } }
+    networkTest?.let { host -> HostNetworkTest(app, host) { networkTest = null } }
     deleting?.let { host ->
         ConfirmDialog(
             title = stringResource(R.string.hosts_delete_title, host.label),
@@ -1095,8 +1107,10 @@ private fun HostRow(
                 subtitle(host), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (host.tags.isNotEmpty() || vault != null) {
+            val via = com.termoak.app.data.NetworkBook.networkOf(host) != null
+            if (host.tags.isNotEmpty() || vault != null || via) {
                 Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    NetworkVia(host)
                     vault?.let { VaultChip(it, vaultColor, useOnly = host.access.useOnly()) }
                     host.tags.take(3).forEach { TagChip(it) { onTag(it) } }
                     if (host.tags.size > 3) TagChip("+${host.tags.size - 3}", onClick = null)
@@ -1700,11 +1714,13 @@ private fun DesktopHostCard(
                     }
                 }
                 val os = osBadge(host.os)
-                if (os != null || host.tags.isNotEmpty() || vault != null || host.isTelnet) {
+                val via = com.termoak.app.data.NetworkBook.networkOf(host) != null
+                if (os != null || host.tags.isNotEmpty() || vault != null || host.isTelnet || via) {
                     Row(
                         Modifier.padding(top = 10.dp, end = 10.dp).fillMaxWidth().clipToBounds(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        NetworkVia(host)
                         if (host.isTelnet) TelnetBadge()
                         os?.let { (name, color) ->
                             Text(

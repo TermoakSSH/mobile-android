@@ -55,9 +55,15 @@ internal fun GroupEditorDialog(app: TermoakApp, group: HostGroup, onDismiss: () 
     }
     var agent by remember(group) { mutableStateOf(s0.agentForwarding) }
     var record by remember(group) { mutableStateOf(s0.recordSessions) }
+    // Private network (0.7) for the hosts inside: `null` inherits the parent group's (or direct).
+    var networkId by remember(group) { mutableStateOf(s0.networkId) }
     // Identities and keys a host of the group can use: its vault's and This device's.
     val filter = ItemFilter(accountIds = listOfNotNull(place.account), vaultIds = place.vault?.let { listOf(it) }, includeDevice = true)
     val identities = remember(place) { runCatching { app.core.listIdentities(filter) }.getOrDefault(emptyList()).filter { place.reaches(it.accountId, it.vaultId) } }
+    val groups = remember(place) {
+        runCatching { app.core.listGroups(ItemFilter(accountIds = listOfNotNull(place.account), vaultIds = null, includeDevice = false)) }
+            .getOrDefault(emptyList()).filter { it.id != group.id }
+    }
     val keys = remember(place) { runCatching { app.core.listKeys(filter) }.getOrDefault(emptyList()).filter { place.reaches(it.accountId, it.vaultId) } }
     val notSet = stringResource(R.string.group_defaults_not_set)
     val choices = listOf<Pair<Boolean?, String>>(null to notSet, true to stringResource(R.string.group_defaults_on), false to stringResource(R.string.group_defaults_off))
@@ -99,6 +105,15 @@ internal fun GroupEditorDialog(app: TermoakApp, group: HostGroup, onDismiss: () 
                 }
                 Picker(stringResource(R.string.editor_agent_forwarding), choices.first { it.first == agent }.second, null, choices) { agent = it }
                 Picker(stringResource(R.string.editor_record), choices.first { it.first == record }.second, null, choices) { record = it }
+                if (place.account != null) {
+                    NetworkField(app, place.account, place.vault, group.parentId, groups, networkId, outlined = true, onChange = { networkId = it })
+                    if (networkId != null) {
+                        Text(
+                            stringResource(R.string.networks_picker_group_hint), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -112,6 +127,7 @@ internal fun GroupEditorDialog(app: TermoakApp, group: HostGroup, onDismiss: () 
                     keyId = credential.removePrefix("key:").takeIf { credential.startsWith("key:") },
                     agentForwarding = agent,
                     recordSessions = record,
+                    networkId = if (place.account == null) null else networkId,
                 )
                 onSave(group.copy(name = name.trim(), color = color, settings = settings), if (topLevel) place else null)
             }) { Text(stringResource(R.string.common_save)) }

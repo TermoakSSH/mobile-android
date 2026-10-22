@@ -162,7 +162,7 @@ internal object HostForm {
 
     /** Does the host use anything of the "Advanced" section? (Then it starts open.) */
     fun hasAdvanced(s: HostSettings): Boolean =
-        !s.jumpHostIds.isNullOrEmpty() || s.proxy != null || s.agentForwarding == true || s.keepaliveSecs != null ||
+        !s.jumpHostIds.isNullOrEmpty() || s.proxy != null || s.networkId != null || s.agentForwarding == true || s.keepaliveSecs != null ||
             s.startupSnippetId != null || s.env.isNotEmpty() || s.recordSessions == true || !s.term.isNullOrBlank() ||
             s.theme != null
 }
@@ -243,6 +243,8 @@ fun HostEditor(
     val hadProxyPassword = remember { original?.let { runCatching { app.core.hostHasProxyPassword(it.id, it.accountId) }.getOrDefault(false) } ?: false }
     var clearProxyPassword by remember { mutableStateOf(false) }
     var jumps by remember { mutableStateOf(s0.jumpHostIds ?: emptyList()) }
+    // Private network (0.7): its own (`null`: its group's, or direct). Only networks of its vault.
+    var networkId by remember { mutableStateOf(s0.networkId) }
     val allHosts = remember { runCatching { app.core.listHosts(all) }.getOrDefault(emptyList()).filter { it.uid != original?.uid } }
     val otherHosts = allHosts.filter { place.reaches(it.accountId, it.vaultId) }
     var agentForwarding by remember { mutableStateOf(s0.agentForwarding == true) }
@@ -356,6 +358,8 @@ fun HostEditor(
                 proxy = proxyKind?.let { k ->
                     HostProxy(kind = k, host = proxyHost.trim(), port = proxyPortValue ?: 0u, username = proxyUser.trim().ifEmpty { null })
                 },
+                // This device can't use networks; elsewhere it is kept even when this screen didn't show it.
+                networkId = if (place.device) null else networkId,
             ),
         )
     }
@@ -721,6 +725,16 @@ fun HostEditor(
                                 stringResource(R.string.host_add_jump), stringResource(R.string.host_choose_host),
                                 candidates.map { it.id to it.label },
                             ) { jumps = jumps + it }
+                        }
+                    }
+
+                    // The private network its first connection goes through (account vaults only).
+                    if (!place.device && (com.termoak.app.data.NetworkBook.supported(place.account) || networkId != null)) {
+                        FormSection(stringResource(R.string.networks_picker_label)) {
+                            NetworkField(
+                                app, place.account, place.vault, groupId, allGroups, networkId, outlined = false,
+                                proxySet = proxyKind != null, onChange = { networkId = it },
+                            )
                         }
                     }
 
