@@ -118,14 +118,18 @@ fun KeyDetailScreen(app: TermoakApp, nav: NavHostController, keyId: String, acco
     val editable = !original.access.useOnly()
     var label by remember { mutableStateOf(original.label) }
     var comment by remember { mutableStateOf(original.comment) }
+    // A security key: the name of the device it lives on (only a label).
+    val skInfo = original.securityKey
+    var device by remember { mutableStateOf(skInfo?.device.orEmpty()) }
     var showingQr by remember { mutableStateOf(false) }
     var installing by remember { mutableStateOf(false) }
     var exported by remember { mutableStateOf<String?>(null) }
-    val changed = label != original.label || comment != original.comment
+    val changed = label != original.label || comment != original.comment || device != skInfo?.device.orEmpty()
 
     fun save() {
         try {
-            app.core.saveKey(original.copy(label = label.trim(), comment = comment.trim()), SecretChange.Keep)
+            val info = skInfo?.copy(device = device.trim().take(64).ifEmpty { null })
+            app.core.saveKey(original.copy(label = label.trim(), comment = comment.trim(), securityKey = info ?: original.securityKey), SecretChange.Keep)
             app.accounts.sync()
             nav.popBackStack()
         } catch (e: TermoakException) {
@@ -158,6 +162,7 @@ fun KeyDetailScreen(app: TermoakApp, nav: NavHostController, keyId: String, acco
                 }
             }
             FormHint(stringResource(R.string.keys_detail_comment_hint))
+            skInfo?.let { SecurityKeySection(original, it, editable, device) { d -> device = d } }
             FormSection(stringResource(R.string.keys_detail_public_key)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     DetailLine(stringResource(R.string.keys_detail_type), original.algorithm)
@@ -183,7 +188,8 @@ fun KeyDetailScreen(app: TermoakApp, nav: NavHostController, keyId: String, acco
                 ActionRow(Icons.Outlined.QrCode2, stringResource(R.string.keys_detail_qr)) { showingQr = true }
                 ActionRow(Icons.Outlined.Dns, stringResource(R.string.keys_install_title)) { installing = true }
                 if (editable && original.hasPrivateKey) {
-                    ActionRow(Icons.Outlined.Key, stringResource(R.string.keys_export_action)) {
+                    // A security key's file holds its key handle, not a private key.
+                    ActionRow(Icons.Outlined.Key, stringResource(if (skInfo != null) R.string.sk_export_action else R.string.keys_export_action)) {
                         auth.unlock(resources.getString(R.string.keys_export_reason)) { ok ->
                             if (!ok) return@unlock
                             try {
@@ -284,7 +290,8 @@ internal fun InstallKeyDialog(app: TermoakApp, key: SshKey, onDismiss: () -> Uni
             val message = try {
                 val session = app.core.connect(h.id, auth, h.accountId, keyChanged = auth)
                 try {
-                    val added = addKey(key.publicKey, session)
+                    // A security key: its line with the options its flags need (no-touch-required, verify-required).
+                    val added = addKey(authorizedLine(key), session)
                     resources.getString(if (added) R.string.keys_install_done else R.string.keys_install_already, h.label)
                 } finally {
                     withContext(Dispatchers.IO) { runCatching { session.disconnect() } }

@@ -22,7 +22,6 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,7 +34,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -57,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.data.SnippetVars
 import com.termoak.app.data.uid
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
@@ -64,8 +63,6 @@ import com.termoak.app.term.SnippetRuns
 import com.termoak.ffi.HostGroup
 import com.termoak.ffi.Snippet
 import com.termoak.ffi.SshHost
-import com.termoak.ffi.renderSnippet
-import com.termoak.ffi.snippetVariables
 
 /** Vault snippets to choose one from (to run it on the selected hosts). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -114,18 +111,21 @@ fun RunSnippetSheet(
     var onOpen by remember { mutableStateOf(initialHosts.isEmpty() && hosts.isEmpty() && open.isNotEmpty()) }
     var chosenHosts by remember { mutableStateOf(initialHosts) }
     var chosenTerminals by remember { mutableStateOf(open.map { it.id }.toSet()) }
-    var filling by remember { mutableStateOf<Boolean?>(null) }
+    var asking by remember { mutableStateOf<SnippetAsk?>(null) }
 
-    fun start(text: String, run: Boolean) {
-        if (onOpen) {
-            app.snippetRuns.onSessions(snippet.name, text, run, open.map { it.id }.filter { it in chosenTerminals })
-        } else {
-            app.snippetRuns.onHosts(snippet.name, text, run, hosts.filter { it.uid in chosenHosts })
-        }
-        onStarted()
-    }
+    // Each terminal gets the snippet with its own host's built-ins ({{host}}, {{user}}...).
     fun go(run: Boolean) {
-        if (snippetVariables(snippet.script).isEmpty()) start(snippet.script, run) else filling = run
+        val terminals = open.filter { it.id in chosenTerminals }
+        val chosen = hosts.filter { it.uid in chosenHosts }
+        val targets = if (onOpen) terminals.map { it.hostId to it.accountId } else chosen.map { it.id to it.accountId }
+        asking = askSnippet(app, snippet, targets, run) { values ->
+            val textFor = { s: com.termoak.app.term.TermSession ->
+                SnippetVars.textFor(snippet.script, values, SnippetVars.context(app.core, s.hostId, s.accountId))
+            }
+            if (onOpen) app.snippetRuns.onSessions(snippet.name, run, terminals.map { it.id }, textFor)
+            else app.snippetRuns.onHosts(snippet.name, run, chosen, textFor)
+            onStarted()
+        }
     }
     val count = if (onOpen) chosenTerminals.count { id -> open.any { it.id == id } } else chosenHosts.size
 
@@ -221,13 +221,7 @@ fun RunSnippetSheet(
         }
         Spacer(Modifier.navigationBarsPadding().height(16.dp))
     }
-    filling?.let { run ->
-        SnippetVariablesDialog(snippet, if (run) stringResource(R.string.snippets_run) else stringResource(R.string.common_paste),
-            onDismiss = { filling = null }) { text ->
-            filling = null
-            start(text, run)
-        }
-    }
+    asking?.let { SnippetAskDialog(it) { asking = null } }
 }
 
 @Composable
@@ -327,31 +321,4 @@ private fun RunStatusIcon(status: SnippetRuns.Status) {
         SnippetRuns.Status.READ_ONLY -> Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         SnippetRuns.Status.FAILED -> Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
     }
-}
-
-/** Values of a snippet's `{{variables}}`; [action] is the confirm button ("Paste", "Run"). */
-@Composable
-fun SnippetVariablesDialog(sn: Snippet, action: String, onDismiss: () -> Unit, onDone: (String) -> Unit) {
-    val names = remember(sn) { snippetVariables(sn.script) }
-    val values = remember(sn) { names.map { mutableStateOf("") } }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(sn.name) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                names.forEachIndexed { i, n ->
-                    OutlinedTextField(values[i].value, { values[i].value = it }, label = { Text(n) }, singleLine = true)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val rendered = runCatching {
-                    renderSnippet(sn.script, names.zip(values.map { it.value }).toMap())
-                }.getOrDefault(sn.script)
-                onDone(rendered)
-            }) { Text(action) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
-    )
 }

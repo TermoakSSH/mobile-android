@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,6 +31,8 @@ import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Nfc
+import androidx.compose.material.icons.outlined.Usb
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -116,6 +120,10 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
     var keys by remember { mutableStateOf(runCatching { app.core.listKeys(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.label.lowercase() }) }
     var creating by rememberSaveable { mutableStateOf(action == KeysAction.GENERATE) }
     var importing by rememberSaveable { mutableStateOf(action == KeysAction.IMPORT) }
+    // Security keys (FIDO2): a new key made on the device, the resident keys stored on it, the line of a new one.
+    var newSecurityKey by rememberSaveable { mutableStateOf(false) }
+    var loadingResident by rememberSaveable { mutableStateOf(false) }
+    var createdKey by remember { mutableStateOf<SshKey?>(null) }
     var deleting by remember { mutableStateOf<SshKey?>(null) }
     var fab by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(0) }
@@ -156,6 +164,10 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                         leadingIcon = { Icon(Icons.Outlined.Key, null) })
                     DropdownMenuItem({ Text(stringResource(R.string.keys_import_paste)) }, { fab = false; importing = true },
                         leadingIcon = { Icon(Icons.Outlined.FileDownload, null) })
+                    DropdownMenuItem({ Text(stringResource(R.string.sk_menu_new)) }, { fab = false; newSecurityKey = true },
+                        leadingIcon = { Icon(Icons.Outlined.Usb, null) })
+                    DropdownMenuItem({ Text(stringResource(R.string.sk_menu_load)) }, { fab = false; loadingResident = true },
+                        leadingIcon = { Icon(Icons.Outlined.Nfc, null) })
                 }
             }
         },
@@ -187,6 +199,7 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                                         if (k.hasPassphrase) stringResource(R.string.keys_with_passphrase, k.algorithm) else k.algorithm,
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
+                                    k.securityKey?.let { Box(Modifier.padding(top = 4.dp)) { SecurityKeyBadge(it) } }
                                 }
                                 if (k.access.useOnly()) {
                                     Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -366,6 +379,8 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
                             Text(d.algorithm, style = MaterialTheme.typography.titleSmall)
                             Text(d.fingerprint, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                             if (d.comment.isNotBlank()) Text(d.comment, style = MaterialTheme.typography.bodySmall)
+                            // An id_*_sk file: a security key's handle (the device signs).
+                            d.securityKey?.let { Box(Modifier.padding(top = 4.dp)) { SecurityKeyBadge(it) } }
                             if (d.encrypted) Text(stringResource(R.string.keys_import_encrypted), style = MaterialTheme.typography.bodySmall,
                                 color = Brand.Amber)
                         }
@@ -393,6 +408,21 @@ fun KeysScreen(app: TermoakApp, nav: NavHostController, action: String? = null) 
             dismissButton = { TextButton(onClick = { importing = false }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
+
+    if (newSecurityKey) {
+        NewSecurityKeyDialog(app, onDismiss = { newSecurityKey = false }) { k ->
+            newSecurityKey = false
+            reload()
+            createdKey = k
+        }
+    }
+    if (loadingResident) {
+        LoadResidentDialog(app, onDismiss = { loadingResident = false }) {
+            loadingResident = false
+            reload()
+        }
+    }
+    createdKey?.let { SecurityKeyCreatedDialog(it) { createdKey = null } }
 
     deleting?.let { k ->
         ConfirmDialog(
@@ -479,14 +509,17 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
         // Its tags (the first one is its folder in the terminal's snippets).
         var tags by remember(sn) { mutableStateOf(sn.tags.joinToString(", ")) }
         var place by remember(sn) { mutableStateOf(com.termoak.app.data.Place(sn.accountId, sn.vaultId)) }
+        // Its variables and issues, from the core's parser as you type: a snippet with issues isn't saved.
+        val (variables, issues) = rememberSnippetCheck(script)
         AlertDialog(
             onDismissRequest = { editing = null },
             title = { Text(stringResource(if (sn.id.isEmpty()) R.string.snippets_new else R.string.snippets_edit)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
                     OutlinedTextField(script, { script = it }, label = { Text(stringResource(R.string.snippets_command)) }, minLines = 3,
-                        textStyle = Mono, supportingText = { Text(stringResource(R.string.snippets_variables_hint)) })
+                        textStyle = Mono, isError = issues.isNotEmpty(), supportingText = { Text(stringResource(R.string.snippets_variables_hint)) })
+                    SnippetVariablesPanel(variables, issues)
                     OutlinedTextField(description, { description = it },
                         label = { Text(stringResource(R.string.snippets_description_optional)) })
                     OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(R.string.snippets_tags)) }, singleLine = true,
@@ -496,6 +529,10 @@ fun SnippetsScreen(app: TermoakApp, nav: NavHostController) {
             },
             confirmButton = {
                 TextButton(enabled = name.isNotBlank() && script.isNotBlank(), onClick = {
+                    if (issues.isNotEmpty()) {
+                        scope.launch { snackbar.showSnackbar(resources.getString(R.string.snippets_issue_fix_first)) }
+                        return@TextButton
+                    }
                     try {
                         app.core.saveSnippet(
                             sn.copy(

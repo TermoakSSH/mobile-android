@@ -101,6 +101,10 @@ private val AppTypography = Typography().let { t ->
 
 val Mono = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
 
+/** The app's colors and type (for the screenshot tests, which draw without Prefs). */
+internal fun appColorScheme(dark: Boolean) = if (dark) Dark else Light
+internal val appTypography get() = AppTypography
+
 @Composable
 fun TermoakTheme(prefs: Prefs, content: @Composable () -> Unit) {
     val mode by prefs.theme.collectAsState()

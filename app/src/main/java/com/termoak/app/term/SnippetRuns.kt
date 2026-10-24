@@ -55,15 +55,19 @@ class SnippetRuns(private val sessions: Sessions) {
     /** The last run, while its summary is open. */
     val current: StateFlow<Run?> = _current
 
-    /** Sends [text] to a terminal of each host, opening the ones that aren't open. */
-    fun onHosts(name: String, text: String, run: Boolean, hosts: List<SshHost>) {
+    /**
+     * Sends a snippet to a terminal of each host, opening the ones that
+     * aren't open; [textFor] gives each terminal its text (a snippet with
+     * variables: its host's own built-ins).
+     */
+    fun onHosts(name: String, run: Boolean, hosts: List<SshHost>, textFor: (TermSession) -> String) {
         val targets = hosts.distinctBy { it.accountId to it.id }.map { sessions.liveLocal(it.id, it.accountId) ?: sessions.openLocal(it, activate = false) }
-        start(name, text, run, targets)
+        start(name, run, targets, textFor)
     }
 
-    /** Sends [text] to terminals that are already open. */
-    fun onSessions(name: String, text: String, run: Boolean, ids: List<String>) {
-        start(name, text, run, ids.mapNotNull { sessions.get(it) })
+    /** Sends a snippet to terminals that are already open ([textFor]: each one's text). */
+    fun onSessions(name: String, run: Boolean, ids: List<String>, textFor: (TermSession) -> String) {
+        start(name, run, ids.mapNotNull { sessions.get(it) }, textFor)
     }
 
     /** Closes the summary (what is still waiting keeps going). */
@@ -71,7 +75,7 @@ class SnippetRuns(private val sessions: Sessions) {
         _current.value = null
     }
 
-    private fun start(name: String, text: String, run: Boolean, targets: List<TermSession>) {
+    private fun start(name: String, run: Boolean, targets: List<TermSession>, textFor: (TermSession) -> String) {
         jobs.forEach { it.cancel() }
         _current.value = Run(name, run, targets.map { Target(it.id, it.label, Status.WAITING) })
         jobs = targets.map { s ->
@@ -102,7 +106,7 @@ class SnippetRuns(private val sessions: Sessions) {
                     set(s.id, Status.READ_ONLY)
                     return@launch
                 }
-                s.apply(TermInput.Paste(text))
+                s.apply(TermInput.Paste(textFor(s)))
                 if (run) s.apply(TermInput.Key(com.termoak.ffi.TerminalKey.Enter, NoMods))
                 set(s.id, Status.SENT)
             }

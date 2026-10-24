@@ -88,7 +88,7 @@ import com.termoak.ffi.SshHost
 import com.termoak.ffi.TermoakException
 import com.termoak.ffi.paletteRank
 import com.termoak.ffi.paletteRemember
-import com.termoak.ffi.snippetVariables
+import com.termoak.app.data.SnippetVars
 import kotlinx.coroutines.launch
 
 /** An entry of the palette and what it does. */
@@ -120,10 +120,7 @@ fun CommandPaletteDialog(app: TermoakApp, nav: NavHostController, onDismiss: () 
         runCatching { app.core.listHosts(app.accounts.filter()) }.getOrDefault(emptyList())
             .sortedWith(compareByDescending<SshHost> { it.favorite }.thenBy { it.label.lowercase() })
     }
-    val snippets = remember {
-        runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList())
-            .filter { runCatching { snippetVariables(it.script) }.getOrDefault(emptyList()).isEmpty() }
-    }
+    val snippets = remember { runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()) }
     var serverSessions by remember { mutableStateOf<List<Pair<String, ServerSession>>>(emptyList()) }
     LaunchedEffect(Unit) {
         serverSessions = app.accounts.active().flatMap { a ->
@@ -170,10 +167,12 @@ fun CommandPaletteDialog(app: TermoakApp, nav: NavHostController, onDismiss: () 
             )
         }
         // Snippets: run in the terminal in view.
+        // Those that ask nothing there (no prompts; built-ins filled from its host).
         if (current != null) {
-            snippets.forEach { sn ->
+            val ctx = SnippetVars.context(app.core, current.hostId, current.accountId)
+            snippets.filter { runCatching { SnippetVars.prompts(it.script, ctx != null).isEmpty() }.getOrDefault(false) }.forEach { sn ->
                 add(PaletteItem(PaletteEntry(PaletteKey.snippet(sn.uid), PaletteKind.SNIPPET, sn.name, sn.script.lines().firstOrNull().orEmpty(), sn.tags), Icons.Outlined.Code) {
-                    current.run(sn.script)
+                    current.run(SnippetVars.textFor(sn.script, emptyMap(), ctx))
                     nav.showTerminal()
                 })
             }

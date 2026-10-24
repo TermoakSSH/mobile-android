@@ -171,6 +171,11 @@ dependencies {
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    // FIDO2 security keys over USB and NFC (Yubico's YubiKit, Apache-2.0): CTAP2 with any rp id
+    // (ssh:), which the platform's FIDO API can't do. Its manifest adds the NFC permission and
+    // NFC / USB host as optional features.
+    implementation("com.yubico.yubikit:android:3.2.1")
+    implementation("com.yubico.yubikit:fido:3.2.1")
 
     // JVM unit tests (app/src/test) of the code without Android: keys, paths...
     testImplementation("junit:junit:4.13.2")

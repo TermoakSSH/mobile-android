@@ -24,13 +24,24 @@ class TermoakApp : Application() {
     val core: TermoakCore by lazy {
         TermoakCore(File(filesDir, "termoak").path, Vault.key(this)).also {
             it.setDeviceName(prefs.deviceName ?: systemDeviceName)
+            // Security keys (FIDO2) before any events socket opens: the sockets then
+            // declare features=security_keys and answer the server's signature requests.
+            if (securityKeys.available) it.setSecurityKeyHandler(securityKeys.flow)
         }
+    }
+    /** The phone's security keys: YubiKit over USB and NFC. */
+    val securityKeyHardware: com.termoak.app.sk.YubiHardware by lazy {
+        com.termoak.app.sk.YubiHardware(this).also { it.locked = { appLock.locked.value } }
+    }
+    /** Security keys: the engine's handler and the sheet ("Tap or plug in your security key", PIN, touch). */
+    val securityKeys: com.termoak.app.sk.SecurityKeys by lazy {
+        com.termoak.app.sk.SecurityKeys(securityKeyHardware, com.termoak.app.sk.SecurityKeys.supported(this))
     }
     val prefs: Prefs by lazy { Prefs(this) }
     /** The phone's name when none was chosen: its maker and model. */
     val systemDeviceName: String get() = "${Build.MANUFACTURER} ${Build.MODEL}"
     /** The accounts on this device (servers), the Vault's view and their sync. */
-    val accounts: Accounts by lazy { Accounts(this, core, prefs) }
+    val accounts: Accounts by lazy { Accounts(this, core, prefs).also { a -> a.securityKeyEvents = { securityKeys.onEvent(it) } } }
     val sessions: Sessions by lazy {
         Sessions(this, core, accounts).apply {
             telnetAutoLogin = { prefs.telnetAutoLogin.value }

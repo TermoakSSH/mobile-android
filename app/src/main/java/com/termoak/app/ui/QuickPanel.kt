@@ -85,7 +85,6 @@ import com.termoak.app.term.TermSession
 import com.termoak.app.term.TerminalFont
 import com.termoak.ffi.CommandHistoryItem
 import com.termoak.ffi.Snippet
-import com.termoak.ffi.snippetVariables
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -136,7 +135,9 @@ internal fun QuickPanel(
     onKeyboard: () -> Unit,
     onCustomize: () -> Unit,
     onPaste: () -> Unit,
-    onSnippet: (name: String, text: String, run: Boolean, target: SnippetTarget) -> Unit,
+    /** Where a snippet would go (host id and account of each terminal), to know what it asks. */
+    snippetTargets: (SnippetTarget) -> List<Pair<String?, String?>>,
+    onSnippet: (snippet: Snippet, values: Map<String, String>, run: Boolean, target: SnippetTarget) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var tab by remember { mutableStateOf(QuickPanelTab.of(app.prefs.quickPanelTab)) }
@@ -178,7 +179,7 @@ internal fun QuickPanel(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 QuickPanelTab.KEYS -> KeysTab(app, session, onCustomize, onPaste)
-                QuickPanelTab.SNIPPETS -> SnippetsTab(app, panes, openCount, onSnippet)
+                QuickPanelTab.SNIPPETS -> SnippetsTab(app, panes, openCount, snippetTargets, onSnippet)
                 QuickPanelTab.HISTORY -> HistoryTab(session)
                 QuickPanelTab.APPEARANCE -> AppearanceTab(app)
             }
@@ -267,15 +268,21 @@ private const val NO_FOLDER = "\u0000no-folder"
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SnippetsTab(app: TermoakApp, panes: Int, openCount: Int, onSnippet: (String, String, Boolean, SnippetTarget) -> Unit) {
+private fun SnippetsTab(
+    app: TermoakApp,
+    panes: Int,
+    openCount: Int,
+    targetsOf: (SnippetTarget) -> List<Pair<String?, String?>>,
+    onSnippet: (Snippet, Map<String, String>, Boolean, SnippetTarget) -> Unit,
+) {
     val list = remember {
         runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() }
     }
     var search by remember { mutableStateOf("") }
     val expanded = remember { mutableStateListOf<String>() }
-    var filling by remember { mutableStateOf<Triple<Snippet, Boolean, SnippetTarget>?>(null) }
+    var asking by remember { mutableStateOf<SnippetAsk?>(null) }
     fun use(sn: Snippet, run: Boolean, target: SnippetTarget) {
-        if (snippetVariables(sn.script).isEmpty()) onSnippet(sn.name, sn.script, run, target) else filling = Triple(sn, run, target)
+        asking = askSnippet(app, sn, targetsOf(target), run) { values -> onSnippet(sn, values, run, target) }
     }
     val filtered = SnippetFolders.filter(list, search)
     Column(Modifier.fillMaxSize()) {
@@ -318,14 +325,7 @@ private fun SnippetsTab(app: TermoakApp, panes: Int, openCount: Int, onSnippet: 
             }
         }
     }
-    filling?.let { (sn, run, target) ->
-        SnippetVariablesDialog(
-            sn, stringResource(if (run) R.string.snippets_run else R.string.common_paste), onDismiss = { filling = null },
-        ) { text ->
-            filling = null
-            onSnippet(sn.name, text, run, target)
-        }
-    }
+    asking?.let { SnippetAskDialog(it) { asking = null } }
 }
 
 /** A snippet: a tap pastes it, ▶ runs it; held, the same for the split's panes or every open terminal. */

@@ -15,6 +15,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -60,6 +62,9 @@ class MainActivity : AppCompatActivity() {
                 Box(Modifier.fillMaxSize()) {
                     AppRoot(app)
                     AppLockScreen(app)
+                    // "Tap or plug in your security key", its PIN and "Touch your security key", above everything.
+                    val locked by app.appLock.locked.collectAsState()
+                    if (!locked) com.termoak.app.ui.SecurityKeySheet(app.securityKeys)
                 }
             }
         }
@@ -108,6 +113,17 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Security keys: NFC reading (only while a request is open) needs the activity in front.
+        (application as TermoakApp).securityKeyHardware.activity = this
+    }
+
+    override fun onPause() {
+        (application as TermoakApp).securityKeyHardware.activity = null
+        super.onPause()
     }
 
     override fun onStart() {

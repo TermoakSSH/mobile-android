@@ -626,6 +626,11 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
                 try {
                     subscriptions[id] = handle.subscribeEvents(object : ServerEventListener {
                         override fun onEvent(eventJson: String) {
+                            // Security key requests: at once, on this thread (the sheet closes on `done`).
+                            if (eventJson.contains("\"security_key_")) {
+                                runCatching { JSONObject(eventJson) }.getOrNull()?.let { securityKeyEvents?.invoke(it) }
+                                return
+                            }
                             scope.launch { handleEvent(id, eventJson) }
                         }
 
@@ -656,6 +661,13 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
             setOnline(id, false)
         }
     }
+
+    /**
+     * The events sockets' `security_key_request` and `security_key_done`
+     * (the engine answers the requests itself through the security key
+     * handler set before subscribing; this shows and closes their sheet).
+     */
+    @Volatile var securityKeyEvents: ((JSONObject) -> Unit)? = null
 
     private fun stopEvents(id: String) {
         eventJobs.remove(id)?.cancel()

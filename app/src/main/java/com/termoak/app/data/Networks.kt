@@ -999,6 +999,9 @@ object Networks {
     /** The text of a failed host test: its `error_code`, else the server's text. */
     fun hostTestError(t: HostTest): UiText {
         val code = t.errorCode.orEmpty()
+        // A security key: its code, or the server's English text (the device's answer).
+        com.termoak.app.sk.SkErrors.Code.parse(code)?.let { return com.termoak.app.sk.SkErrors.text(it, t.error) }
+        t.error?.let { e -> com.termoak.app.sk.SkErrors.serverText(e)?.let { return it } }
         // A tailnet says more: netd's English reason (the test carries no netd_code), in words.
         if (code == "network_dial_failed" && t.networkKind == TAILSCALE && !t.error.isNullOrBlank()) {
             val e = t.error

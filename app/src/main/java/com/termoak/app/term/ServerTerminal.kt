@@ -1,6 +1,7 @@
 package com.termoak.app.term
 
 import com.termoak.app.R
+import com.termoak.app.sk.SkErrors
 import com.termoak.app.UiText
 import com.termoak.app.toUiText
 import com.termoak.app.uiText
@@ -344,7 +345,7 @@ class ServerTerminal(
             }
             is ServerTerminalEvent.PromptDone -> _pending.value = null
             // An action that wasn't allowed: the connection stays open.
-            is ServerTerminalEvent.Error -> toast(UiText.Raw(event.message))
+            is ServerTerminalEvent.Error -> toast(SkErrors.serverText(event.message) ?: UiText.Raw(event.message))
             is ServerTerminalEvent.Ended -> {
                 _live.update { it.copy(ended = ShareEnd(event.code, event.message), waiting = null, canWrite = false) }
                 _state.value = TermState.Closed(endMessage(event.code)?.let { uiText(it) } ?: UiText.Raw(event.message))
@@ -364,11 +365,12 @@ class ServerTerminal(
         // The end screen stays once the server has sent you away.
         if (_live.value.ended != null) return
         _state.value = when (state) {
-            is ServerSessionState.Connecting -> TermState.Connecting(UiText.Raw(state.message))
+            // "Touch your security key (X) on one of your devices…" in the app's language.
+            is ServerSessionState.Connecting -> TermState.Connecting(SkErrors.sessionMessage(state.message) ?: UiText.Raw(state.message))
             is ServerSessionState.Running -> TermState.Running
             is ServerSessionState.HostOffline -> TermState.Connecting(uiText(R.string.term_host_offline_waiting))
             is ServerSessionState.Closed -> TermState.Closed(
-                state.reason?.let { UiText.Raw(it) }
+                state.reason?.let { SkErrors.serverText(it) ?: UiText.Raw(it) }
                     ?: state.exitCode?.let { uiText(R.string.term_session_ended_code, it.toString()) }
                     ?: uiText(R.string.term_session_closed),
             )

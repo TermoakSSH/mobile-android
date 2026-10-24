@@ -65,6 +65,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -818,6 +819,17 @@ fun HostEditor(
                                     ?: if (startupSnippet == null) none else stringResource(R.string.editor_deleted_snippet),
                                 listOf<Pair<String?, String>>(null to none) + snippets.map { it.id to it.name },
                             ) { startupSnippet = it }
+                            // Startup snippets can't ask: say so when this one would.
+                            val asks = remember(startupSnippet, snippets) {
+                                snippets.firstOrNull { it.id == startupSnippet }?.let { com.termoak.app.data.SnippetVars.startupAsks(it.script) } == true
+                            }
+                            if (asks) {
+                                Text(
+                                    stringResource(R.string.editor_startup_snippet_asks),
+                                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("startup-snippet-asks"),
+                                    style = MaterialTheme.typography.bodySmall, color = Brand.Amber,
+                                )
+                            }
                             FormDivider()
                             FormField(
                                 stringResource(R.string.editor_env), env, { env = it; clearError(HostField.ENV) },

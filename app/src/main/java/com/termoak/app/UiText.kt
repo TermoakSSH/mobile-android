@@ -22,8 +22,8 @@ sealed interface UiText {
 
     fun resolve(resources: Resources): String = when (this) {
         is Raw -> text
-        is Res -> resources.getString(id, *args.toTypedArray())
-        is Plural -> resources.getQuantityString(id, count, *args.toTypedArray())
+        is Res -> resources.getString(id, *args.map { if (it is UiText) it.resolve(resources) else it }.toTypedArray())
+        is Plural -> resources.getQuantityString(id, count, *args.map { if (it is UiText) it.resolve(resources) else it }.toTypedArray())
     }
 }
 
@@ -35,7 +35,8 @@ fun uiText(@StringRes id: Int, vararg args: Any): UiText = UiText.Res(id, args.t
  * without one, [fallback].
  */
 fun Throwable.toUiText(@StringRes fallback: Int): UiText =
-    networkError(this)
+    com.termoak.app.sk.SkErrors.textOf(this)
+        ?: networkError(this)
         ?: knownError(this)?.let { UiText.Res(it) }
         ?: message?.takeIf { it.isNotBlank() }?.let { UiText.Raw(it) }
         ?: UiText.Res(fallback)
@@ -75,8 +76,8 @@ fun knownError(e: Throwable): Int? = when (e) {
 @Composable
 fun UiText.asString(): String = when (this) {
     is UiText.Raw -> text
-    is UiText.Res -> stringResource(id, *args.toTypedArray())
-    is UiText.Plural -> pluralStringResource(id, count, *args.toTypedArray())
+    is UiText.Res -> stringResource(id, *args.map { if (it is UiText) it.asString() else it }.toTypedArray())
+    is UiText.Plural -> pluralStringResource(id, count, *args.map { if (it is UiText) it.asString() else it }.toTypedArray())
 }
 
 /**

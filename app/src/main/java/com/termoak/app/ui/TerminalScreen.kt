@@ -157,7 +157,7 @@ import com.termoak.app.term.TerminalThemes
 import com.termoak.app.term.TerminalView
 import com.termoak.app.userMessage
 import com.termoak.ffi.Snippet
-import com.termoak.ffi.snippetVariables
+import com.termoak.app.data.SnippetVars
 import kotlinx.coroutines.launch
 
 // The terminal's chrome takes the colours of the theme of the terminal in view.
@@ -286,12 +286,38 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     }
     BackHandler { if (copilotOpen) closeCopilot() else nav.popBackStack() }
 
-    /** A snippet typed in [target] (and, while broadcasting, in the other panes), in the split's panes or in every open terminal. */
-    fun useSnippet(target: TermSession, name: String, text: String, run: Boolean, to: SnippetTarget) {
+    /** Where a snippet goes: [target] (and, while broadcasting, the other panes), the split's panes or every open terminal. */
+    fun snippetTargets(target: TermSession, to: SnippetTarget): List<TermSession> = when (to) {
+        SnippetTarget.THIS -> listOf(target) + if (target === session) broadcastTargets else emptyList()
+        SnippetTarget.PANES -> panes
+        SnippetTarget.ALL_OPEN -> sessions
+    }
+
+    /**
+     * A snippet typed in [target] (and, while broadcasting, in the other
+     * panes), in the split's panes or in every open terminal: each one with
+     * its own host's built-ins ({{host}}, {{user}}...) and the same [values].
+     */
+    fun useSnippet(target: TermSession, sn: Snippet, values: Map<String, String>, run: Boolean, to: SnippetTarget) {
+        val textFor = { s: TermSession -> SnippetVars.textFor(sn.script, values, SnippetVars.context(app.core, s.hostId, s.accountId)) }
         when (to) {
-            SnippetTarget.THIS -> if (run) target.run(text) else target.paste(text)
-            SnippetTarget.PANES -> app.snippetRuns.onSessions(name, text, run, panes.map { it.id })
-            SnippetTarget.ALL_OPEN -> app.snippetRuns.onSessions(name, text, run, sessions.map { it.id })
+            SnippetTarget.THIS -> {
+                val others = if (target === session) broadcastTargets else emptyList()
+                // Not mirrored as typed: each pane gets its own text.
+                val mirror = target.onInput
+                if (others.isNotEmpty()) target.onInput = null
+                try {
+                    if (run) target.run(textFor(target)) else target.paste(textFor(target))
+                } finally {
+                    if (others.isNotEmpty()) target.onInput = mirror
+                }
+                others.forEach { o ->
+                    o.apply(com.termoak.app.term.TermInput.Paste(textFor(o)))
+                    if (run) o.apply(com.termoak.app.term.TermInput.Key(com.termoak.ffi.TerminalKey.Enter, com.termoak.ffi.KeyModifiers(shift = false, alt = false, ctrl = false)))
+                }
+            }
+            SnippetTarget.PANES -> app.snippetRuns.onSessions(sn.name, run, panes.map { it.id }, textFor)
+            SnippetTarget.ALL_OPEN -> app.snippetRuns.onSessions(sn.name, run, sessions.map { it.id }, textFor)
         }
     }
 
@@ -465,7 +491,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             },
             onCustomize = { nav.navigate(Routes.KEYBOARD) },
             onPaste = { paste(target) },
-            onSnippet = { name, text, run, to -> useSnippet(target, name, text, run, to) },
+            snippetTargets = { to -> snippetTargets(target, to).map { it.hostId to it.accountId } },
+            onSnippet = { sn, values, run, to -> useSnippet(target, sn, values, run, to) },
             modifier = modifier,
         )
     }
@@ -773,11 +800,12 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             app,
             panes = if (splitShown) panes.size else 0,
             openCount = sessions.size,
+            targetsOf = { to -> snippetTargets(session, to).map { it.hostId to it.accountId } },
             onDismiss = { showSnippets = false },
-        ) { sn, text, run, target ->
+        ) { sn, values, run, target ->
             showSnippets = false
             // Typed here (and, while broadcasting, in the other panes too), or in the panes or every open terminal.
-            useSnippet(session, sn.name, text, run, target)
+            useSnippet(session, sn, values, run, target)
         }
     }
     if (showSplitPicker) {
@@ -1466,15 +1494,17 @@ private fun SnippetsSheet(
     app: TermoakApp,
     panes: Int,
     openCount: Int,
+    targetsOf: (SnippetTarget) -> List<Pair<String?, String?>>,
     onDismiss: () -> Unit,
-    onUse: (Snippet, String, Boolean, SnippetTarget) -> Unit,
+    onUse: (Snippet, Map<String, String>, Boolean, SnippetTarget) -> Unit,
 ) {
     val snippets = remember { runCatching { app.core.listSnippets(app.accounts.filter()) }.getOrDefault(emptyList()).sortedBy { it.name.lowercase() } }
-    var filling by remember { mutableStateOf<Pair<Snippet, Boolean>?>(null) }
+    var asking by remember { mutableStateOf<SnippetAsk?>(null) }
     var target by remember { mutableStateOf(SnippetTarget.THIS) }
     var query by remember { mutableStateOf("") }
     fun use(sn: Snippet, run: Boolean) {
-        if (snippetVariables(sn.script).isEmpty()) onUse(sn, sn.script, run, target) else filling = sn to run
+        val to = target
+        asking = askSnippet(app, sn, targetsOf(to), run) { values -> onUse(sn, values, run, to) }
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Text(stringResource(R.string.section_snippets), Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge)
@@ -1538,14 +1568,7 @@ private fun SnippetsSheet(
             }
         }
     }
-    filling?.let { (sn, run) ->
-        SnippetVariablesDialog(
-            sn, stringResource(if (run) R.string.snippets_run else R.string.common_paste), onDismiss = { filling = null },
-        ) { text ->
-            filling = null
-            onUse(sn, text, run, target)
-        }
-    }
+    asking?.let { SnippetAskDialog(it) { asking = null } }
 }
 
 /** "Paste N lines?": each line runs as a command when it reaches the shell. */
