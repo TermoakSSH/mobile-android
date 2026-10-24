@@ -110,6 +110,7 @@ import com.termoak.app.term.ShareNotice
 import com.termoak.app.term.Shortcut
 import com.termoak.app.term.TermSession
 import com.termoak.app.term.TermState
+import com.termoak.app.push.PushOpen
 import com.termoak.ffi.AccountStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -127,6 +128,7 @@ object Routes {
     fun twoFactor(account: String? = null) = "settings/2fa" + (account?.let { "?account=$it" } ?: "")
     /** Settings → Terminal → Keys above the keyboard (also the quick panel's Customize). */
     const val KEYBOARD = "settings/keys"
+    const val NOTIFICATIONS = "settings/notifications"
     const val TERMINAL = "terminal"
     /** A host's editor (`new`: a new one, in [group] when made inside a group). */
     const val HOST_EDIT = "host/{id}?account={account}&group={group}"
@@ -200,7 +202,7 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 
 /** Details that slide in from the side, over the tab they belong to. */
 private val Details = setOf(
-    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
+    Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES, Routes.NETWORKS,
 )
 
@@ -208,7 +210,7 @@ private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES -> Tab.AI
-    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS, Routes.NETWORKS -> Tab.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS, Routes.NETWORKS -> Tab.SETTINGS
     else -> null
 }
 
@@ -434,6 +436,7 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.SETTINGS) { SettingsScreen(app, nav) }
                         composable(Routes.AI_KEYS) { AiKeysScreen(app, nav) }
                         composable(Routes.KEYBOARD) { KeyboardEditorScreen(app, nav) }
+                        composable(Routes.NOTIFICATIONS) { NotificationsScreen(app, nav) }
                         composable(
                             Routes.TWO_FACTOR,
                             arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
@@ -658,6 +661,39 @@ fun AppRoot(app: TermoakApp) {
                 val result = snackbar.showSnackbar(text, actionLabel = action, withDismissAction = true, duration = SnackbarDuration.Long)
                 if (result == SnackbarResult.ActionPerformed) openNotice(n)
             }
+        }
+    }
+    // A push notification was tapped: its screen (an AI approval is decided there, after the app lock).
+    val pushed by app.pendingPush.collectAsState()
+    LaunchedEffect(pushed) {
+        val (open, _) = pushed ?: return@LaunchedEffect
+        app.pendingPush.value = null
+        when (open) {
+            is PushOpen.AiTask -> {
+                app.accounts.aiAccountId = open.accountId
+                nav.navigate(Routes.aiTask(open.taskId, open.accountId)) { launchSingleTop = true }
+            }
+            is PushOpen.Session -> when (open.kind) {
+                "join_request", "control_request", "session_shared" -> openNotice(
+                    ShareNotice(
+                        when (open.kind) {
+                            "join_request" -> ShareNotice.Kind.JOIN_REQUEST
+                            "control_request" -> ShareNotice.Kind.CONTROL_REQUEST
+                            else -> ShareNotice.Kind.SHARED_WITH_YOU
+                        },
+                        null, open.sessionId, "", "", open.participant, accountId = open.accountId,
+                    ),
+                )
+                else -> {
+                    app.sessions.attach(open.sessionId, resources.getString(R.string.common_session), null, owner = true, accountId = open.accountId)
+                    nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
+                }
+            }
+            is PushOpen.Teams -> nav.navigate(Routes.TEAMS) { launchSingleTop = true }
+            is PushOpen.SecurityKey -> scope.launch {
+                snackbar.showSnackbar(resources.getString(R.string.push_security_key_waiting), duration = SnackbarDuration.Short)
+            }
+            is PushOpen.Home -> Unit
         }
     }
     val opened by app.shareNotices.openRequest.collectAsState()

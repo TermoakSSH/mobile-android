@@ -13,7 +13,6 @@ import com.termoak.ffi.AccountInfo
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.EventSubscription
 import com.termoak.ffi.ItemFilter
-import com.termoak.ffi.PushPlatform
 import com.termoak.ffi.ServerChoice
 import com.termoak.ffi.ServerEventListener
 import com.termoak.ffi.SignOutReport
@@ -153,8 +152,16 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     private val postponed = mutableSetOf<String>()
     private val eventJobs = mutableMapOf<String, Job>()
     private val subscriptions = mutableMapOf<String, EventSubscription>()
-    /** Accounts whose server already has the push token (this run). */
+    /** Accounts registered with the push distributor (this run). */
     private val pushRegistered = mutableSetOf<String>()
+
+    /** Push registration per account (UnifiedPush, [com.termoak.app.push.PushRegistry]). */
+    interface PushHooks {
+        fun register(accountId: String)
+        suspend fun unregister(accountId: String)
+    }
+
+    @Volatile var pushHooks: PushHooks? = null
     /** Accounts whose server's features were read again (this run). */
     private val featuresRead = mutableSetOf<String>()
 
@@ -192,8 +199,8 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         (eventJobs.keys - activeIds).forEach { stopEvents(it) }
         approvals.keys.retainAll(activeIds)
         _pendingApprovals.value = approvals.values.sum()
-        // A new sign-in (or the first refresh): its server gets the push token.
-        (activeIds - pushRegistered).forEach { registerPush(it) }
+        // A new sign-in (or the first refresh): its server gets this phone's push endpoint.
+        (activeIds - pushRegistered).forEach { id -> pushHooks?.register(id) }
         pushRegistered.clear()
         pushRegistered += activeIds
         // Private networks: the server's features may have changed since the account last started (NETWORKS.md §8.1).
@@ -441,7 +448,7 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
      */
     suspend fun signOut(id: String, discard: Boolean): SignOutReport {
         // That server stops notifying this device (push), before the account goes.
-        if (discard || unsynced(id) == 0L) unregisterPush(id)
+        if (discard || unsynced(id) == 0L) pushHooks?.unregister(id)
         val report = core.signOutAccount(id, discard)
         if (report.signedOut) forget(id)
         return report
@@ -454,6 +461,8 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
      * account. The caller closes that account's terminals.
      */
     suspend fun removeDeleted(id: String) {
+        // The distributor forgets its registration too (the server's went with the account).
+        pushHooks?.unregister(id)
         if (core.signOutAccount(id, true).signedOut) forget(id)
     }
 
@@ -485,46 +494,6 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
                 }.onFailure { Log.w("termoak", "language not saved in the account: ${it.message}") }
             }
         }
-    }
-
-    // ----- Push (guarded: needs the build's Firebase credentials) -----
-
-    /**
-     * The device's push token (Firebase Cloud Messaging), once the build
-     * has push ([BuildConfig.PUSH_ENABLED], off until the owner's Firebase
-     * project and `google-services.json` exist) and the system gave one.
-     */
-    @Volatile var pushToken: String? = prefs.pushToken
-        private set
-
-    /**
-     * A new token from the system: registered on **every** signed-in account
-     * (each server notifies its own events), again whenever it changes.
-     */
-    fun pushTokenChanged(token: String) {
-        if (!com.termoak.app.BuildConfig.PUSH_ENABLED || token.isBlank()) return
-        pushToken = token
-        prefs.pushToken = token
-        registerPush()
-    }
-
-    /** Registers the push token on the signed-in accounts (or only [accountId]: a new sign-in). */
-    fun registerPush(accountId: String? = null) {
-        val token = pushToken ?: return
-        if (!com.termoak.app.BuildConfig.PUSH_ENABLED) return
-        val ids = accountId?.let { listOf(it) } ?: active().map { it.id }
-        scope.launch {
-            ids.forEach { id ->
-                runCatching { handle(id)?.registerPushToken(PushPlatform.FCM, token, com.termoak.app.BuildConfig.DEBUG) }
-                    .onFailure { Log.w("termoak", "push token not registered: ${it.message}") }
-            }
-        }
-    }
-
-    /** That account's server stops sending push to this device (signing out). */
-    private suspend fun unregisterPush(accountId: String) {
-        if (!com.termoak.app.BuildConfig.PUSH_ENABLED || pushToken == null) return
-        runCatching { handle(accountId)?.unregisterPushToken() }
     }
 
     // ----- Sync -----
@@ -605,16 +574,11 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     // ----- Events -----
 
     /**
-     * Push notifications (join and keyboard requests, sessions shared with
-     * you... while the app is closed).
-     *
-     * Push is wired per account but guarded: the build turns it on
-     * (`-PtermoakPush=true`, [BuildConfig.PUSH_ENABLED]) once the owner's
-     * Firebase project and `google-services.json` exist, and the Firebase
-     * messaging service hands its token to [pushTokenChanged]; then every
-     * signed-in account registers it (the engine's registerPushToken) and
-     * signing out unregisters it. Until then the notices arrive through the
-     * events WebSocket of each account while the app runs ([sessionNotices]).
+     * Each account's events WebSocket while the app runs: AI tasks and
+     * approvals, session notices, vault changes and the server's security key
+     * requests. While it is open the server sends this phone no push
+     * notifications (they come from here instead); with the app closed they
+     * come through UnifiedPush ([com.termoak.app.push.PushRegistry]).
      */
     private fun startEvents(id: String) {
         if (eventJobs[id]?.isActive == true) return

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Security
@@ -178,6 +179,12 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                 }
                 Row0(Icons.Outlined.AutoAwesome, stringResource(R.string.section_ai), stringResource(R.string.settings_ai_hint)) {
                     nav.navigate(Routes.AI_KEYS)
+                }
+            }
+
+            if (loggedIn == true) {
+                Row0(Icons.Outlined.Notifications, stringResource(R.string.push_settings_title), stringResource(R.string.push_settings_hint)) {
+                    nav.navigate(Routes.NOTIFICATIONS)
                 }
             }
 

@@ -264,11 +264,6 @@ class Prefs(context: Context) {
         o.keys().asSequence().associateWith { o.getString(it) }
     }.getOrDefault(emptyMap())
 
-    /** The device's push token (Firebase), when the build has push. */
-    var pushToken: String?
-        get() = sp.getString("push_token", null)
-        set(v) = sp.edit { putString("push_token", v) }
-
     /** Already used without a server: don't show the welcome screen again. */
     var skippedLogin: Boolean
         get() = sp.getBoolean("skipped_login", false)
@@ -277,6 +272,8 @@ class Prefs(context: Context) {
     init {
         // Replaced by the accounts (core 0.4): every account remembers its server.
         if (sp.contains("last_server")) sp.edit { remove("last_server") }
+        // The Firebase token of builds before UnifiedPush (never used: push wasn't on).
+        if (sp.contains("push_token")) sp.edit { remove("push_token") }
     }
 
     companion object {

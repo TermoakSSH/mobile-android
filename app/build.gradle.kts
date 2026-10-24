@@ -44,9 +44,6 @@ android {
             "DEFAULT_SERVER",
             "\"${providers.gradleProperty("termoakServer").getOrElse("https://termoak.com")}\"",
         )
-        // Push notifications (Firebase Cloud Messaging), off until the owner's Firebase project and
-        // google-services.json exist: -PtermoakPush=true turns the per-account registration on.
-        buildConfigField("boolean", "PUSH_ENABLED", providers.gradleProperty("termoakPush").getOrElse("false"))
     }
 
     signingConfigs {
@@ -176,6 +173,10 @@ dependencies {
     // NFC / USB host as optional features.
     implementation("com.yubico.yubikit:android:3.2.1")
     implementation("com.yubico.yubikit:fido:3.2.1")
+    // Push without Google (UnifiedPush, Apache-2.0): the user's distributor (ntfy, NextPush...)
+    // delivers the server's Web Push messages; the connector makes the Web Push keys and decrypts
+    // (with Tink, Apache-2.0). No Play Services or Firebase in any build.
+    implementation("org.unifiedpush.android:connector:3.3.5")
 
     // JVM unit tests (app/src/test) of the code without Android: keys, paths...
     testImplementation("junit:junit:4.13.2")

@@ -41,7 +41,20 @@ class TermoakApp : Application() {
     /** The phone's name when none was chosen: its maker and model. */
     val systemDeviceName: String get() = "${Build.MANUFACTURER} ${Build.MODEL}"
     /** The accounts on this device (servers), the Vault's view and their sync. */
-    val accounts: Accounts by lazy { Accounts(this, core, prefs).also { a -> a.securityKeyEvents = { securityKeys.onEvent(it) } } }
+    val accounts: Accounts by lazy {
+        Accounts(this, core, prefs).also { a ->
+            a.securityKeyEvents = { securityKeys.onEvent(it) }
+            a.pushHooks = object : Accounts.PushHooks {
+                override fun register(accountId: String) = push.register(accountId)
+                override suspend fun unregister(accountId: String) = push.unregister(accountId)
+            }
+        }
+    }
+    /** Push without Google (UnifiedPush): one registration per account with the user's distributor. */
+    val push: com.termoak.app.push.PushRegistry by lazy { com.termoak.app.push.PushRegistry(this, accounts) }
+    val pushNotifier: com.termoak.app.push.PushNotifier by lazy { com.termoak.app.push.PushNotifier(this) }
+    /** A push notification (or one of its buttons) was tapped: where the app goes. */
+    val pendingPush = kotlinx.coroutines.flow.MutableStateFlow<Pair<com.termoak.app.push.PushOpen, com.termoak.app.push.PushAction?>?>(null)
     val sessions: Sessions by lazy {
         Sessions(this, core, accounts).apply {
             telnetAutoLogin = { prefs.telnetAutoLogin.value }

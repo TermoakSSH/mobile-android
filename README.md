@@ -78,10 +78,18 @@ What it does:
   opens at 600 ms, in every cursor gesture mode; the on-screen keyboard
   closes when leaving the terminal for Home or another screen; Home from
   the terminal no longer brings it straight back.
-- **Push**: wired per account and off by default. Build with
-  `-PtermoakPush=true` once a Firebase project and its
-  `google-services.json` exist; the Firebase messaging service then hands
-  its token to `Accounts.pushTokenChanged`.
+- **Push without Google** (0.7): UnifiedPush (`org.unifiedpush.android:connector`,
+  Apache-2.0; no Play Services or Firebase in any build). With a distributor
+  installed (the ntfy app with ntfy.sh or your own ntfy, NextPush...) and
+  chosen in Settings → Notifications (used automatically when it is the
+  only one), every account registers its own endpoint with its server
+  (servers 0.7+), which encrypts each notification for the phone. Channels
+  per kind (approvals, sessions, security keys, AI, general); Approve / Deny
+  only open the app's own confirmation (behind the app lock); a security key
+  request opens the app, whose events socket then gets it. Per-kind
+  switches, "also while the app is open" and a test per account. Without a
+  distributor the app notifies while it runs, as before. Code in
+  `app/.../push/`; opt-in `LivePushTest` against a server and an ntfy.
 - **Updates**: on startup, at most once a day (Settings → "Check for
   updates"), the app asks the server it is signed in to, or termoak.com,
   for the latest Android release (`GET /api/v1/downloads`). A newer version

@@ -149,6 +149,18 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent?) {
         val app = application as TermoakApp
         if (app.shareNotices.handleIntent(intent)) return
+        // A push notification or one of its buttons (Approve / Deny open the app's own confirmation).
+        if (intent != null) {
+            com.termoak.app.push.PushRoutes.fromExtras { intent.getStringExtra(it) }?.let { opened ->
+                val id = intent.getIntExtra(com.termoak.app.push.PushRoutes.EXTRA_NOTIFICATION, 0)
+                app.pushNotifier.cancel(id, intent.getStringExtra(com.termoak.app.push.PushNotifier.EXTRA_TAG).orEmpty())
+                intent.removeExtra(com.termoak.app.push.PushRoutes.EXTRA_KIND)
+                // The events sockets start (or reconnect) now: a waiting security key request arrives.
+                app.accounts.refresh()
+                app.pendingPush.value = opened
+                return
+            }
+        }
         // A shortcut of the app's icon (touch and hold it).
         QuickAction.parse(intent?.action, intent?.getStringExtra(QuickAction.EXTRA_HOST), intent?.getStringExtra(QuickAction.EXTRA_ACCOUNT))?.let {
             app.pendingQuickAction.value = it
