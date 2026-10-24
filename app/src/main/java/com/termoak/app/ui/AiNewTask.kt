@@ -88,7 +88,8 @@ fun NewAiTaskScreen(app: TermoakApp, nav: NavHostController) {
     val hosts = remember {
         account?.let { a ->
             runCatching { app.core.listHosts(app.accounts.scopeFilter(a.id)) }.getOrDefault(emptyList())
-                .filter { it.accountId == a.id && !it.isTelnet }
+                // Teams security: hosts whose team forbids the AI are left out (the server leaves them out too).
+                .filter { it.accountId == a.id && !it.isTelnet && AccessUi.gates(app, it).ai }
         }.orEmpty().sortedBy { it.label.lowercase() }
     }
     val groups = remember {

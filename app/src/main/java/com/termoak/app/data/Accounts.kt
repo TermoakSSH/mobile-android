@@ -130,6 +130,9 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     /** Session notices (the `notice` object of a `session` event, with `account_id` added). */
     private val _sessionNotices = MutableSharedFlow<JSONObject>(extraBufferCapacity = 16)
     val sessionNotices: SharedFlow<JSONObject> = _sessionNotices
+    /** Teams security: `access_request` events of each account (the lists in [AccessBook] are already read again). */
+    private val _accessEvents = MutableSharedFlow<Pair<String, AccessRules.AccessEvent>>(extraBufferCapacity = 16)
+    val accessEvents: SharedFlow<Pair<String, AccessRules.AccessEvent>> = _accessEvents
     /** The items on this device changed (a sync, a sign-out, another view): reload. */
     private val _itemsChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val itemsChanged: SharedFlow<Unit> = _itemsChanged
@@ -204,7 +207,11 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         pushRegistered.clear()
         pushRegistered += activeIds
         // Private networks: the server's features may have changed since the account last started (NETWORKS.md §8.1).
-        (activeIds - featuresRead).forEach { id -> scope.launch { NetworkBook.refreshFeatures(id, handle(id)) } }
+        (activeIds - featuresRead).forEach { id ->
+            scope.launch { NetworkBook.refreshFeatures(id, handle(id)) }
+            // Teams security (0.7 phase 4d): the server's feature, the requests and the 2FA requirements.
+            scope.launch { AccessBook.start(id) }
+        }
         featuresRead.retainAll(activeIds)
         featuresRead += activeIds
         activeIds.forEach { startEvents(it) }
@@ -469,6 +476,7 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
     private fun forget(id: String) {
         stopEvents(id)
         NetworkBook.forget(id)
+        AccessBook.forget(id)
         handles.remove(id)?.close()
         approvals.remove(id)
         if (_verification.value?.accountId == id) _verification.value = null
@@ -653,6 +661,18 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
             "hello" -> {
                 approvals[accountId] = event.optInt("pending_approvals", approvals[accountId] ?: 0)
                 _pendingApprovals.value = approvals.values.sum()
+                // Events may have been missed while the socket was closed.
+                if (AccessBook.supported(accountId)) {
+                    AccessBook.refresh(accountId)
+                    AccessBook.rehost(accountId)
+                }
+            }
+            // Teams security: a request was made, decided, ended… (the lists and hosts are read again).
+            "access_request" -> AccessBook.onEvent(accountId, event)?.let { _accessEvents.tryEmit(accountId to it) }
+            // A team's policy changed: its vaults' effective policy comes with a sync; 2FA requirements too.
+            "team" -> if (event.optString("event") == "policy") {
+                syncOne(accountId)
+                AccessBook.refresh2fa(accountId)
             }
             "ai" -> {
                 _aiEvents.tryEmit(event)
@@ -676,7 +696,10 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
                 _changes.tryEmit(type)
             }
             // A vault changed, was shared with you or lost: sync that account.
-            "vault" -> syncOne(accountId)
+            "vault" -> {
+                syncOne(accountId)
+                if (AccessBook.supported(accountId)) AccessBook.refresh2fa(accountId)
+            }
         }
     }
 
@@ -689,6 +712,9 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
 
 /** The role lets you change the vault's items. */
 fun VaultRole.canEdit(): Boolean = this == VaultRole.EDITOR || this == VaultRole.MANAGER
+
+/** No secrets of this vault on this device (Use only, Connect only). */
+fun VaultRole.noSecrets(): Boolean = this == VaultRole.USE_ONLY || this == VaultRole.CONNECT_ONLY
 
 /** AI events that are not stored (live text) and don't change the task state. */
 private val LiveAiEvents = setOf("text", "reasoning", "reset", "usage")

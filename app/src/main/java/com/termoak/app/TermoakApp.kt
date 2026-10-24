@@ -44,6 +44,8 @@ class TermoakApp : Application() {
     val accounts: Accounts by lazy {
         Accounts(this, core, prefs).also { a ->
             a.securityKeyEvents = { securityKeys.onEvent(it) }
+            // Teams security (0.7 phase 4d): requests, host windows and 2FA through each account's handle.
+            com.termoak.app.data.AccessBook.apiOf = { id -> a.handle(id)?.let { com.termoak.app.data.HandleAccessApi(it) } }
             a.pushHooks = object : Accounts.PushHooks {
                 override fun register(accountId: String) = push.register(accountId)
                 override suspend fun unregister(accountId: String) = push.unregister(accountId)

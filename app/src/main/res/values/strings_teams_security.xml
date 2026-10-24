@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Teams security (0.7 phase 4d): generated from the desktop's texts (locales/*.json, 4c) plus the app's own. Same keys in values-es. -->
+<resources>
+    <string name="access_active">Open windows you can end</string>
+    <string name="access_active_empty">No open access windows.</string>
+    <string name="access_approve_button">Approve</string>
+    <string name="access_approve_note">Note (optional)</string>
+    <string name="access_approve_note_placeholder">Seen in the request and the audit</string>
+    <string name="access_approve_ok">Approve</string>
+    <string name="access_approve_title">Approve access</string>
+    <string name="access_approve_window">Window</string>
+    <string name="access_approve_window_hint">You can give a shorter window than asked, never a longer one. It starts now.</string>
+    <string name="access_approved">Access approved</string>
+    <!-- args: time, until -->
+    <string name="access_asked_at">Asked at %1$s · waits until %2$s</string>
+    <!-- args: time -->
+    <string name="access_asked_for">Asked for %1$s</string>
+    <string name="access_bar_ended">Access window ended</string>
+    <string name="access_cancel_button">Cancel</string>
+    <string name="access_cancelled">Request cancelled</string>
+    <string name="access_card_auto">When the window opens, this terminal connects by itself.</string>
+    <string name="access_card_pending_text">Your request is waiting for an approver.</string>
+    <string name="access_card_pending_title">Waiting for approval</string>
+    <!-- args: max -->
+    <string name="access_card_text">This host needs an approved access window: ask an approver for up to %1$s.</string>
+    <string name="access_card_title">Approval needed</string>
+    <string name="access_check_failed">Couldn\'t ask the server about this host</string>
+    <string name="access_chip_needed">Approval needed</string>
+    <!-- args: time, left -->
+    <string name="access_chip_open">Until %1$s · %2$s</string>
+    <string name="access_chip_pending">Waiting for approval</string>
+    <string name="access_closed_access_expired">Your access window to this host ended: request access again to keep working</string>
+    <string name="access_closed_access_revoked">An approver ended your access window to this host</string>
+    <string name="access_closed_vault_access_revoked">You no longer have access to this host\'s vault</string>
+    <!-- args: name -->
+    <string name="access_decided_by">Decided by %1$s</string>
+    <!-- args: name, note -->
+    <string name="access_decision_note">%1$s: “%2$s”</string>
+    <string name="access_denied">Request denied</string>
+    <string name="access_deny_button">Deny</string>
+    <string name="access_deny_ok">Deny</string>
+    <string name="access_deny_reason">Reason (optional)</string>
+    <string name="access_deny_reason_placeholder">The requester sees it</string>
+    <string name="access_deny_title">Deny access</string>
+    <!-- args: count -->
+    <plurals name="access_duration_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <!-- args: n -->
+    <string name="access_duration_hours">%1$s h</string>
+    <!-- args: h, m -->
+    <string name="access_duration_hours_minutes">%1$s h %2$s min</string>
+    <!-- args: n -->
+    <string name="access_duration_minutes">%1$s min</string>
+    <string name="access_end_button">End my access</string>
+    <!-- args: left -->
+    <string name="access_left">%1$s left</string>
+    <string name="access_menu_policy">Access policy…</string>
+    <string name="access_menu_request">Request access…</string>
+    <string name="access_mine">My requests</string>
+    <string name="access_mine_empty">You have not asked for access yet. Hosts that need it show “Request access” when you connect.</string>
+    <string name="access_none_hint">Sign in to a Termoak server 0.7 or later to request and approve access to hosts.</string>
+    <string name="access_none_title">No server with temporary access</string>
+    <string name="access_not_found">That request is not among yours or the ones you can decide.</string>
+    <!-- args: target, time -->
+    <string name="access_notice_approved">Access to %1$s approved until %2$s</string>
+    <!-- args: name, target, time -->
+    <string name="access_notice_created">%1$s asks for access to %2$s for %3$s</string>
+    <!-- args: target -->
+    <string name="access_notice_denied">Your request for %1$s was denied</string>
+    <!-- args: target, reason -->
+    <string name="access_notice_denied_reason">Your request for %1$s was denied: %2$s</string>
+    <!-- args: target -->
+    <string name="access_notice_ended">Your access window to %1$s ended</string>
+    <!-- args: target -->
+    <string name="access_notice_expired">Nobody decided your request for %1$s in time</string>
+    <!-- args: name, target -->
+    <string name="access_notice_revoked">%1$s ended your access to %2$s</string>
+    <string name="access_notice_title_decision">Access request decided</string>
+    <string name="access_notice_title_request">Access request</string>
+    <string name="access_open">Open Access</string>
+    <string name="access_policy_needed_title">Access policies</string>
+    <string name="access_recent">Recently decided</string>
+    <string name="access_reconnecting">Access approved: connecting…</string>
+    <string name="access_recorded">Recorded</string>
+    <string name="access_request_after">You will be told when it is decided; the terminal connects by itself when the window opens.</string>
+    <string name="access_request_button">Request access</string>
+    <string name="access_request_cancel_request">Cancel request</string>
+    <string name="access_request_cannot">You cannot request access to this host</string>
+    <string name="access_request_duration">For how long</string>
+    <string name="access_request_error_duration">Choose a duration within the allowed maximum</string>
+    <string name="access_request_error_reason">Say why you need access</string>
+    <string name="access_request_error_reason_long">The reason can have up to 500 characters</string>
+    <!-- args: max -->
+    <string name="access_request_message">This host needs an approved access window. An approver decides; you can ask for up to %1$s.</string>
+    <string name="access_request_no_target">Nothing to request access to</string>
+    <!-- args: host -->
+    <string name="access_request_pending_message">Your request for %1$s is waiting for an approver. Cancel it?</string>
+    <string name="access_request_pending_title">Request waiting</string>
+    <string name="access_request_reason">Reason</string>
+    <string name="access_request_reason_placeholder">What you need to do (the approvers see it)</string>
+    <string name="access_request_scope">For</string>
+    <string name="access_request_scope_group">Every host of its group</string>
+    <!-- args: host -->
+    <string name="access_request_scope_host">Only %1$s</string>
+    <string name="access_request_scope_vault">Every host of the vault</string>
+    <string name="access_request_send">Send request</string>
+    <!-- args: host -->
+    <string name="access_request_sent">Request for %1$s sent: waiting for an approver</string>
+    <!-- args: host -->
+    <string name="access_request_title">Request access to %1$s</string>
+    <string name="access_request_title_short">Request access</string>
+    <string name="access_requester">Requested by</string>
+    <string name="access_revoke_button">End now</string>
+    <string name="access_revoke_hint">Their server sessions on these hosts close and the certificates issued under this window are revoked.</string>
+    <string name="access_revoke_ok">End access</string>
+    <string name="access_revoke_title">End this access window</string>
+    <string name="access_revoked">Access window ended</string>
+    <string name="access_self_approved">Self-approved</string>
+    <string name="access_status_active">Active</string>
+    <string name="access_status_cancelled">Cancelled</string>
+    <string name="access_status_denied">Denied</string>
+    <string name="access_status_ended">Ended</string>
+    <string name="access_status_expired">Expired</string>
+    <string name="access_status_pending">Waiting</string>
+    <string name="access_status_revoked">Revoked</string>
+    <string name="access_status_unknown">Unknown</string>
+    <string name="access_subtitle">Temporary access to hosts with approval: requests to decide and your own</string>
+    <!-- args: name, target, time, reason -->
+    <string name="access_summary">%1$s asks for %2$s for %3$s: “%4$s”</string>
+    <!-- args: name -->
+    <string name="access_target_group">Group %1$s</string>
+    <!-- args: name -->
+    <string name="access_target_vault">Vault %1$s</string>
+    <!-- args: h, m -->
+    <string name="access_time_hours">%1$s h %2$s min</string>
+    <!-- args: n -->
+    <string name="access_time_minutes">%1$s min</string>
+    <!-- args: n -->
+    <string name="access_time_seconds">%1$s s</string>
+    <string name="access_title">Access</string>
+    <!-- args: vault -->
+    <string name="access_vault_of">In %1$s</string>
+    <string name="access_waiting">Waiting for your decision</string>
+    <string name="access_waiting_empty">No requests are waiting for you.</string>
+    <!-- args: time -->
+    <string name="access_waits_until">Waits until %1$s</string>
+    <!-- args: time, left -->
+    <string name="access_window_until">Access until %1$s · %2$s left</string>
+    <!-- args: time -->
+    <string name="access_window_ends">Window until %1$s</string>
+    <string name="access_policy_add_for_vault">Policy for the whole vault</string>
+    <string name="access_policy_approvers">Approvers</string>
+    <!-- args: count -->
+    <plurals name="access_policy_approvers_count">
+        <item quantity="one">%1$d approver</item>
+        <item quantity="other">%1$d approvers</item>
+    </plurals>
+    <string name="access_policy_approvers_hint">Nobody chosen: the vault\'s Admins approve.</string>
+    <string name="access_policy_cert_overrides">Certificate options for these hosts</string>
+    <string name="access_policy_choose_approvers">Choose approvers</string>
+    <string name="access_policy_edit_vault">Edit the vault\'s policy…</string>
+    <string name="access_policy_empty">No access policies: members connect directly.</string>
+    <string name="access_policy_error_max">The longest window must be a number of minutes (1–10080)</string>
+    <string name="access_policy_error_ttl">How long a request waits must be a number of minutes (5–10080)</string>
+    <!-- args: from -->
+    <string name="access_policy_inherits_approval">Without its own policy: %1$s requires approval.</string>
+    <!-- args: from -->
+    <string name="access_policy_inherits_direct">Without its own policy: %1$s allows direct access.</string>
+    <string name="access_policy_load_failed">Couldn\'t read the access policies</string>
+    <string name="access_policy_managers">Admins need a request too</string>
+    <string name="access_policy_managers_hint">Off: the vault\'s Admins connect without asking.</string>
+    <string name="access_policy_max">Longest window (minutes)</string>
+    <string name="access_policy_max_hint">Up to 10080 (7 days)</string>
+    <string name="access_policy_missing_target">(not synced)</string>
+    <string name="access_policy_mode_approval">With approval (temporary windows)</string>
+    <string name="access_policy_mode_direct">Direct</string>
+    <string name="access_policy_mode_hint">With approval, members ask for a time window with a reason and an approver decides. The window gates server sessions, certificates, just-in-time credentials and the AI.</string>
+    <string name="access_policy_mode_label">Access</string>
+    <string name="access_policy_none">No policy applies now: members connect directly.</string>
+    <string name="access_policy_own">It has its own policy.</string>
+    <string name="access_policy_record">Record every session on these hosts</string>
+    <string name="access_policy_record_hint">Server sessions are recorded on the server; the apps record local terminals and upload them.</string>
+    <string name="access_policy_remove">Remove policy</string>
+    <string name="access_policy_removed">Access policy removed</string>
+    <string name="access_policy_save">Save policy</string>
+    <string name="access_policy_saved">Access policy saved</string>
+    <string name="access_policy_self_approval">Requesters who are approvers may approve their own requests</string>
+    <string name="access_policy_self_approval_hint">For one-person teams. Audited as self-approved.</string>
+    <string name="access_policy_set_vault">Set a policy for the whole vault…</string>
+    <!-- args: max -->
+    <string name="access_policy_summary_approval">Approval · up to %1$s</string>
+    <string name="access_policy_summary_direct">Direct</string>
+    <!-- args: name -->
+    <string name="access_policy_target_group">Group %1$s</string>
+    <!-- args: name -->
+    <string name="access_policy_target_host">Host %1$s</string>
+    <string name="access_policy_target_vault">The whole vault</string>
+    <string name="access_policy_the_vault">the whole vault</string>
+    <!-- args: name -->
+    <string name="access_policy_title_group">Access policy of the group %1$s</string>
+    <!-- args: name -->
+    <string name="access_policy_title_host">Access policy of %1$s</string>
+    <!-- args: name -->
+    <string name="access_policy_title_vault">Access policy of %1$s</string>
+    <string name="access_policy_ttl">A request waits (minutes)</string>
+    <string name="access_policy_ttl_hint">Then it expires (5–10080)</string>
+    <string name="access_policy_vault_hint">A host follows its own policy, else its nearest group\'s, else the vault\'s.</string>
+    <string name="access_policy_where_hint">Groups and hosts get theirs from “Access policy…” in their menu in Hosts.</string>
+    <string name="auth_field_group_hint">Its hosts use it unless they choose otherwise.</string>
+    <string name="auth_field_inherit">Group\'s, or password and key</string>
+    <!-- args: group -->
+    <string name="auth_field_inherited">Team certificate, from the group %1$s.</string>
+    <string name="auth_field_keys">Password and key</string>
+    <string name="auth_field_keys_hint">The host\'s password, key or identity, as always.</string>
+    <string name="auth_field_label">Authentication</string>
+    <string name="auth_field_no_ca">The vault\'s team has no certificate authority yet: create it in Teams → Security (or Settings → SSH certificates for personal vaults).</string>
+    <!-- args: name -->
+    <string name="auth_field_other">%1$s (newer version)</string>
+    <string name="auth_field_other_hint">A method of a newer version: kept as it is; this app uses the host\'s credentials.</string>
+    <string name="auth_field_team_certificate">Team certificate</string>
+    <string name="auth_field_team_hint">A short-lived certificate from the CA of the vault\'s team (or owner), for your key or a key made just for it. The host must trust the CA.</string>
+    <string name="ca_algorithm_ecdsa">ECDSA P-256 (older OpenSSH)</string>
+    <string name="ca_algorithm_ed25519">Ed25519 (recommended)</string>
+    <string name="ca_algorithm_hint">The private key is made and kept by the server, sealed with its master key; it is never shown.</string>
+    <string name="ca_algorithm_label">Algorithm</string>
+    <!-- args: principals, purpose -->
+    <string name="ca_cert_detail">%1$s · %2$s</string>
+    <string name="ca_cert_expired">Expired</string>
+    <!-- args: serial -->
+    <string name="ca_cert_revoke_confirm">Revoke certificate #%1$s?</string>
+    <!-- args: email -->
+    <string name="ca_cert_revoke_user_confirm">Revoke every valid certificate of %1$s?</string>
+    <string name="ca_cert_revoked">Revoked</string>
+    <!-- args: time -->
+    <string name="ca_cert_until">Until %1$s</string>
+    <string name="ca_certs_active_only">Only valid ones</string>
+    <string name="ca_certs_empty">No certificates.</string>
+    <string name="ca_certs_open">Issued certificates</string>
+    <string name="ca_certs_title">Issued certificates</string>
+    <string name="ca_copied_fingerprint">Fingerprint copied</string>
+    <string name="ca_copied_install">Install command copied: paste it on the host</string>
+    <string name="ca_copied_public_key">Public key copied</string>
+    <string name="ca_copied_sshd">sshd_config lines copied</string>
+    <string name="ca_copy_fingerprint">Copy fingerprint</string>
+    <string name="ca_copy_key">Copy public key</string>
+    <string name="ca_copy_lines">Copy lines</string>
+    <string name="ca_create">Create certificate authority</string>
+    <string name="ca_created">Certificate authority created</string>
+    <!-- args: date -->
+    <string name="ca_created_at">Created %1$s</string>
+    <string name="ca_disable_button">Disable…</string>
+    <string name="ca_disable_message">No more certificates are issued and its keys stop being published. Hosts set to “Team certificate” fall back to their own credentials.</string>
+    <string name="ca_disable_mismatch">The text does not match</string>
+    <string name="ca_disable_ok">Disable</string>
+    <string name="ca_disable_title">Disable the certificate authority</string>
+    <!-- args: word -->
+    <string name="ca_disable_type">Type %1$s to confirm</string>
+    <string name="ca_disabled">Certificate authority disabled</string>
+    <string name="ca_fingerprint">Fingerprint</string>
+    <string name="ca_hint_personal">A CA of your own for the hosts of your personal vault: they trust it and you get short-lived certificates.</string>
+    <string name="ca_hint_team">Hosts that trust the team\'s CA accept short-lived certificates of its members: no public keys to copy to hosts, and access ends by itself.</string>
+    <string name="ca_install_copy">Copy install command</string>
+    <string name="ca_install_hint">Paste the command on each host as a user with sudo: it writes the CA keys, adds TrustedUserCAKeys, checks sshd -t (restoring the old config if it fails) and reloads sshd.</string>
+    <string name="ca_install_krl">Revoked keys list (KRL)</string>
+    <string name="ca_install_loading">Preparing the script…</string>
+    <!-- args: lines -->
+    <string name="ca_install_preview">The command (the script in a heredoc, %1$s lines):</string>
+    <string name="ca_install_principals">Principals file per user</string>
+    <string name="ca_install_refresh">Refresh every 15 minutes</string>
+    <string name="ca_install_share">Share</string>
+    <string name="ca_install_title">Install on a host</string>
+    <string name="ca_none_personal">You have no certificate authority yet.</string>
+    <string name="ca_none_team">The team has no certificate authority yet.</string>
+    <string name="ca_public_key">Public key</string>
+    <!-- args: fingerprint, date -->
+    <string name="ca_retiring">Previous CA %1$s is still published until %2$s (rotation overlap)</string>
+    <string name="ca_revoke_reason">Reason (optional)</string>
+    <string name="ca_revoke_serial">Revoke this certificate</string>
+    <string name="ca_revoke_user">Revoke all of this member\'s</string>
+    <string name="ca_revoke_key_button">Revoke a key…</string>
+    <string name="ca_revoke_key_invalid">Paste an OpenSSH public key (ssh-ed25519 AAAA…)</string>
+    <string name="ca_revoke_key_key">Public key</string>
+    <string name="ca_revoke_key_message">The key gets no new certificates and is listed in the KRL, so hosts with RevokedKeys refuse its current ones too.</string>
+    <string name="ca_revoke_key_ok">Revoke</string>
+    <string name="ca_revoke_key_title">Revoke a key</string>
+    <!-- args: count -->
+    <plurals name="ca_revoked">
+        <item quantity="one">%1$d certificate revoked</item>
+        <item quantity="other">%1$d certificates revoked</item>
+    </plurals>
+    <string name="ca_rotate_button">Rotate…</string>
+    <string name="ca_rotate_message">A new CA signs from now on. The current one stays published during the overlap, so hosts that refresh their keys keep accepting certificates already issued.</string>
+    <string name="ca_rotate_ok">Rotate</string>
+    <string name="ca_rotate_overlap">Overlap (hours)</string>
+    <string name="ca_rotate_overlap_error">The overlap must be 1–720 hours</string>
+    <string name="ca_rotate_overlap_hint">1–720. Hosts without the 15-minute refresh need the install command again.</string>
+    <string name="ca_rotate_title">Rotate the certificate authority</string>
+    <string name="ca_rotated">Certificate authority rotated</string>
+    <string name="ca_sshd_config">sshd_config</string>
+    <!-- args: url -->
+    <string name="ca_sshd_config_hint">The keys file is public: %1$s</string>
+    <string name="ca_status_active">Active</string>
+    <string name="ca_title">SSH certificate authority</string>
+    <string name="cert_fields_default_ttl">Default validity (minutes)</string>
+    <!-- args: value -->
+    <string name="cert_fields_error_number">“%1$s” is not a number of minutes</string>
+    <string name="cert_fields_extensions">Extensions</string>
+    <string name="cert_fields_extensions_custom">Choose them for these hosts</string>
+    <string name="cert_fields_force_command">Forced command</string>
+    <string name="cert_fields_force_command_hint">Optional: the only command these certificates can run</string>
+    <string name="cert_fields_force_command_placeholder">For example /usr/local/bin/deploy</string>
+    <string name="cert_fields_inherit">The team\'s</string>
+    <string name="cert_fields_max_ttl">Longest validity (minutes)</string>
+    <!-- args: email, principals -->
+    <string name="cert_fields_preview">For %1$s on a host with user deploy: %2$s</string>
+    <string name="cert_fields_preview_inherit">Empty: the team\'s principals</string>
+    <string name="cert_fields_preview_none">These templates give no valid principal for that example</string>
+    <string name="cert_fields_principals">Principals</string>
+    <string name="cert_fields_principals_hint">Names in the certificate, separated by commas: {login} (the host\'s user), {member} (the member\'s principal), {email}, {user_id} or fixed names such as deploy.</string>
+    <string name="cert_fields_source_address">Source addresses</string>
+    <string name="cert_fields_source_address_hint">Optional: the certificate only works from these addresses or CIDRs (comma-separated)</string>
+    <string name="cert_fields_ttl">Longest validity (minutes)</string>
+    <string name="certs_for_host">Certificates for this host</string>
+    <string name="certs_host">Host</string>
+    <string name="certs_key_fingerprint">Key fingerprint</string>
+    <string name="certs_mine">Certificates issued to you</string>
+    <string name="certs_mine_empty">None yet: they are made when you connect to a host that uses a team certificate.</string>
+    <string name="certs_none_for_host">No certificate was issued to you for this host yet.</string>
+    <string name="certs_purpose">Made for</string>
+    <string name="certs_purpose_credentials">Just-in-time credentials</string>
+    <string name="certs_purpose_device">From an app</string>
+    <string name="certs_purpose_server">Server session</string>
+    <string name="certs_request">Under the access request</string>
+    <!-- args: reason -->
+    <string name="certs_revoked_reason">Revoked: %1$s</string>
+    <!-- args: serial -->
+    <string name="certs_title">Certificate #%1$s</string>
+    <string name="conn_details_auth">Authentication</string>
+    <string name="conn_details_auth_cert">Team certificate</string>
+    <string name="conn_details_cert_ca">CA fingerprint</string>
+    <string name="conn_details_cert_expired">expired</string>
+    <string name="conn_details_cert_extensions">Extensions</string>
+    <string name="conn_details_cert_key_id">Key ID</string>
+    <!-- args: left -->
+    <string name="conn_details_cert_left">%1$s left</string>
+    <string name="conn_details_cert_options">Critical options</string>
+    <string name="conn_details_cert_principals">Principals</string>
+    <string name="conn_details_cert_serial">Serial</string>
+    <string name="conn_details_cert_signature">Signature</string>
+    <string name="conn_details_cert_signature_bad">Not valid</string>
+    <string name="conn_details_cert_signature_ok">Valid</string>
+    <string name="conn_details_cert_valid_after">Valid from</string>
+    <string name="conn_details_cert_valid_before">Valid until</string>
+    <string name="conn_details_host">Connected as</string>
+    <string name="conn_details_host_key">Host key</string>
+    <string name="conn_details_no_cert">No team certificate was used for this connection.</string>
+    <!-- args: host -->
+    <string name="conn_details_title">Connection to %1$s</string>
+    <string name="conn_details_via">Through</string>
+    <string name="error_access_approval_required">This host needs an approved access window: request access</string>
+    <string name="error_access_duration_too_long">That is longer than the policy allows</string>
+    <string name="error_access_needs_server">This host has access rules: connect to its server first</string>
+    <string name="error_access_request_closed">That request is already decided or closed</string>
+    <string name="error_access_request_exists">You already have a request waiting for this</string>
+    <string name="error_access_request_not_needed">This does not need an approval: connect directly</string>
+    <string name="error_ai_forbidden_by_policy">The team does not allow the AI on this host</string>
+    <string name="error_ca_exists">There is already an active certificate authority: rotate it instead</string>
+    <string name="error_ca_not_configured">The team has no SSH certificate authority: an admin creates it in Teams → Security</string>
+    <string name="error_certificate_key_not_owned">That key cannot be certified for you</string>
+    <string name="error_certificate_key_revoked">That key is revoked: it cannot get certificates</string>
+    <string name="error_certificate_no_principals">No principal names for the certificate: check the login user or the principal templates</string>
+    <string name="error_certificate_proof_invalid">The proof of possession of the key was not accepted (check this phone\'s clock)</string>
+    <string name="error_connect_only">Connect only members connect through the server or with team certificates</string>
+    <string name="error_invalid_reason">Give a reason (1–500 characters)</string>
+    <string name="error_networks_forbidden_by_policy">The team does not allow private networks in this vault</string>
+    <string name="error_not_an_approver">You are not an approver of this request</string>
+    <string name="error_policy_requires_2fa">Turn on two-step verification on your account before requiring it from the team</string>
+    <string name="error_recording_required">Sessions on this host must be recorded: update the app or open a server session</string>
+    <string name="error_secret_reveal_forbidden">The team does not allow revealing or exporting the secrets of this vault</string>
+    <string name="error_self_approval_forbidden">You cannot approve your own request</string>
+    <string name="error_team_2fa_required">A team requires two-step verification: set it up in Settings → Two-step verification</string>
+    <string name="host_editor_connect_only">Connect only: you connect through the server or with a team certificate; you never see or receive its password or key.</string>
+    <string name="host_editor_inherit_auth">Group\'s, or password and key</string>
+    <string name="push_kind_access_decided">Your access requests decided</string>
+    <!-- args: who, date -->
+    <string name="recordings_by">%1$s · %2$s</string>
+    <string name="recordings_download">Download (.cast)</string>
+    <string name="recordings_download_failed">Couldn\'t download the recording</string>
+    <string name="recordings_empty">No recordings.</string>
+    <string name="recordings_error_format">This is not an asciicast v2 recording</string>
+    <string name="recordings_from_device">from an app</string>
+    <string name="recordings_hint">Recorded sessions of this vault\'s hosts (server sessions and local terminals uploaded by the apps).</string>
+    <string name="recordings_load_failed">Couldn\'t read the recordings</string>
+    <string name="recordings_pause">Pause</string>
+    <string name="recordings_play">Play</string>
+    <!-- args: title -->
+    <string name="recordings_player_title">Recording: %1$s</string>
+    <string name="recordings_restart">From the start</string>
+    <string name="recordings_share">Share (.cast)</string>
+    <string name="recordings_speed">Speed</string>
+    <string name="settings_access_hint">Requests to approve, yours and their windows</string>
+    <string name="settings_certificates">SSH certificates</string>
+    <string name="settings_certificates_hint">Your own certificate authority and the certificates issued to you</string>
+    <string name="settings_notifications_access">Access requests</string>
+    <string name="settings_notifications_access_hint">Someone asks you for access to a host, or your request was decided.</string>
+    <string name="team_2fa_blocked_detail">The team requires two-step verification and the grace period is over. Turn it on and they come back at once.</string>
+    <!-- args: teams -->
+    <string name="team_2fa_blocked_title">%1$s: its vaults are hidden</string>
+    <!-- args: date -->
+    <string name="team_2fa_detail">Turn it on before %1$s to keep access to the team\'s vaults.</string>
+    <string name="team_2fa_setup">Set up two-step verification</string>
+    <!-- args: teams -->
+    <string name="team_2fa_title">%1$s requires two-step verification</string>
+    <string name="team_security_ai_allowed">Allow the AI on the team\'s hosts</string>
+    <string name="team_security_ai_allowed_hint">Off: the server\'s AI and the apps\' AI leave the team\'s hosts out.</string>
+    <string name="team_security_ai_approval">AI approvals</string>
+    <string name="team_security_ai_approval_always">Always ask before running anything</string>
+    <string name="team_security_ai_approval_default">As each task says</string>
+    <string name="team_security_allow_reveal">Editors can reveal and export secrets</string>
+    <string name="team_security_allow_reveal_hint">Off: only Admins see passwords and keys; Editors still edit and connect, and their devices stop keeping the secrets.</string>
+    <string name="team_security_cert_defaults">Certificates</string>
+    <string name="team_security_compliance_all">Every member has two-step verification.</string>
+    <string name="team_security_compliance_blocked">No 2FA · blocked</string>
+    <!-- args: count -->
+    <plurals name="team_security_compliance_missing">
+        <item quantity="one">%1$d member has no two-step verification.</item>
+        <item quantity="other">%1$d members have no two-step verification.</item>
+    </plurals>
+    <string name="team_security_compliance_off">No 2FA</string>
+    <string name="team_security_compliance_on">2FA on</string>
+    <!-- args: email, principal -->
+    <string name="team_security_compliance_principal">%1$s · principal %2$s</string>
+    <string name="team_security_compliance_title">Two-step verification and principals</string>
+    <!-- args: date -->
+    <string name="team_security_compliance_until">No 2FA · until %1$s</string>
+    <string name="team_security_error_grace">The grace period must be 0–90 days</string>
+    <string name="team_security_grace_days">Grace period (days)</string>
+    <string name="team_security_load_failed">Couldn\'t read the team\'s security settings</string>
+    <string name="team_security_networks">Allow private networks</string>
+    <string name="team_security_networks_hint">Off: the team\'s hosts cannot go through a private network and no networks can be added to its vaults.</string>
+    <string name="team_security_open">Security</string>
+    <string name="team_security_policy_title">Team policy</string>
+    <string name="team_security_principal_edit">Change principal</string>
+    <string name="team_security_principal_invalid">1–64 letters, digits or . _ @ + -</string>
+    <string name="team_security_principal_label">Principal</string>
+    <!-- args: default -->
+    <string name="team_security_principal_message">The name {member} becomes in certificates. Empty: %1$s (from the email).</string>
+    <string name="team_security_principal_saved">Principal saved</string>
+    <!-- args: email -->
+    <string name="team_security_principal_title">Principal of %1$s</string>
+    <string name="team_security_read_only">Only the team\'s owners and admins change these settings.</string>
+    <string name="team_security_record">Record every session</string>
+    <string name="team_security_record_hint">Server sessions are recorded; the apps record local terminals and upload them. Admins can watch them in each vault.</string>
+    <string name="team_security_require_2fa">Require two-step verification</string>
+    <string name="team_security_require_2fa_hint">Members without it lose access to the team\'s vaults after the grace period (owners and admins too). You need it on your account first.</string>
+    <!-- args: date -->
+    <string name="team_security_require_2fa_since">Required since %1$s</string>
+    <string name="team_security_save">Save policy</string>
+    <string name="team_security_saved">Team policy saved</string>
+    <!-- args: team -->
+    <string name="team_security_title">Security · %1$s</string>
+    <string name="team_security_ttl_summary">Certificate validity</string>
+    <!-- args: default, max -->
+    <string name="team_security_ttl_value">%1$s min (at most %2$s)</string>
+    <string name="teams_security">Security</string>
+    <!-- args: left -->
+    <string name="term_access_window">Access %1$s</string>
+    <string name="term_certificate">Team certificate</string>
+    <string name="term_connection_details">Connection details</string>
+    <string name="vaults_connect_only_badge">Connect only</string>
+    <string name="vaults_connect_only_connect">Connect only: opening a server session (this host does not use a team certificate)</string>
+    <string name="vaults_explicit_admin_no_delete">You are an Admin of this vault by a grant: only its owner (or the team\'s owners and admins) can delete it.</string>
+    <string name="vaults_no_delete_short">Only the owner can delete it</string>
+    <string name="vaults_role_connect_only">Connect only</string>
+    <string name="vaults_role_editor">Edit</string>
+    <string name="vaults_role_manager">Admin</string>
+    <string name="vaults_role_use_only">Use</string>
+    <string name="vaults_role_hint_connect_only">Connects through the server or with team certificates. Never gets passwords or keys, not even for a moment.</string>
+    <string name="vaults_role_hint_editor">Sees and changes the items and their secrets (unless the team forbids revealing them).</string>
+    <string name="vaults_role_hint_manager">Also manages members, settings and access policies. Cannot delete the vault.</string>
+    <string name="vaults_role_hint_unknown">A role of a newer version: no access here.</string>
+    <string name="vaults_role_hint_use_only">Connects and runs commands without seeing passwords or keys (gets them just in time unless the vault is Strict).</string>
+    <string name="vaults_tab_access">Access</string>
+    <string name="vaults_tab_recordings">Recordings</string>
+    <string name="vaults_you_connect_only">You can connect to its hosts through the server or with team certificates, but never see or receive their passwords or keys.</string>
+</resources>

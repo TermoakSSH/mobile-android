@@ -72,6 +72,34 @@ class Sessions(private val context: Context, private val core: TermoakCore, priv
         _list.value.filterIsInstance<LocalTerminal>().forEach { it.returned(away) }
     }
 
+    // ----- Teams security: terminals waiting for an access window connect by themselves -----
+
+    private val accessScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+
+    /**
+     * Terminals that wait for an approval ask the server about their host
+     * again (after an `access_request` event of their account, or every
+     * 20 s as a fallback): when the window is open, they connect.
+     */
+    suspend fun checkWaiting(accountId: String? = null) {
+        _list.value.filter { it.accessNeed.value != null && (accountId == null || it.accountId == accountId) }.forEach { tab ->
+            val acc = tab.accountId ?: return@forEach
+            val host = tab.hostId ?: return@forEach
+            val a = com.termoak.app.data.AccessBook.ask(acc, host, force = true) ?: return@forEach
+            if (a.allowed) tab.accessGranted()
+        }
+    }
+
+    init {
+        accessScope.launch { accounts.accessEvents.collect { (acc, _) -> checkWaiting(acc) } }
+        accessScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(20_000)
+                if (_list.value.any { it.accessNeed.value != null }) checkWaiting()
+            }
+        }
+    }
+
     init {
         // The network came back after dropping: the same, at once (a keep-alive checks the ones that look alive).
         runCatching {

@@ -77,12 +77,12 @@ object Demo {
 
     val vaults: List<VaultInfo>
         get() = listOf(
-            VaultInfo(V_PERSONAL, A1, "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 2, false, null),
+            VaultInfo(V_PERSONAL, A1, "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 2, false, null, null),
             VaultInfo(
                 V_INFRA, A1, "Infra", tr("Production and staging servers", "Servidores de producción y staging"), VaultKind.TEAM,
-                VaultRole.MANAGER, "t-platform", "Platform", null, "#30a46c", null, 6, 13, false, VaultRole.MANAGER,
+                VaultRole.MANAGER, "t-platform", "Platform", null, "#30a46c", null, 6, 13, false, VaultRole.MANAGER, null,
             ),
-            VaultInfo(V_WORK, A2, "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, "#4f7cff", null, 1, 2, false, null),
+            VaultInfo(V_WORK, A2, "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, "#4f7cff", null, 1, 2, false, null, null),
         )
 
     val teams = listOf(Team("t-platform", "Platform", TeamRole.OWNER, 6u, NOW - 120 * DAY))

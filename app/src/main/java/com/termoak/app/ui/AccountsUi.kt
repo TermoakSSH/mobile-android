@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 import androidx.navigation.NavHostController
 import com.termoak.app.R
+import com.termoak.app.data.noSecrets
 import com.termoak.app.TermoakApp
 import com.termoak.app.asString
 import com.termoak.app.data.AccountView
@@ -332,8 +333,8 @@ internal fun VaultFilterChips(
                 leadingIcon = {
                     Box(Modifier.size(10.dp).clip(CircleShape).background(vaultColor(v)))
                 },
-                trailingIcon = if (v.role == VaultRole.USE_ONLY) {
-                    { Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.size(FilterChipDefaults.IconSize)) }
+                trailingIcon = if (v.role.noSecrets()) {
+                    { Icon(Icons.Outlined.Lock, roleText(v.role), Modifier.size(FilterChipDefaults.IconSize)) }
                 } else null,
             )
         }
@@ -396,7 +397,7 @@ fun VaultFilterMenu(app: TermoakApp) {
                     trailingIcon = {
                         when {
                             selected == v.id -> Icon(Icons.Outlined.Check, null)
-                            v.role == VaultRole.USE_ONLY -> Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.size(16.dp))
+                            v.role.noSecrets() -> Icon(Icons.Outlined.Lock, roleText(v.role), Modifier.size(16.dp))
                         }
                     },
                     onClick = { open = false; app.accounts.setVaultFilter(v.id) },
@@ -430,6 +431,12 @@ fun VaultChip(text: String, color: Color, useOnly: Boolean = false) {
 @Composable
 fun UseOnlyBadge() {
     Pill(stringResource(R.string.vault_use_only), MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** "Connect only" (0.7 phase 4d): through the server or with a team certificate, never its secrets. */
+@Composable
+fun ConnectOnlyBadge(modifier: Modifier = Modifier) {
+    Pill(stringResource(R.string.vaults_connect_only_badge), Brand.Amber, modifier)
 }
 
 // ----- Manage accounts -----

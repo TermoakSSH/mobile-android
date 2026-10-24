@@ -65,6 +65,7 @@ import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TextDecrease
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.TextIncrease
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.ViewSidebar
 import androidx.compose.material3.AlertDialog
@@ -256,6 +257,9 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
     val host = remember(session.hostId) { session.hostId?.let { runCatching { app.core.getHost(it, session.accountId) }.getOrNull() } }
     // The private network the host goes through (own or its group's): "via Office" in the bar.
     val network = rememberTerminalNetwork(app, session.hostId, session.accountId)
+    // Teams security: the host's team may forbid the AI (its actions are hidden here).
+    val aiAllowed = host?.let { AccessUi.gates(app, it).ai } != false
+    var certificatesOf by remember { mutableStateOf<com.termoak.ffi.SshHost?>(null) }
 
     // ----- Split view: the panes that fit this window (none on a phone) -----
     val panes = if (split.maximized != null) emptyList() else
@@ -359,7 +363,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
             copyScreen = { copyScreen(s) },
             copySelection = { v -> copySelection(v) },
             onParticipants = { showParticipants = true },
-            onAskAi = { text ->
+            onAskAi = ask@{ text ->
+                if (!aiAllowed) return@ask
                 // The selection goes with the next message to the copilot, as a removable chip.
                 val lines = com.termoak.app.data.CopilotChipLabel.lines(text).coerceAtLeast(1)
                 app.copilot.chat(s).attachSelection(text, resources.getQuantityString(R.plurals.copilot_chip_selection, lines, lines))
@@ -383,6 +388,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         filesSourceOf(session, title ?: session.label)?.let { nav.openFiles(it) }
     }
     fun toggleCopilot() {
+        if (!aiAllowed && !copilotOpen) return
         if (copilotOpen) {
             closeCopilot()
         } else {
@@ -526,6 +532,11 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         }
         DropdownMenuItem({ Text(stringResource(R.string.term_copy_screen)) }, { dismiss(); copyScreen(session) },
             leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) })
+        // Teams security: the team certificates of this connection (hosts that use them).
+        host?.takeIf { it.accountId != null && com.termoak.app.data.AccessBook.supported(it.accountId) && AccessUi.hostAuth(app, it).teamCertificate }?.let { h ->
+            DropdownMenuItem({ Text(stringResource(R.string.term_connection_details)) }, { dismiss(); certificatesOf = h },
+                leadingIcon = { Icon(Icons.Outlined.VerifiedUser, null) })
+        }
         DropdownMenuItem({ Text(stringResource(R.string.term_find)) }, { dismiss(); findOpen = true },
             leadingIcon = { Icon(Icons.Outlined.Search, null) })
         DropdownMenuItem({ Text(stringResource(R.string.term_clear)) }, { dismiss(); session.clear() },
@@ -612,6 +623,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                 // ----- Desktop layout: the tabs are on top of the window; the terminal's toolbar -----
                 DesktopTerminalToolbar(
                     session, state, title, network, live, sharable = sharable, canBrowse = canBrowse,
+                    aiAllowed = aiAllowed, accessPills = { TerminalAccessPills(app, host, Modifier.padding(start = 4.dp)) },
                     copilotOpen = copilotOpen, splitShown = splitShown, hardwareKeyboard = hardwareKeyboard,
                     splitButton = { SplitButton() },
                     cursorButton = { if (gestureMode == GestureMode.BUTTON && live.canWrite) CursorToggleButton(session) },
@@ -651,6 +663,8 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                                 Text(" · ", color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
                                 TerminalVia(it, KeyFg.copy(alpha = 0.6f))
                             }
+                            // Teams security: the access window's time left and "Recorded".
+                            TerminalAccessPills(app, host, Modifier.padding(start = 6.dp))
                             // The round trip to the host (terminals from the phone), or to the server (server sessions).
                             if (session is LocalTerminal || session is ServerTerminal) {
                                 Text(" · ", color = KeyFg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
@@ -663,11 +677,13 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
                     }
                     SplitButton()
                     if (gestureMode == GestureMode.BUTTON && live.canWrite) CursorToggleButton(session)
-                    IconButton(onClick = { toggleCopilot() }) {
-                        Icon(
-                            Icons.Outlined.AutoAwesome, stringResource(R.string.copilot_title),
-                            tint = if (copilotOpen) MaterialTheme.colorScheme.primary else KeyFg,
-                        )
+                    if (aiAllowed) {
+                        IconButton(onClick = { toggleCopilot() }) {
+                            Icon(
+                                Icons.Outlined.AutoAwesome, stringResource(R.string.copilot_title),
+                                tint = if (copilotOpen) MaterialTheme.colorScheme.primary else KeyFg,
+                            )
+                        }
                     }
                     IconButton(onClick = { showSnippets = true }) {
                         Icon(Icons.Outlined.Code, stringResource(R.string.section_snippets), tint = KeyFg)
@@ -821,6 +837,7 @@ fun TerminalScreen(app: TermoakApp, nav: NavHostController) {
         ShareSheet(app, session, title ?: session.label) { showShare = false }
     }
     tunnelsOf?.let { h -> HostTunnelsSheet(app, h) { tunnelsOf = null } }
+    certificatesOf?.let { h -> ConnectionCertificatesDialog(app, h) { certificatesOf = null } }
     activityOf?.let { id -> ActivitySheet(app, id, title ?: session.label, onDismiss = { activityOf = null }, accountId = session.accountId) }
     if (showParticipants) {
         ParticipantsSheet(
@@ -898,6 +915,8 @@ private fun DesktopTerminalToolbar(
     live: LiveShare,
     sharable: Boolean,
     canBrowse: Boolean,
+    aiAllowed: Boolean = true,
+    accessPills: @Composable () -> Unit = {},
     copilotOpen: Boolean,
     splitShown: Boolean,
     hardwareKeyboard: Boolean,
@@ -936,6 +955,7 @@ private fun DesktopTerminalToolbar(
             if (session is LocalTerminal && session.telnet) Pill("Telnet", Brand.Amber, Modifier.padding(start = 4.dp))
             if (sharedLocally != null) Pill(stringResource(R.string.term_kind_shared), Brand.Green, Modifier.padding(start = 4.dp))
             network?.let { Pill(stringResource(R.string.networks_via, it), Brand.Blue, Modifier.padding(start = 4.dp).testTag("terminal-via")) }
+            accessPills()
             // The round trip to the host (terminals from this device) or to the server (server sessions), next to the kind.
             if (session is LocalTerminal || session is ServerTerminal) LatencyPill(session, state, Modifier.padding(start = 4.dp))
             Text(
@@ -954,7 +974,7 @@ private fun DesktopTerminalToolbar(
             if (canBrowse) ToolbarButton(Icons.Outlined.Folder, stringResource(R.string.term_files), labels, onClick = onFiles)
             ToolbarButton(Icons.Outlined.ContentCopy, stringResource(R.string.term_copy), labels && !splitShown, onClick = onCopy)
             ToolbarButton(Icons.Outlined.ContentPaste, stringResource(R.string.common_paste), labels && !splitShown, enabled = live.canWrite, onClick = onPaste)
-            ToolbarButton(Icons.Outlined.AutoAwesome, stringResource(R.string.section_ai), labels, active = copilotOpen, onClick = onCopilot)
+            if (aiAllowed) ToolbarButton(Icons.Outlined.AutoAwesome, stringResource(R.string.section_ai), labels, active = copilotOpen, onClick = onCopilot)
             if (sharable) ToolbarButton(Icons.Outlined.PersonAdd, stringResource(R.string.term_share), labels, onClick = onShare)
             IconButton(onClick = onSnippets) {
                 Icon(Icons.Outlined.Code, stringResource(R.string.section_snippets), tint = KeyFg)
@@ -1204,7 +1224,11 @@ private fun TerminalPane(
         }
         val waiting = live.waiting
         val ended = live.ended
-        if (ended != null) {
+        val accessNeed by session.accessNeed.collectAsState()
+        if (accessNeed != null && state is TermState.Closed) {
+            // Teams security: "Approval needed" / "Waiting for approval" instead of the error; connects by itself.
+            TerminalAccessCard(app, session, host)
+        } else if (ended != null) {
             EndPanel(ended) { app.sessions.close(session.id) }
         } else if (waiting != null && session is ServerTerminal) {
             WaitingRoom(

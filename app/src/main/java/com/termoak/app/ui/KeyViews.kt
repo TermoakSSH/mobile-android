@@ -116,6 +116,7 @@ fun KeyDetailScreen(app: TermoakApp, nav: NavHostController, keyId: String, acco
         return
     }
     val editable = !original.access.useOnly()
+    val revealAllowed = AccessUi.gates(app, original.accountId, original.vaultId).reveal
     var label by remember { mutableStateOf(original.label) }
     var comment by remember { mutableStateOf(original.comment) }
     // A security key: the name of the device it lives on (only a label).
@@ -187,7 +188,8 @@ fun KeyDetailScreen(app: TermoakApp, nav: NavHostController, keyId: String, acco
                 }
                 ActionRow(Icons.Outlined.QrCode2, stringResource(R.string.keys_detail_qr)) { showingQr = true }
                 ActionRow(Icons.Outlined.Dns, stringResource(R.string.keys_install_title)) { installing = true }
-                if (editable && original.hasPrivateKey) {
+                // Teams security: no export where the team forbids revealing secrets (Admins still can).
+                if (editable && original.hasPrivateKey && revealAllowed) {
                     // A security key's file holds its key handle, not a private key.
                     ActionRow(Icons.Outlined.Key, stringResource(if (skInfo != null) R.string.sk_export_action else R.string.keys_export_action)) {
                         auth.unlock(resources.getString(R.string.keys_export_reason)) { ok ->
@@ -202,7 +204,7 @@ fun KeyDetailScreen(app: TermoakApp, nav: NavHostController, keyId: String, acco
                     }
                 }
             }
-            if (editable && original.hasPrivateKey) FormHint(stringResource(R.string.keys_export_footer))
+            if (editable && original.hasPrivateKey && revealAllowed) FormHint(stringResource(R.string.keys_export_footer))
         }
     }
     if (showingQr) QrCodeDialog(original.label, original.publicKey) { showingQr = false }

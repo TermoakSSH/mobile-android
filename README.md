@@ -90,6 +90,24 @@ What it does:
   switches, "also while the app is open" and a test per account. Without a
   distributor the app notifies while it runs, as before. Code in
   `app/.../push/`; opt-in `LivePushTest` against a server and an ntfy.
+- **Teams security** (0.7, servers 0.7+ with `teams_security`): roles
+  Connect only / Use / Edit / Admin (an Admin by grant can't delete the
+  vault); Connect only and Strict hosts open on the phone with a team
+  certificate (the engine certifies a key made just for it) or through the
+  server; Teams → Security (the SSH CA with its fingerprint, `sshd_config`
+  lines and the install command as a heredoc to copy or share, rotate,
+  disable, issued certificates and revocation; the team policy; 2FA
+  compliance and principals); personal CA in Settings → SSH certificates;
+  "Team certificate" authentication on hosts and groups; access policies
+  per vault, group and host; "Approval needed" → Request access, waiting,
+  and the terminal connects by itself when the window opens (countdown,
+  every second in the last two minutes); Access (requests to decide with a
+  shorter window and a note, deny with a reason, end windows early, your
+  requests; badge; `access_request`/`access_decided` notifications only
+  open it); reveal/export, the AI and the network picker hidden where the
+  team forbids them; "Recorded"; vault recordings with download and a
+  player; 2FA banner. Code in `data/Access*.kt` and `ui/Access*.kt`,
+  `ui/CaPanel.kt`, `ui/TeamSecurityScreen.kt`; opt-in `LiveAccessTest`.
 - **Updates**: on startup, at most once a day (Settings → "Check for
   updates"), the app asks the server it is signed in to, or termoak.com,
   for the latest Android release (`GET /api/v1/downloads`). A newer version

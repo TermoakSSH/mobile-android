@@ -48,9 +48,30 @@ class PushRoutesTest {
             assertEquals(PushOpen.Session("acc", "s1", kind, "p1"), s.open)
             assertEquals(2, s.actions.size)
         }
-        // Phase 4b: no screen yet, the app opens.
-        val access = show(ev("access_request", PushCategory.APPROVAL, mapOf("request_id" to "r"), "approvals"))
-        assertEquals(PushOpen.Home("acc", "access_request"), access.open)
+        // Phase 4d: an access request opens the Access screen on it; its buttons only open the confirmation there.
+        val access = show(ev("access_request", PushCategory.APPROVAL, mapOf("request_id" to "r"), "approvals", "access-r"))
+        assertEquals(PushOpen.Access("acc", "r", mine = false), access.open)
+        assertEquals(listOf(PushAction.APPROVE, PushAction.DENY), access.actions)
+        for (a in access.actions) {
+            assertEquals(access.open to a, PushRoutes.fromExtras(PushRoutes.extras(access.open, a)::get))
+        }
+    }
+
+    @Test
+    fun accessRequestsAndDecisions() {
+        // Decided (approved, denied, revoked, expired): info, opens "My requests".
+        val decided = show(ev("access_decided", PushCategory.INFO, mapOf("request_id" to "r", "status" to "approved"), "approvals", "access-decided-r"))
+        assertEquals(PushOpen.Access("acc", "r", mine = true), decided.open)
+        assertTrue(decided.actions.isEmpty())
+        assertEquals("approvals", decided.channel)
+        assertEquals(decided.open to null, PushRoutes.fromExtras(PushRoutes.extras(decided.open, null)::get))
+        // Decided elsewhere: withdrawn.
+        val gone = PushRoutes.decide(ev("access_request", PushCategory.RESOLVED, mapOf("request_id" to "r"), tag = "access-r"), "acc", "u1", now)
+        assertEquals(PushDecision.Cancel(42, "access-r"), gone)
+        // Expired with the request: nothing.
+        assertEquals(PushDecision.Ignore, PushRoutes.decide(ev("access_request", PushCategory.APPROVAL, mapOf("request_id" to "r"), expiresAt = now - 1), "acc", "u1", now))
+        // Without its id it still opens the screen.
+        assertEquals(PushOpen.Access("acc", null, mine = false), show(ev("access_request", PushCategory.APPROVAL)).open)
     }
 
     @Test

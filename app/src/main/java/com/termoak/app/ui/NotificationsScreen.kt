@@ -200,6 +200,7 @@ private fun kindLabel(kind: String, res: android.content.res.Resources): String 
         "team_added" -> R.string.push_kind_team_added
         "security_key_request" -> R.string.push_kind_security_key_request
         "access_request" -> R.string.push_kind_access_request
+        "access_decided" -> R.string.push_kind_access_decided
         else -> return kind
     }
     return res.getString(id)

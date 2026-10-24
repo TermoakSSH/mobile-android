@@ -27,6 +27,8 @@ import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockClock
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PrivacyTip
@@ -155,6 +157,17 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
             if (loggedIn == true) {
                 Row0(Icons.Outlined.Groups, stringResource(R.string.teams_title), stringResource(R.string.teams_settings_hint)) {
                     nav.navigate(Routes.TEAMS)
+                }
+            }
+            // Teams security (0.7 phase 4d): temporary access and SSH certificates, on servers that have it.
+            if (loggedIn == true && com.termoak.app.data.AccessBook.anySupported()) {
+                val waiting = com.termoak.app.data.AccessBook.waitingCount()
+                Row0(
+                    Icons.Outlined.LockClock, stringResource(R.string.access_title), stringResource(R.string.settings_access_hint),
+                    trailing = if (waiting > 0) ({ androidx.compose.material3.Badge { Text("$waiting") } }) else null,
+                ) { nav.navigate(Routes.access()) }
+                Row0(Icons.Outlined.VerifiedUser, stringResource(R.string.settings_certificates), stringResource(R.string.settings_certificates_hint)) {
+                    nav.navigate(Routes.certificates())
                 }
             }
             if (loggedIn == true) {

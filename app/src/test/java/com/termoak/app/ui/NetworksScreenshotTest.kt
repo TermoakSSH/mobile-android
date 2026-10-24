@@ -143,7 +143,7 @@ class NetworksScreenshotTest {
 
     @Test
     fun formReadsAConf() {
-        val vaults = listOf(VaultInfo("v1", "a1", "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 0, false, null))
+        val vaults = listOf(VaultInfo("v1", "a1", "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 0, false, null, null))
         var plan: NetworkPlan? = null
         val conf = "[Interface]\nPrivateKey = $priv\nAddress = 10.9.0.2/32\nListenPort = 51820\n\n[Peer]\nPublicKey = $pub\n" +
             "Endpoint = vpn.example.com:51820\nAllowedIPs = 10.9.0.0/24\nPersistentKeepalive = 25\n"
@@ -165,7 +165,7 @@ class NetworksScreenshotTest {
 
     @Test
     fun formSendsTheKeyOrAsksTheServer() = runBlocking {
-        val vaults = listOf(VaultInfo("v1", "a1", "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 0, false, null))
+        val vaults = listOf(VaultInfo("v1", "a1", "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 0, false, null, null))
         var plan: NetworkPlan? = null
         val noKey = "[Interface]\nAddress = 10.9.0.2/32\n[Peer]\nPublicKey = $pub\nEndpoint = vpn:51820\nAllowedIPs = 10.9.0.0/24\n"
         rule.setContent { MaterialTheme { NetworkFormPage(null, vaults, onDismiss = {}, onSave = { plan = it; null }, initialConf = noKey) } }

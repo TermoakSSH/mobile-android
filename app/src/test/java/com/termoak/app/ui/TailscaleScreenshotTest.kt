@@ -79,7 +79,7 @@ class TailscaleScreenshotTest {
         nodeDnsName = "termoak-5678abcd.ts.qa.test.", nodeId = "nodekey:8f3a", rxBytes = 182_000, txBytes = 41_000, streams = 1,
     )
 
-    private val vaults = listOf(VaultInfo("v1", "a1", "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 0, false, null))
+    private val vaults = listOf(VaultInfo("v1", "a1", "", "", VaultKind.PERSONAL, VaultRole.MANAGER, null, null, null, null, null, 1, 0, false, null, null))
 
     @After
     fun clean() = NetworkBook.reset()

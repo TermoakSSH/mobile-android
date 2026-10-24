@@ -168,7 +168,7 @@ fun NavHostController.openFiles(source: FilesSource) {
  * for hosts in a Strict vault where you are Use only (like connecting).
  */
 fun filesSourceOf(app: TermoakApp, host: SshHost): FilesSource =
-    if (isStrictUseOnly(app, host)) FilesSource.Server(host.label, host.id, host.accountId)
+    if (connectsOnServer(app, host)) FilesSource.Server(host.label, host.id, host.accountId)
     else FilesSource.Connect(host.label, host.id, host.accountId)
 
 /**

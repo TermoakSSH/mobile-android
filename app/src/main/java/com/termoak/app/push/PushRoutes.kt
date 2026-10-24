@@ -29,7 +29,15 @@ sealed interface PushOpen {
     /** A connection made by the server waits for a security key: open the app (events socket, then the sheet). */
     data class SecurityKey(override val accountId: String, val requestId: String?) : PushOpen
 
-    /** Just the app (a test, an access request until phase 4b's screens...). */
+    /**
+     * Temporary access (teams security, 0.7 phase 4d): an `access_request` to
+     * decide opens the Access screen on that request (Approve/Deny only open
+     * its confirmation there, behind the app lock); `access_decided` opens
+     * "My requests".
+     */
+    data class Access(override val accountId: String, val requestId: String?, val mine: Boolean) : PushOpen
+
+    /** Just the app (a test, an unknown kind...). */
     data class Home(override val accountId: String, val kind: String) : PushOpen
 }
 
@@ -102,6 +110,8 @@ object PushRoutes {
                 d["session_id"]?.let { PushOpen.Session(accountId, it, ev.kind, d["participant"]) }
             "team_added" -> PushOpen.Teams(accountId)
             "security_key_request" -> PushOpen.SecurityKey(accountId, d["request_id"])
+            "access_request" -> PushOpen.Access(accountId, d["request_id"], mine = false)
+            "access_decided" -> PushOpen.Access(accountId, d["request_id"], mine = true)
             else -> null
         } ?: PushOpen.Home(accountId, ev.kind)
     }
@@ -136,6 +146,11 @@ object PushRoutes {
                 m[EXTRA_KIND] = "security_key"
                 open.requestId?.let { m[EXTRA_ID] = it }
             }
+            is PushOpen.Access -> {
+                m[EXTRA_KIND] = "access"
+                open.requestId?.let { m[EXTRA_ID] = it }
+                m[EXTRA_TYPE] = if (open.mine) "mine" else "approvals"
+            }
             is PushOpen.Home -> {
                 m[EXTRA_KIND] = "home"
                 m[EXTRA_TYPE] = open.kind
@@ -153,6 +168,7 @@ object PushRoutes {
             "session" -> PushOpen.Session(account, get(EXTRA_ID) ?: return null, get(EXTRA_TYPE).orEmpty(), get(EXTRA_ID2))
             "teams" -> PushOpen.Teams(account)
             "security_key" -> PushOpen.SecurityKey(account, get(EXTRA_ID))
+            "access" -> PushOpen.Access(account, get(EXTRA_ID), get(EXTRA_TYPE) == "mine")
             "home" -> PushOpen.Home(account, get(EXTRA_TYPE).orEmpty())
             else -> return null
         }

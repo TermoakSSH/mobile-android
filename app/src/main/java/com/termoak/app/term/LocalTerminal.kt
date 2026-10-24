@@ -207,6 +207,8 @@ class LocalTerminal(
                 _state.value = TermState.Running
                 onConnected()
             } catch (e: TermoakException) {
+                // Teams security: "Approval needed" with Request access instead of only the error.
+                noteAccessError(e)
                 _state.value = TermState.Closed(
                     // A Strict vault: its hosts open through the server, which doesn't open Telnet sessions.
                     if (telnet && e is TermoakException.UseOnlyStrict) uiText(R.string.telnet_strict_vault)

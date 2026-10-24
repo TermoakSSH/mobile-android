@@ -68,6 +68,8 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockClock
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NetworkCheck
@@ -261,6 +263,13 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         if (loggedIn == true && groupId == null) app.accounts.sync()
     }
     LaunchedEffect(Unit) { app.accounts.itemsChanged.collect { reload() } }
+    // Teams security: the window of hosts in vaults with access policies (asked once in a while, and after each event).
+    LaunchedEffect(hosts) {
+        hosts.filter { it.accountId != null && AccessUi.gates(app, it).accessRules }.take(100).forEach { h ->
+            com.termoak.app.data.AccessBook.ask(h.accountId!!, h.id)
+        }
+    }
+    var requesting by remember { mutableStateOf<Pair<SshHost, com.termoak.app.data.AccessRules.AccessNeed>?>(null) }
     // Vault chips only when there is more than one vault; account avatars only with several accounts.
     val showVaults = groupId == null && app.accounts.vaultsInView().size > 1 ||
         (accountList.isNotEmpty() && hosts.any { it.accountId == null } && hosts.any { it.accountId != null })
@@ -274,7 +283,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         when {
             onServer -> app.sessions.openOnServer(host, record)
             // Recorded on the phone (its .cast to share from the terminal's menu).
-            record == true && !isStrictUseOnly(app, host) -> app.sessions.openLocal(host, record = true)
+            record == true && !connectsOnServer(app, host) -> app.sessions.openLocal(host, record = true)
             else -> connectHost(app, host)
         }
         nav.navigate(Routes.TERMINAL) { launchSingleTop = true }
@@ -392,7 +401,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
     fun hostActions(host: SshHost, menu: Boolean): List<ItemAction> = buildList {
         add(ItemAction(Icons.Outlined.Terminal, stringResource(R.string.hosts_connect), 0) { connect(host, false) })
         // Recorded on the phone (the host's setting may already record every session).
-        if (host.settings.recordSessions != true && !isStrictUseOnly(app, host)) {
+        if (host.settings.recordSessions != true && !connectsOnServer(app, host)) {
             add(ItemAction(Icons.Outlined.FiberManualRecord, stringResource(R.string.hosts_connect_recorded), 0) { connect(host, false, record = true) })
         }
         if (menu && maxPanes >= 2) {
@@ -433,6 +442,21 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             })
         }
         add(ItemAction(Icons.Outlined.Link, stringResource(R.string.hosts_copy_address), 1) { copyAddress(host) })
+        // Teams security: ask for a window when the host needs one; Admins set its access policy.
+        val access = com.termoak.app.data.AccessBook.host(host.accountId, host.id)
+        if (access != null && !access.allowed && access.pending == null) {
+            add(ItemAction(Icons.Outlined.LockClock, stringResource(R.string.access_menu_request), 1) {
+                requesting = host to com.termoak.app.data.AccessRules.needOf(access)
+            })
+        }
+        val hostVault = vaultOf(host)
+        if (host.accountId != null && hostVault?.role == com.termoak.ffi.VaultRole.MANAGER && hostVault.kind != VaultKind.PERSONAL &&
+            com.termoak.app.data.AccessBook.supported(host.accountId)
+        ) {
+            add(ItemAction(Icons.Outlined.VerifiedUser, stringResource(R.string.access_menu_policy), 1) {
+                nav.navigate(Routes.accessPolicy(host.accountId!!, host.vaultId.orEmpty(), "host", host.id))
+            })
+        }
         // Through its private network: the server tests it (only when asked; the status check skips these hosts).
         com.termoak.app.data.NetworkBook.networkOf(host)?.let { net ->
             if (com.termoak.app.data.NetworkBook.supported(host.accountId) && !host.isTelnet) {
@@ -453,7 +477,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         if (menu && writable) {
             add(ItemAction(Icons.Outlined.FolderOpen, stringResource(R.string.bulk_move), 2) { moving = listOf(host) })
         }
-        if (accountList.isNotEmpty()) {
+        // A vault whose team forbids revealing secrets keeps them: no moving or copying them out.
+        if (accountList.isNotEmpty() && AccessUi.gates(app, host).reveal) {
             if (writable) {
                 add(ItemAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.transfer_move_to), 2) {
                     transferOf(TransferMode.MOVE, listOf(host))
@@ -495,6 +520,14 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
         if (accountList.isNotEmpty() && !g.access.useOnly()) {
             add(ItemAction(Icons.Outlined.ContentPaste, stringResource(R.string.transfer_copy_to), 0) {
                 transfer = TransferRequest(TransferMode.COPY, listOf(TransferItem(g.accountId, g.id, g.vaultId)))
+            })
+        }
+        val gVault = vaults.firstOrNull { it.id == g.vaultId && it.accountId == g.accountId }
+        if (g.accountId != null && gVault?.role == com.termoak.ffi.VaultRole.MANAGER && gVault.kind != VaultKind.PERSONAL &&
+            com.termoak.app.data.AccessBook.supported(g.accountId)
+        ) {
+            add(ItemAction(Icons.Outlined.VerifiedUser, stringResource(R.string.access_menu_policy), 0) {
+                nav.navigate(Routes.accessPolicy(g.accountId!!, g.vaultId.orEmpty(), "group", g.id))
             })
         }
         if (g.access.canWrite()) {
@@ -550,6 +583,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 if (groupId == null && loggedIn == true && onServer.isNotEmpty()) {
                     full { ServerSessionsNotice(onServer.size) { openServerSessions() } }
                 }
+                if (groupId == null && com.termoak.app.data.AccessBook.team2faAll().isNotEmpty()) full { Team2faBanner(app, nav) }
                 full { SearchField(query, searchFocus) { query = it } }
                 if (hosts.isEmpty() && groups.isEmpty()) {
                     full {
@@ -622,6 +656,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                                 vault = if (!showVaults) null else if (host.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) },
                                 vaultColor = if (host.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
                                 account = if (showAccounts) accountList.firstOrNull { it.id == host.accountId } else null,
+                                accessChips = if (hasAccessChips(app, host)) ({ HostAccessChips(app, host) }) else null,
                             )
                         }
                     }
@@ -729,6 +764,7 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                 vault = if (!showVaults) null else if (host.accountId == null) stringResource(R.string.vault_this_device) else v?.let { vaultName(it) },
                 vaultColor = if (host.accountId == null) MaterialTheme.colorScheme.onSurfaceVariant else vaultColor(v),
                 account = if (showAccounts) accountList.firstOrNull { it.id == host.accountId } else null,
+                accessChips = if (hasAccessChips(app, host)) ({ HostAccessChips(app, host) }) else null,
             ) { dismiss -> MenuItems(hostActions(host, menu = true), dismiss) }
         }
     } else if (selecting) {
@@ -941,6 +977,12 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
             app.accounts.sync()
         }
     }
+    requesting?.let { (h, need) ->
+        RequestAccessFor(app, h, need, onDismiss = { requesting = null }) {
+            requesting = null
+            scope.launch { snackbar.showSnackbar(resources.getString(R.string.access_request_sent, h.label)) }
+        }
+    }
     transfer?.let { t ->
         TransferFlow(app, t, onDismiss = { transfer = null }) {
             transfer = null
@@ -951,17 +993,18 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
 }
 
 /**
- * Connects to [host] from the phone, or through its server when it is in a
- * Strict vault where you are Use only (its secrets never leave the server).
+ * Connects to [host] from the phone, or through its server when you never
+ * get its secrets: Connect only (0.7 phase 4d), or Use only in a Strict
+ * vault, unless the host uses a team certificate (the engine then certifies
+ * a key made just for it).
  */
 fun connectHost(app: TermoakApp, host: SshHost): TermSession =
     // The server doesn't open Telnet sessions: a Strict vault's Telnet host says so in its tab.
-    if (isStrictUseOnly(app, host) && !host.isTelnet) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
+    if (connectsOnServer(app, host)) app.sessions.openOnServer(host) else app.sessions.openLocal(host)
 
-/** [host] is in a Strict vault where you are Use only: connections and files go through the server. */
-fun isStrictUseOnly(app: TermoakApp, host: SshHost): Boolean =
-    host.access.useOnly() && host.accountId != null &&
-        app.accounts.vaults.value.any { it.id == host.vaultId && it.accountId == host.accountId && it.strict }
+/** Connections and files of [host] go through the server (see [connectHost]). */
+fun connectsOnServer(app: TermoakApp, host: SshHost): Boolean = AccessUi.route(app, host) == com.termoak.app.data.AccessRules.Route.SERVER
+
 
 /** Title of the hosts of one place in "All accounts": This device, or an account. */
 @Composable
@@ -1042,6 +1085,8 @@ private fun HostRow(
     vaultColor: Color = MaterialTheme.colorScheme.primary,
     /** Its account, in "All accounts" with several. */
     account: AccountInfo? = null,
+    /** Teams security chips (access window, Recorded, Connect only); `null`: none. */
+    accessChips: (@Composable () -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     Row(
@@ -1099,7 +1144,11 @@ private fun HostRow(
                 }
                 if (host.access.useOnly()) {
                     Spacer(Modifier.width(6.dp))
-                    Icon(Icons.Outlined.Lock, stringResource(R.string.vault_use_only), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.Outlined.Lock,
+                        stringResource(if (host.access == com.termoak.ffi.ItemAccess.CONNECT_ONLY) R.string.vaults_role_connect_only else R.string.vault_use_only),
+                        Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 if (host.isTelnet) TelnetBadge(Modifier.padding(start = 6.dp))
             }
@@ -1108,8 +1157,9 @@ private fun HostRow(
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             val via = com.termoak.app.data.NetworkBook.networkOf(host) != null
-            if (host.tags.isNotEmpty() || vault != null || via) {
+            if (host.tags.isNotEmpty() || vault != null || via || accessChips != null) {
                 Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    accessChips?.invoke()
                     NetworkVia(host)
                     vault?.let { VaultChip(it, vaultColor, useOnly = host.access.useOnly()) }
                     host.tags.take(3).forEach { TagChip(it) { onTag(it) } }
@@ -1627,6 +1677,7 @@ private fun DesktopHostCard(
     vault: String?,
     vaultColor: Color,
     account: AccountInfo?,
+    accessChips: (@Composable () -> Unit)? = null,
     menu: @Composable (dismiss: () -> Unit) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -1715,11 +1766,12 @@ private fun DesktopHostCard(
                 }
                 val os = osBadge(host.os)
                 val via = com.termoak.app.data.NetworkBook.networkOf(host) != null
-                if (os != null || host.tags.isNotEmpty() || vault != null || host.isTelnet || via) {
+                if (os != null || host.tags.isNotEmpty() || vault != null || host.isTelnet || via || accessChips != null) {
                     Row(
                         Modifier.padding(top = 10.dp, end = 10.dp).fillMaxWidth().clipToBounds(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        accessChips?.invoke()
                         NetworkVia(host)
                         if (host.isTelnet) TelnetBadge()
                         os?.let { (name, color) ->

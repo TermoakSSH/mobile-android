@@ -82,8 +82,18 @@ class TerminalAi(private val context: Context, private val accounts: Accounts) {
      */
     fun accountFor(session: TermSession): String? {
         val list = accounts.list.value
+        // Teams security: no AI on hosts whose team forbids it.
+        if (!aiAllowedFor(session)) return null
         session.accountId?.let { id -> if (list.any { it.id == id && it.status == AccountStatus.ACTIVE }) return id }
         return accounts.current.value?.takeIf { it.status == AccountStatus.ACTIVE }?.id
+    }
+
+    /** The host's team allows the AI (always for hosts without a team policy and for This device). */
+    fun aiAllowedFor(session: TermSession): Boolean {
+        val acc = session.accountId ?: return true
+        val host = session.hostId ?: return true
+        val vault = runCatching { (context as com.termoak.app.TermoakApp).core.getHost(host, acc).vaultId }.getOrNull() ?: return true
+        return accounts.vaults.value.firstOrNull { it.id == vault && it.accountId == acc }?.policy?.aiAllowed != false
     }
 
     private fun text(id: Int, vararg args: Any): String = context.localized().getString(id, *args)

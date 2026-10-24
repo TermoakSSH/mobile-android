@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Teams security (0.7 phase 4d): generated from the desktop's texts (locales/*.json, 4c) plus the app's own. Same keys in values-es. -->
+<resources>
+    <string name="access_active">Ventanas abiertas que puedes terminar</string>
+    <string name="access_active_empty">No hay ventanas de acceso abiertas.</string>
+    <string name="access_approve_button">Aprobar</string>
+    <string name="access_approve_note">Nota (opcional)</string>
+    <string name="access_approve_note_placeholder">Se ve en la solicitud y en la auditoría</string>
+    <string name="access_approve_ok">Aprobar</string>
+    <string name="access_approve_title">Aprobar acceso</string>
+    <string name="access_approve_window">Ventana</string>
+    <string name="access_approve_window_hint">Puedes dar una ventana más corta de la pedida, nunca más larga. Empieza ahora.</string>
+    <string name="access_approved">Acceso aprobado</string>
+    <!-- args: time, until -->
+    <string name="access_asked_at">Pedida a las %1$s · espera hasta las %2$s</string>
+    <!-- args: time -->
+    <string name="access_asked_for">Pedido para %1$s</string>
+    <string name="access_bar_ended">Ventana de acceso terminada</string>
+    <string name="access_cancel_button">Cancelar</string>
+    <string name="access_cancelled">Solicitud cancelada</string>
+    <string name="access_card_auto">Cuando se abra la ventana, este terminal se conecta solo.</string>
+    <string name="access_card_pending_text">Tu solicitud está esperando a un aprobador.</string>
+    <string name="access_card_pending_title">Esperando aprobación</string>
+    <!-- args: max -->
+    <string name="access_card_text">Este host necesita una ventana de acceso aprobada: pídela a un aprobador, hasta %1$s.</string>
+    <string name="access_card_title">Hace falta aprobación</string>
+    <string name="access_check_failed">No se ha podido preguntar al servidor por este host</string>
+    <string name="access_chip_needed">Requiere aprobación</string>
+    <!-- args: time, left -->
+    <string name="access_chip_open">Hasta las %1$s · %2$s</string>
+    <string name="access_chip_pending">Esperando aprobación</string>
+    <string name="access_closed_access_expired">Tu ventana de acceso a este host ha terminado: vuelve a pedir acceso para seguir</string>
+    <string name="access_closed_access_revoked">Un aprobador ha terminado tu ventana de acceso a este host</string>
+    <string name="access_closed_vault_access_revoked">Ya no tienes acceso a la bóveda de este host</string>
+    <!-- args: name -->
+    <string name="access_decided_by">Decidida por %1$s</string>
+    <!-- args: name, note -->
+    <string name="access_decision_note">%1$s: «%2$s»</string>
+    <string name="access_denied">Solicitud denegada</string>
+    <string name="access_deny_button">Denegar</string>
+    <string name="access_deny_ok">Denegar</string>
+    <string name="access_deny_reason">Motivo (opcional)</string>
+    <string name="access_deny_reason_placeholder">Lo ve quien lo pidió</string>
+    <string name="access_deny_title">Denegar acceso</string>
+    <!-- args: count -->
+    <plurals name="access_duration_days">
+        <item quantity="one">%1$d día</item>
+        <item quantity="other">%1$d días</item>
+    </plurals>
+    <!-- args: n -->
+    <string name="access_duration_hours">%1$s h</string>
+    <!-- args: h, m -->
+    <string name="access_duration_hours_minutes">%1$s h %2$s min</string>
+    <!-- args: n -->
+    <string name="access_duration_minutes">%1$s min</string>
+    <string name="access_end_button">Terminar mi acceso</string>
+    <!-- args: left -->
+    <string name="access_left">quedan %1$s</string>
+    <string name="access_menu_policy">Política de acceso…</string>
+    <string name="access_menu_request">Pedir acceso…</string>
+    <string name="access_mine">Mis solicitudes</string>
+    <string name="access_mine_empty">Aún no has pedido acceso. Los hosts que lo necesitan muestran «Pedir acceso» al conectar.</string>
+    <string name="access_none_hint">Inicia sesión en un servidor de Termoak 0.7 o posterior para pedir y aprobar acceso a hosts.</string>
+    <string name="access_none_title">Ningún servidor con acceso temporal</string>
+    <string name="access_not_found">Esa solicitud no está entre las tuyas ni entre las que puedes decidir.</string>
+    <!-- args: target, time -->
+    <string name="access_notice_approved">Acceso a %1$s aprobado hasta las %2$s</string>
+    <!-- args: name, target, time -->
+    <string name="access_notice_created">%1$s pide acceso a %2$s durante %3$s</string>
+    <!-- args: target -->
+    <string name="access_notice_denied">Han denegado tu solicitud para %1$s</string>
+    <!-- args: target, reason -->
+    <string name="access_notice_denied_reason">Han denegado tu solicitud para %1$s: %2$s</string>
+    <!-- args: target -->
+    <string name="access_notice_ended">Tu ventana de acceso a %1$s ha terminado</string>
+    <!-- args: target -->
+    <string name="access_notice_expired">Nadie ha decidido a tiempo tu solicitud para %1$s</string>
+    <!-- args: name, target -->
+    <string name="access_notice_revoked">%1$s ha terminado tu acceso a %2$s</string>
+    <string name="access_notice_title_decision">Solicitud de acceso decidida</string>
+    <string name="access_notice_title_request">Solicitud de acceso</string>
+    <string name="access_open">Abrir Acceso</string>
+    <string name="access_policy_needed_title">Políticas de acceso</string>
+    <string name="access_recent">Decididas hace poco</string>
+    <string name="access_reconnecting">Acceso aprobado: conectando…</string>
+    <string name="access_recorded">Grabada</string>
+    <string name="access_request_after">Se te avisará cuando se decida; el terminal se conecta solo cuando se abra la ventana.</string>
+    <string name="access_request_button">Pedir acceso</string>
+    <string name="access_request_cancel_request">Cancelar solicitud</string>
+    <string name="access_request_cannot">No puedes pedir acceso a este host</string>
+    <string name="access_request_duration">Durante cuánto tiempo</string>
+    <string name="access_request_error_duration">Elige una duración dentro del máximo permitido</string>
+    <string name="access_request_error_reason">Di por qué necesitas acceso</string>
+    <string name="access_request_error_reason_long">El motivo puede tener hasta 500 caracteres</string>
+    <!-- args: max -->
+    <string name="access_request_message">Este host necesita una ventana de acceso aprobada. Decide un aprobador; puedes pedir hasta %1$s.</string>
+    <string name="access_request_no_target">No hay nada para lo que pedir acceso</string>
+    <!-- args: host -->
+    <string name="access_request_pending_message">Tu solicitud para %1$s está esperando a un aprobador. ¿Cancelarla?</string>
+    <string name="access_request_pending_title">Solicitud esperando</string>
+    <string name="access_request_reason">Motivo</string>
+    <string name="access_request_reason_placeholder">Qué necesitas hacer (lo ven los aprobadores)</string>
+    <string name="access_request_scope">Para</string>
+    <string name="access_request_scope_group">Todos los hosts de su grupo</string>
+    <!-- args: host -->
+    <string name="access_request_scope_host">Solo %1$s</string>
+    <string name="access_request_scope_vault">Todos los hosts de la bóveda</string>
+    <string name="access_request_send">Enviar solicitud</string>
+    <!-- args: host -->
+    <string name="access_request_sent">Solicitud para %1$s enviada: esperando a un aprobador</string>
+    <!-- args: host -->
+    <string name="access_request_title">Pedir acceso a %1$s</string>
+    <string name="access_request_title_short">Pedir acceso</string>
+    <string name="access_requester">Pedida por</string>
+    <string name="access_revoke_button">Terminar ya</string>
+    <string name="access_revoke_hint">Sus sesiones del servidor en estos hosts se cierran y se revocan los certificados emitidos con esta ventana.</string>
+    <string name="access_revoke_ok">Terminar acceso</string>
+    <string name="access_revoke_title">Terminar esta ventana de acceso</string>
+    <string name="access_revoked">Ventana de acceso terminada</string>
+    <string name="access_self_approved">Autoaprobada</string>
+    <string name="access_status_active">Activa</string>
+    <string name="access_status_cancelled">Cancelada</string>
+    <string name="access_status_denied">Denegada</string>
+    <string name="access_status_ended">Terminada</string>
+    <string name="access_status_expired">Caducada</string>
+    <string name="access_status_pending">Esperando</string>
+    <string name="access_status_revoked">Revocada</string>
+    <string name="access_status_unknown">Desconocido</string>
+    <string name="access_subtitle">Acceso temporal a hosts con aprobación: solicitudes por decidir y las tuyas</string>
+    <!-- args: name, target, time, reason -->
+    <string name="access_summary">%1$s pide %2$s durante %3$s: «%4$s»</string>
+    <!-- args: name -->
+    <string name="access_target_group">Grupo %1$s</string>
+    <!-- args: name -->
+    <string name="access_target_vault">Bóveda %1$s</string>
+    <!-- args: h, m -->
+    <string name="access_time_hours">%1$s h %2$s min</string>
+    <!-- args: n -->
+    <string name="access_time_minutes">%1$s min</string>
+    <!-- args: n -->
+    <string name="access_time_seconds">%1$s s</string>
+    <string name="access_title">Acceso</string>
+    <!-- args: vault -->
+    <string name="access_vault_of">En %1$s</string>
+    <string name="access_waiting">Esperando tu decisión</string>
+    <string name="access_waiting_empty">No hay solicitudes esperándote.</string>
+    <!-- args: time -->
+    <string name="access_waits_until">Espera hasta las %1$s</string>
+    <!-- args: time, left -->
+    <string name="access_window_until">Acceso hasta las %1$s · quedan %2$s</string>
+    <!-- args: time -->
+    <string name="access_window_ends">Ventana hasta las %1$s</string>
+    <string name="access_policy_add_for_vault">Política para toda la bóveda</string>
+    <string name="access_policy_approvers">Aprobadores</string>
+    <!-- args: count -->
+    <plurals name="access_policy_approvers_count">
+        <item quantity="one">%1$d aprobador</item>
+        <item quantity="other">%1$d aprobadores</item>
+    </plurals>
+    <string name="access_policy_approvers_hint">Sin nadie elegido: aprueban los Admin de la bóveda.</string>
+    <string name="access_policy_cert_overrides">Opciones de certificado para estos hosts</string>
+    <string name="access_policy_choose_approvers">Elegir aprobadores</string>
+    <string name="access_policy_edit_vault">Editar la política de la bóveda…</string>
+    <string name="access_policy_empty">Sin políticas de acceso: los miembros se conectan directamente.</string>
+    <string name="access_policy_error_max">La ventana máxima debe ser un número de minutos (1–10080)</string>
+    <string name="access_policy_error_ttl">Lo que espera una solicitud debe ser un número de minutos (5–10080)</string>
+    <!-- args: from -->
+    <string name="access_policy_inherits_approval">Sin política propia: %1$s exige aprobación.</string>
+    <!-- args: from -->
+    <string name="access_policy_inherits_direct">Sin política propia: %1$s permite el acceso directo.</string>
+    <string name="access_policy_load_failed">No se han podido leer las políticas de acceso</string>
+    <string name="access_policy_managers">Los Admin también necesitan solicitud</string>
+    <string name="access_policy_managers_hint">Desactivado: los Admin de la bóveda se conectan sin pedir.</string>
+    <string name="access_policy_max">Ventana máxima (minutos)</string>
+    <string name="access_policy_max_hint">Hasta 10080 (7 días)</string>
+    <string name="access_policy_missing_target">(sin sincronizar)</string>
+    <string name="access_policy_mode_approval">Con aprobación (ventanas temporales)</string>
+    <string name="access_policy_mode_direct">Directo</string>
+    <string name="access_policy_mode_hint">Con aprobación, los miembros piden una ventana de tiempo con un motivo y decide un aprobador. La ventana controla las sesiones del servidor, los certificados, las credenciales justo a tiempo y la IA.</string>
+    <string name="access_policy_mode_label">Acceso</string>
+    <string name="access_policy_none">Ahora no aplica ninguna política: los miembros se conectan directamente.</string>
+    <string name="access_policy_own">Tiene su propia política.</string>
+    <string name="access_policy_record">Grabar todas las sesiones en estos hosts</string>
+    <string name="access_policy_record_hint">Las sesiones del servidor se graban en el servidor; las apps graban los terminales locales y los suben.</string>
+    <string name="access_policy_remove">Quitar política</string>
+    <string name="access_policy_removed">Política de acceso quitada</string>
+    <string name="access_policy_save">Guardar política</string>
+    <string name="access_policy_saved">Política de acceso guardada</string>
+    <string name="access_policy_self_approval">Quien pide y es aprobador puede aprobar su propia solicitud</string>
+    <string name="access_policy_self_approval_hint">Para equipos de una persona. Se audita como autoaprobada.</string>
+    <string name="access_policy_set_vault">Poner una política a toda la bóveda…</string>
+    <!-- args: max -->
+    <string name="access_policy_summary_approval">Aprobación · hasta %1$s</string>
+    <string name="access_policy_summary_direct">Directo</string>
+    <!-- args: name -->
+    <string name="access_policy_target_group">Grupo %1$s</string>
+    <!-- args: name -->
+    <string name="access_policy_target_host">Host %1$s</string>
+    <string name="access_policy_target_vault">Toda la bóveda</string>
+    <string name="access_policy_the_vault">toda la bóveda</string>
+    <!-- args: name -->
+    <string name="access_policy_title_group">Política de acceso del grupo %1$s</string>
+    <!-- args: name -->
+    <string name="access_policy_title_host">Política de acceso de %1$s</string>
+    <!-- args: name -->
+    <string name="access_policy_title_vault">Política de acceso de %1$s</string>
+    <string name="access_policy_ttl">Una solicitud espera (minutos)</string>
+    <string name="access_policy_ttl_hint">Después caduca (5–10080)</string>
+    <string name="access_policy_vault_hint">Un host sigue su propia política, si no la de su grupo más cercano y si no la de la bóveda.</string>
+    <string name="access_policy_where_hint">Los grupos y hosts la tienen en «Política de acceso…» de su menú en Hosts.</string>
+    <string name="auth_field_group_hint">Sus hosts lo usan salvo que elijan otra cosa.</string>
+    <string name="auth_field_inherit">La del grupo, o contraseña y clave</string>
+    <!-- args: group -->
+    <string name="auth_field_inherited">Certificado del equipo, del grupo %1$s.</string>
+    <string name="auth_field_keys">Contraseña y clave</string>
+    <string name="auth_field_keys_hint">La contraseña, clave o identidad del host, como siempre.</string>
+    <string name="auth_field_label">Autenticación</string>
+    <string name="auth_field_no_ca">El equipo de la bóveda aún no tiene autoridad de certificación: créala en Equipos → Seguridad (o en Ajustes → Certificados SSH para bóvedas personales).</string>
+    <!-- args: name -->
+    <string name="auth_field_other">%1$s (versión más nueva)</string>
+    <string name="auth_field_other_hint">Un método de una versión más nueva: se mantiene tal cual; esta app usa las credenciales del host.</string>
+    <string name="auth_field_team_certificate">Certificado del equipo</string>
+    <string name="auth_field_team_hint">Un certificado de corta duración de la CA del equipo (o propietario) de la bóveda, para tu clave o una creada solo para ello. El host debe confiar en la CA.</string>
+    <string name="ca_algorithm_ecdsa">ECDSA P-256 (OpenSSH antiguos)</string>
+    <string name="ca_algorithm_ed25519">Ed25519 (recomendado)</string>
+    <string name="ca_algorithm_hint">La clave privada la crea y guarda el servidor, sellada con su clave maestra; nunca se muestra.</string>
+    <string name="ca_algorithm_label">Algoritmo</string>
+    <!-- args: principals, purpose -->
+    <string name="ca_cert_detail">%1$s · %2$s</string>
+    <string name="ca_cert_expired">Caducado</string>
+    <!-- args: serial -->
+    <string name="ca_cert_revoke_confirm">¿Revocar el certificado n.º %1$s?</string>
+    <!-- args: email -->
+    <string name="ca_cert_revoke_user_confirm">¿Revocar todos los certificados válidos de %1$s?</string>
+    <string name="ca_cert_revoked">Revocado</string>
+    <!-- args: time -->
+    <string name="ca_cert_until">Hasta %1$s</string>
+    <string name="ca_certs_active_only">Solo los vigentes</string>
+    <string name="ca_certs_empty">No hay certificados.</string>
+    <string name="ca_certs_open">Certificados emitidos</string>
+    <string name="ca_certs_title">Certificados emitidos</string>
+    <string name="ca_copied_fingerprint">Huella copiada</string>
+    <string name="ca_copied_install">Comando de instalación copiado: pégalo en el host</string>
+    <string name="ca_copied_public_key">Clave pública copiada</string>
+    <string name="ca_copied_sshd">Líneas de sshd_config copiadas</string>
+    <string name="ca_copy_fingerprint">Copiar huella</string>
+    <string name="ca_copy_key">Copiar clave pública</string>
+    <string name="ca_copy_lines">Copiar líneas</string>
+    <string name="ca_create">Crear autoridad de certificados</string>
+    <string name="ca_created">Autoridad de certificados creada</string>
+    <!-- args: date -->
+    <string name="ca_created_at">Creada el %1$s</string>
+    <string name="ca_disable_button">Desactivar…</string>
+    <string name="ca_disable_message">No se emiten más certificados y sus claves dejan de publicarse. Los hosts con «Certificado del equipo» vuelven a sus propias credenciales.</string>
+    <string name="ca_disable_mismatch">El texto no coincide</string>
+    <string name="ca_disable_ok">Desactivar</string>
+    <string name="ca_disable_title">Desactivar la autoridad de certificados</string>
+    <!-- args: word -->
+    <string name="ca_disable_type">Escribe %1$s para confirmar</string>
+    <string name="ca_disabled">Autoridad de certificados desactivada</string>
+    <string name="ca_fingerprint">Huella</string>
+    <string name="ca_hint_personal">Una CA propia para los hosts de tu bóveda personal: confían en ella y recibes certificados de corta duración.</string>
+    <string name="ca_hint_team">Los hosts que confían en la CA del equipo aceptan certificados de corta duración de sus miembros: no hay que copiar claves públicas a los hosts y el acceso termina solo.</string>
+    <string name="ca_install_copy">Copiar comando de instalación</string>
+    <string name="ca_install_hint">Pega el comando en cada host con un usuario con sudo: escribe las claves de la CA, añade TrustedUserCAKeys, comprueba sshd -t (restaura la configuración anterior si falla) y recarga sshd.</string>
+    <string name="ca_install_krl">Lista de claves revocadas (KRL)</string>
+    <string name="ca_install_loading">Preparando el script…</string>
+    <!-- args: lines -->
+    <string name="ca_install_preview">El comando (el script en un heredoc, %1$s líneas):</string>
+    <string name="ca_install_principals">Archivo de principals por usuario</string>
+    <string name="ca_install_refresh">Actualizar cada 15 minutos</string>
+    <string name="ca_install_share">Compartir</string>
+    <string name="ca_install_title">Instalar en un host</string>
+    <string name="ca_none_personal">Aún no tienes autoridad de certificados.</string>
+    <string name="ca_none_team">El equipo aún no tiene autoridad de certificados.</string>
+    <string name="ca_public_key">Clave pública</string>
+    <!-- args: fingerprint, date -->
+    <string name="ca_retiring">La CA anterior %1$s sigue publicada hasta el %2$s (solape de la rotación)</string>
+    <string name="ca_revoke_reason">Motivo (opcional)</string>
+    <string name="ca_revoke_serial">Revocar este certificado</string>
+    <string name="ca_revoke_user">Revocar todos los de este miembro</string>
+    <string name="ca_revoke_key_button">Revocar una clave…</string>
+    <string name="ca_revoke_key_invalid">Pega una clave pública de OpenSSH (ssh-ed25519 AAAA…)</string>
+    <string name="ca_revoke_key_key">Clave pública</string>
+    <string name="ca_revoke_key_message">La clave no recibe certificados nuevos y aparece en la KRL, así que los hosts con RevokedKeys también rechazan los que tenga.</string>
+    <string name="ca_revoke_key_ok">Revocar</string>
+    <string name="ca_revoke_key_title">Revocar una clave</string>
+    <!-- args: count -->
+    <plurals name="ca_revoked">
+        <item quantity="one">%1$d certificado revocado</item>
+        <item quantity="other">%1$d certificados revocados</item>
+    </plurals>
+    <string name="ca_rotate_button">Rotar…</string>
+    <string name="ca_rotate_message">Una CA nueva firma desde ahora. La actual sigue publicada durante el solape, para que los hosts que actualizan sus claves sigan aceptando los certificados ya emitidos.</string>
+    <string name="ca_rotate_ok">Rotar</string>
+    <string name="ca_rotate_overlap">Solape (horas)</string>
+    <string name="ca_rotate_overlap_error">El solape debe ser de 1 a 720 horas</string>
+    <string name="ca_rotate_overlap_hint">1–720. Los hosts sin la actualización cada 15 minutos necesitan otra vez el comando de instalación.</string>
+    <string name="ca_rotate_title">Rotar la autoridad de certificados</string>
+    <string name="ca_rotated">Autoridad de certificados rotada</string>
+    <string name="ca_sshd_config">sshd_config</string>
+    <!-- args: url -->
+    <string name="ca_sshd_config_hint">El archivo de claves es público: %1$s</string>
+    <string name="ca_status_active">Activa</string>
+    <string name="ca_title">Autoridad de certificados SSH</string>
+    <string name="cert_fields_default_ttl">Validez por defecto (minutos)</string>
+    <!-- args: value -->
+    <string name="cert_fields_error_number">«%1$s» no es un número de minutos</string>
+    <string name="cert_fields_extensions">Extensiones</string>
+    <string name="cert_fields_extensions_custom">Elegirlas para estos hosts</string>
+    <string name="cert_fields_force_command">Comando forzado</string>
+    <string name="cert_fields_force_command_hint">Opcional: el único comando que pueden ejecutar estos certificados</string>
+    <string name="cert_fields_force_command_placeholder">Por ejemplo /usr/local/bin/deploy</string>
+    <string name="cert_fields_inherit">La del equipo</string>
+    <string name="cert_fields_max_ttl">Validez máxima (minutos)</string>
+    <!-- args: email, principals -->
+    <string name="cert_fields_preview">Para %1$s en un host con usuario deploy: %2$s</string>
+    <string name="cert_fields_preview_inherit">Vacío: los principals del equipo</string>
+    <string name="cert_fields_preview_none">Estas plantillas no dan ningún principal válido para ese ejemplo</string>
+    <string name="cert_fields_principals">Principals</string>
+    <string name="cert_fields_principals_hint">Nombres del certificado separados por comas: {login} (el usuario del host), {member} (el principal del miembro), {email}, {user_id} o nombres fijos como deploy.</string>
+    <string name="cert_fields_source_address">Direcciones de origen</string>
+    <string name="cert_fields_source_address_hint">Opcional: el certificado solo funciona desde estas direcciones o CIDR (separadas por comas)</string>
+    <string name="cert_fields_ttl">Validez máxima (minutos)</string>
+    <string name="certs_for_host">Certificados para este host</string>
+    <string name="certs_host">Host</string>
+    <string name="certs_key_fingerprint">Huella de la clave</string>
+    <string name="certs_mine">Certificados emitidos para ti</string>
+    <string name="certs_mine_empty">Todavía ninguno: se crean al conectar a un host que usa un certificado del equipo.</string>
+    <string name="certs_none_for_host">Aún no se te ha emitido ningún certificado para este host.</string>
+    <string name="certs_purpose">Para</string>
+    <string name="certs_purpose_credentials">Credenciales al momento</string>
+    <string name="certs_purpose_device">Desde una app</string>
+    <string name="certs_purpose_server">Sesión del servidor</string>
+    <string name="certs_request">Con la solicitud de acceso</string>
+    <!-- args: reason -->
+    <string name="certs_revoked_reason">Revocado: %1$s</string>
+    <!-- args: serial -->
+    <string name="certs_title">Certificado n.º %1$s</string>
+    <string name="conn_details_auth">Autenticación</string>
+    <string name="conn_details_auth_cert">Certificado del equipo</string>
+    <string name="conn_details_cert_ca">Huella de la CA</string>
+    <string name="conn_details_cert_expired">caducado</string>
+    <string name="conn_details_cert_extensions">Extensiones</string>
+    <string name="conn_details_cert_key_id">ID de la clave</string>
+    <!-- args: left -->
+    <string name="conn_details_cert_left">quedan %1$s</string>
+    <string name="conn_details_cert_options">Opciones críticas</string>
+    <string name="conn_details_cert_principals">Principals</string>
+    <string name="conn_details_cert_serial">Número de serie</string>
+    <string name="conn_details_cert_signature">Firma</string>
+    <string name="conn_details_cert_signature_bad">No válida</string>
+    <string name="conn_details_cert_signature_ok">Válida</string>
+    <string name="conn_details_cert_valid_after">Válido desde</string>
+    <string name="conn_details_cert_valid_before">Válido hasta</string>
+    <string name="conn_details_host">Conectado como</string>
+    <string name="conn_details_host_key">Clave del host</string>
+    <string name="conn_details_no_cert">No se ha usado ningún certificado del equipo en esta conexión.</string>
+    <!-- args: host -->
+    <string name="conn_details_title">Conexión con %1$s</string>
+    <string name="conn_details_via">A través de</string>
+    <string name="error_access_approval_required">Este host necesita una ventana de acceso aprobada: pide acceso</string>
+    <string name="error_access_duration_too_long">Es más tiempo del que permite la política</string>
+    <string name="error_access_needs_server">Este host tiene reglas de acceso: conéctate antes a su servidor</string>
+    <string name="error_access_request_closed">Esa solicitud ya está decidida o cerrada</string>
+    <string name="error_access_request_exists">Ya tienes una solicitud esperando para esto</string>
+    <string name="error_access_request_not_needed">Esto no necesita aprobación: conéctate directamente</string>
+    <string name="error_ai_forbidden_by_policy">El equipo no permite la IA en este host</string>
+    <string name="error_ca_exists">Ya hay una autoridad de certificados activa: rótala en su lugar</string>
+    <string name="error_ca_not_configured">El equipo no tiene autoridad de certificados SSH: la crea un administrador en Equipos → Seguridad</string>
+    <string name="error_certificate_key_not_owned">Esa clave no se puede certificar para ti</string>
+    <string name="error_certificate_key_revoked">Esa clave está revocada: no puede recibir certificados</string>
+    <string name="error_certificate_no_principals">No hay nombres (principals) para el certificado: revisa el usuario o las plantillas de principals</string>
+    <string name="error_certificate_proof_invalid">No se ha aceptado la prueba de posesión de la clave (revisa la hora de este móvil)</string>
+    <string name="error_connect_only">Los miembros que solo conectan lo hacen a través del servidor o con certificados del equipo</string>
+    <string name="error_invalid_reason">Indica un motivo (de 1 a 500 caracteres)</string>
+    <string name="error_networks_forbidden_by_policy">El equipo no permite redes privadas en esta bóveda</string>
+    <string name="error_not_an_approver">No eres aprobador de esta solicitud</string>
+    <string name="error_policy_requires_2fa">Activa la verificación en dos pasos en tu cuenta antes de exigirla al equipo</string>
+    <string name="error_recording_required">Las sesiones en este host se deben grabar: actualiza la app o abre una sesión del servidor</string>
+    <string name="error_secret_reveal_forbidden">El equipo no permite revelar ni exportar los secretos de esta bóveda</string>
+    <string name="error_self_approval_forbidden">No puedes aprobar tu propia solicitud</string>
+    <string name="error_team_2fa_required">Un equipo exige la verificación en dos pasos: actívala en Ajustes → Verificación en dos pasos</string>
+    <string name="host_editor_connect_only">Solo conectar: te conectas a través del servidor o con un certificado del equipo; nunca ves ni recibes su contraseña ni su clave.</string>
+    <string name="host_editor_inherit_auth">La del grupo, o contraseña y clave</string>
+    <string name="push_kind_access_decided">Tus solicitudes de acceso decididas</string>
+    <!-- args: who, date -->
+    <string name="recordings_by">%1$s · %2$s</string>
+    <string name="recordings_download">Descargar (.cast)</string>
+    <string name="recordings_download_failed">No se ha podido descargar la grabación</string>
+    <string name="recordings_empty">No hay grabaciones.</string>
+    <string name="recordings_error_format">No es una grabación asciicast v2</string>
+    <string name="recordings_from_device">desde una app</string>
+    <string name="recordings_hint">Sesiones grabadas de los hosts de esta bóveda (sesiones del servidor y terminales locales que suben las apps).</string>
+    <string name="recordings_load_failed">No se han podido leer las grabaciones</string>
+    <string name="recordings_pause">Pausa</string>
+    <string name="recordings_play">Reproducir</string>
+    <!-- args: title -->
+    <string name="recordings_player_title">Grabación: %1$s</string>
+    <string name="recordings_restart">Desde el principio</string>
+    <string name="recordings_share">Compartir (.cast)</string>
+    <string name="recordings_speed">Velocidad</string>
+    <string name="settings_access_hint">Solicitudes que aprobar, las tuyas y sus ventanas</string>
+    <string name="settings_certificates">Certificados SSH</string>
+    <string name="settings_certificates_hint">Tu propia autoridad de certificación y los certificados emitidos para ti</string>
+    <string name="settings_notifications_access">Solicitudes de acceso</string>
+    <string name="settings_notifications_access_hint">Alguien te pide acceso a un host o se ha decidido tu solicitud.</string>
+    <string name="team_2fa_blocked_detail">El equipo exige verificación en dos pasos y el periodo de gracia ha terminado. Actívala y vuelven al momento.</string>
+    <!-- args: teams -->
+    <string name="team_2fa_blocked_title">%1$s: sus bóvedas están ocultas</string>
+    <!-- args: date -->
+    <string name="team_2fa_detail">Actívala antes del %1$s para no perder el acceso a las bóvedas del equipo.</string>
+    <string name="team_2fa_setup">Activar verificación en dos pasos</string>
+    <!-- args: teams -->
+    <string name="team_2fa_title">%1$s exige verificación en dos pasos</string>
+    <string name="team_security_ai_allowed">Permitir la IA en los hosts del equipo</string>
+    <string name="team_security_ai_allowed_hint">Desactivado: la IA del servidor y la de las apps dejan fuera los hosts del equipo.</string>
+    <string name="team_security_ai_approval">Aprobaciones de la IA</string>
+    <string name="team_security_ai_approval_always">Preguntar siempre antes de ejecutar nada</string>
+    <string name="team_security_ai_approval_default">Lo que diga cada tarea</string>
+    <string name="team_security_allow_reveal">Los editores pueden revelar y exportar secretos</string>
+    <string name="team_security_allow_reveal_hint">Desactivado: solo los Admin ven contraseñas y claves; los editores siguen editando y conectando, y sus dispositivos dejan de guardar los secretos.</string>
+    <string name="team_security_cert_defaults">Certificados</string>
+    <string name="team_security_compliance_all">Todos los miembros tienen verificación en dos pasos.</string>
+    <string name="team_security_compliance_blocked">Sin 2FA · bloqueado</string>
+    <!-- args: count -->
+    <plurals name="team_security_compliance_missing">
+        <item quantity="one">%1$d miembro no tiene verificación en dos pasos.</item>
+        <item quantity="other">%1$d miembros no tienen verificación en dos pasos.</item>
+    </plurals>
+    <string name="team_security_compliance_off">Sin 2FA</string>
+    <string name="team_security_compliance_on">2FA activada</string>
+    <!-- args: email, principal -->
+    <string name="team_security_compliance_principal">%1$s · principal %2$s</string>
+    <string name="team_security_compliance_title">Verificación en dos pasos y principals</string>
+    <!-- args: date -->
+    <string name="team_security_compliance_until">Sin 2FA · hasta el %1$s</string>
+    <string name="team_security_error_grace">El periodo de gracia debe ser de 0 a 90 días</string>
+    <string name="team_security_grace_days">Periodo de gracia (días)</string>
+    <string name="team_security_load_failed">No se han podido leer los ajustes de seguridad del equipo</string>
+    <string name="team_security_networks">Permitir redes privadas</string>
+    <string name="team_security_networks_hint">Desactivado: los hosts del equipo no pueden ir por una red privada y no se pueden añadir redes a sus bóvedas.</string>
+    <string name="team_security_open">Seguridad</string>
+    <string name="team_security_policy_title">Política del equipo</string>
+    <string name="team_security_principal_edit">Cambiar principal</string>
+    <string name="team_security_principal_invalid">De 1 a 64 letras, dígitos o . _ @ + -</string>
+    <string name="team_security_principal_label">Principal</string>
+    <!-- args: default -->
+    <string name="team_security_principal_message">El nombre que toma {member} en los certificados. Vacío: %1$s (del email).</string>
+    <string name="team_security_principal_saved">Principal guardado</string>
+    <!-- args: email -->
+    <string name="team_security_principal_title">Principal de %1$s</string>
+    <string name="team_security_read_only">Solo los propietarios y administradores del equipo cambian estos ajustes.</string>
+    <string name="team_security_record">Grabar todas las sesiones</string>
+    <string name="team_security_record_hint">Las sesiones del servidor se graban; las apps graban los terminales locales y los suben. Los Admin pueden verlas en cada bóveda.</string>
+    <string name="team_security_require_2fa">Exigir verificación en dos pasos</string>
+    <string name="team_security_require_2fa_hint">Los miembros sin ella pierden el acceso a las bóvedas del equipo tras el periodo de gracia (también propietarios y administradores). Antes la necesitas en tu cuenta.</string>
+    <!-- args: date -->
+    <string name="team_security_require_2fa_since">Exigida desde el %1$s</string>
+    <string name="team_security_save">Guardar política</string>
+    <string name="team_security_saved">Política del equipo guardada</string>
+    <!-- args: team -->
+    <string name="team_security_title">Seguridad · %1$s</string>
+    <string name="team_security_ttl_summary">Validez de los certificados</string>
+    <!-- args: default, max -->
+    <string name="team_security_ttl_value">%1$s min (como mucho %2$s)</string>
+    <string name="teams_security">Seguridad</string>
+    <!-- args: left -->
+    <string name="term_access_window">Acceso %1$s</string>
+    <string name="term_certificate">Certificado del equipo</string>
+    <string name="term_connection_details">Detalles de la conexión</string>
+    <string name="vaults_connect_only_badge">Solo conectar</string>
+    <string name="vaults_connect_only_connect">Solo conectar: abriendo una sesión del servidor (este host no usa certificado del equipo)</string>
+    <string name="vaults_explicit_admin_no_delete">Eres Admin de esta bóveda por una concesión: solo su propietario (o los propietarios y administradores del equipo) pueden borrarla.</string>
+    <string name="vaults_no_delete_short">Solo su propietario puede borrarla</string>
+    <string name="vaults_role_connect_only">Solo conectar</string>
+    <string name="vaults_role_editor">Editar</string>
+    <string name="vaults_role_manager">Admin</string>
+    <string name="vaults_role_use_only">Usar</string>
+    <string name="vaults_role_hint_connect_only">Se conecta a través del servidor o con certificados del equipo. Nunca recibe contraseñas ni claves, ni siquiera por un momento.</string>
+    <string name="vaults_role_hint_editor">Ve y cambia los elementos y sus secretos (salvo que el equipo prohíba revelarlos).</string>
+    <string name="vaults_role_hint_manager">Además gestiona miembros, ajustes y políticas de acceso. No puede borrar la bóveda.</string>
+    <string name="vaults_role_hint_unknown">Un rol de una versión más nueva: aquí no da acceso.</string>
+    <string name="vaults_role_hint_use_only">Se conecta y ejecuta comandos sin ver contraseñas ni claves (las recibe justo a tiempo salvo que la bóveda sea Estricta).</string>
+    <string name="vaults_tab_access">Acceso</string>
+    <string name="vaults_tab_recordings">Grabaciones</string>
+    <string name="vaults_you_connect_only">Puedes conectarte a sus hosts a través del servidor o con certificados del equipo, pero nunca ves ni recibes sus contraseñas ni claves.</string>
+</resources>

@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockClock
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
@@ -282,6 +283,7 @@ private enum class SideItem(val route: String, @StringRes val label: Int, val ic
     AI(Routes.AI, R.string.section_ai, Icons.Outlined.AutoAwesome),
     SESSIONS(Routes.CONNECTIONS, R.string.sidebar_server_sessions, Icons.Outlined.CloudQueue),
     TEAMS(Routes.TEAMS, R.string.teams_title, Icons.Outlined.Groups),
+    ACCESS(Routes.access(), R.string.access_title, Icons.Outlined.LockClock),
     VAULTS(Routes.VAULTS, R.string.vaults_title, Icons.Outlined.Lock),
     SETTINGS(Routes.SETTINGS, R.string.section_settings, Icons.Outlined.Settings),
 }
@@ -295,7 +297,8 @@ private fun sideItemOf(route: String?): SideItem? = when (route) {
     Routes.KNOWN_HOSTS -> SideItem.KNOWN_HOSTS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW -> SideItem.AI
     Routes.CONNECTIONS, Routes.JOIN -> SideItem.SESSIONS
-    Routes.TEAMS -> SideItem.TEAMS
+    Routes.TEAMS, Routes.TEAM_SECURITY -> SideItem.TEAMS
+    Routes.ACCESS -> SideItem.ACCESS
     Routes.VAULTS, Routes.VAULT -> SideItem.VAULTS
     Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.ACCOUNTS -> SideItem.SETTINGS
     else -> null
@@ -368,6 +371,12 @@ fun DesktopSidebar(app: TermoakApp, nav: NavHostController, route: String?) {
                 SidebarItem(SideItem.AI, SideItem.AI == current, collapsed, badge = approvals) { open(SideItem.AI) }
                 SidebarItem(SideItem.SESSIONS, SideItem.SESSIONS == current, collapsed, running = onServer.size) { open(SideItem.SESSIONS) }
                 SidebarItem(SideItem.TEAMS, SideItem.TEAMS == current, collapsed) { open(SideItem.TEAMS) }
+                // Teams security: temporary access (servers that have it), with the requests waiting for you.
+                if (com.termoak.app.data.AccessBook.anySupported()) {
+                    SidebarItem(SideItem.ACCESS, SideItem.ACCESS == current, collapsed, badge = com.termoak.app.data.AccessBook.waitingCount()) {
+                        nav.navigate(Routes.access()) { launchSingleTop = true }
+                    }
+                }
                 SidebarItem(SideItem.VAULTS, SideItem.VAULTS == current, collapsed) { open(SideItem.VAULTS) }
                 SidebarGroup(stringResource(R.string.sidebar_group_app), collapsed)
                 SidebarItem(SideItem.SETTINGS, SideItem.SETTINGS == current, collapsed) { open(SideItem.SETTINGS) }

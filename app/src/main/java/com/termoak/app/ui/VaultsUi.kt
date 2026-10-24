@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -100,7 +101,10 @@ import androidx.core.graphics.toColorInt
 import androidx.navigation.NavHostController
 import com.termoak.app.R
 import com.termoak.app.TermoakApp
+import com.termoak.app.data.AccessBook
+import com.termoak.app.data.AccessRules
 import com.termoak.app.data.canEdit
+import com.termoak.app.data.noSecrets
 import com.termoak.app.data.displayName
 import com.termoak.app.data.shownEmail
 import com.termoak.app.userMessage
@@ -181,15 +185,28 @@ fun VaultTile(v: VaultInfo, size: Dp = 40.dp) {
     }
 }
 
+/** A role's name: Connect only, Use, Edit, Admin (0.7 phase 4d, as the desktop and the web). */
 @Composable
-fun roleText(role: VaultRole): String = stringResource(
-    when (role) {
-        VaultRole.MANAGER -> R.string.vault_role_manager
-        VaultRole.EDITOR -> R.string.vault_role_editor
-        VaultRole.USE_ONLY -> R.string.vault_use_only
-        VaultRole.UNKNOWN -> R.string.vault_role_unknown
-    },
-)
+fun roleText(role: VaultRole): String = stringResource(roleName(role))
+
+@StringRes
+fun roleName(role: VaultRole): Int = when (role) {
+    VaultRole.MANAGER -> R.string.vaults_role_manager
+    VaultRole.EDITOR -> R.string.vaults_role_editor
+    VaultRole.USE_ONLY -> R.string.vaults_role_use_only
+    VaultRole.CONNECT_ONLY -> R.string.vaults_role_connect_only
+    VaultRole.UNKNOWN -> R.string.vault_role_unknown
+}
+
+/** One line saying what a role allows (under the picker's entries). */
+@StringRes
+fun roleHint(role: VaultRole): Int = when (role) {
+    VaultRole.MANAGER -> R.string.vaults_role_hint_manager
+    VaultRole.EDITOR -> R.string.vaults_role_hint_editor
+    VaultRole.USE_ONLY -> R.string.vaults_role_hint_use_only
+    VaultRole.CONNECT_ONLY -> R.string.vaults_role_hint_connect_only
+    VaultRole.UNKNOWN -> R.string.vaults_role_hint_unknown
+}
 
 /** Kind and owner: "Personal", "Shared by Ana", "Team Ops". */
 @Composable
@@ -271,7 +288,7 @@ fun VaultsScreen(app: TermoakApp, nav: NavHostController) {
                         },
                         trailingContent = {
                             Column(horizontalAlignment = Alignment.End) {
-                                Pill(roleText(v.role), if (v.role == VaultRole.USE_ONLY) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
+                                Pill(roleText(v.role), if (v.role.noSecrets()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
                                 if (v.strict) {
                                     Text(
                                         stringResource(R.string.vault_strict), Modifier.padding(top = 2.dp),
@@ -474,6 +491,9 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
     var iconMenu by remember { mutableStateOf(false) }
     var auditOpen by remember { mutableStateOf(false) }
     val handle = remember(accountId) { app.accounts.handle(accountId) }
+    // Teams security (0.7 phase 4d): four roles, access policies and recordings on servers that have it.
+    val teamsSecurity = AccessBook.supported(accountId)
+    val me = app.accounts.account(accountId)?.userId
 
     suspend fun loadMembers() {
         val h = handle ?: return
@@ -511,6 +531,9 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
         }
         val manager = v.role == VaultRole.MANAGER
         val personal = v.kind == VaultKind.PERSONAL
+        // Only implicit managers delete it (the owner, the team's owners and admins), never an explicit Admin.
+        val implicitManager = members?.any { it.implicit && it.userId != null && it.userId == me } == true
+        val canDelete = com.termoak.app.data.AccessRules.canDeleteVault(v.role, implicitManager)
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             Row(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box {
@@ -558,6 +581,7 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                 }
             }
             if (v.role == VaultRole.USE_ONLY) UseOnlyNote()
+            if (v.role == VaultRole.CONNECT_ONLY) FormNote(stringResource(R.string.vaults_you_connect_only))
 
             if (!personal) {
                 SectionLabel(stringResource(R.string.vault_members)) {
@@ -573,7 +597,7 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                     membersError != null -> FormNote(membersError ?: "")
                     list == null -> CircularProgressIndicator(Modifier.padding(20.dp).size(24.dp), strokeWidth = 2.dp)
                     else -> list.forEach { m ->
-                        MemberRow(m, canManage = manager && !m.implicit, onRole = { role ->
+                        MemberRow(m, canManage = manager && !m.implicit, roles = AccessRules.grantableRoles(teamsSecurity), onRole = { role ->
                             scope.launch {
                                 try {
                                     handle?.setVaultMemberRole(vaultId, m.id, role)
@@ -594,11 +618,10 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                         }
                         if (v.kind == VaultKind.TEAM) {
                             FormDivider()
-                            val options = listOf<Pair<VaultRole?, String>>(
-                                VaultRole.EDITOR to stringResource(R.string.vault_role_editor),
-                                VaultRole.USE_ONLY to stringResource(R.string.vault_use_only),
-                                null to stringResource(R.string.vault_team_no_access),
-                            )
+                            // Plain team members: Edit, Use, Connect only (servers with teams security) or no access.
+                            val options = (listOf(VaultRole.EDITOR, VaultRole.USE_ONLY) + listOfNotNull(VaultRole.CONNECT_ONLY.takeIf { teamsSecurity }))
+                                .map<VaultRole, Pair<VaultRole?, String>> { it to roleText(it) } +
+                                listOf<Pair<VaultRole?, String>>(null to stringResource(R.string.vault_team_no_access))
                             FormPicker(
                                 stringResource(R.string.vault_team_members_role),
                                 options.firstOrNull { it.first == v.teamMemberRole }?.second ?: options.last().second,
@@ -606,6 +629,25 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                             ) { r -> update(if (r == null) VaultChanges(noTeamAccess = true) else VaultChanges(teamMemberRole = r)) }
                         }
                     }
+                }
+                if (manager && handle != null && teamsSecurity) {
+                    // Access policies of the vault, its groups and hosts; recorded sessions (0.7 phase 4d).
+                    ListItem(
+                        modifier = Modifier.clickable { nav.navigate(Routes.vaultAccess(accountId, vaultId)) },
+                        headlineContent = { Text(stringResource(R.string.access_policy_needed_title)) },
+                        supportingContent = { Text(stringResource(R.string.access_policy_vault_hint)) },
+                        leadingContent = { Icon(Icons.Outlined.VerifiedUser, null) },
+                        trailingContent = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
+                    ListItem(
+                        modifier = Modifier.clickable { nav.navigate(Routes.vaultRecordings(accountId, vaultId)) },
+                        headlineContent = { Text(stringResource(R.string.vaults_tab_recordings)) },
+                        supportingContent = { Text(stringResource(R.string.recordings_hint)) },
+                        leadingContent = { Icon(Icons.Outlined.History, null) },
+                        trailingContent = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
                 }
                 if (manager && handle != null) {
                     // What happened in it (the server's audit log).
@@ -624,11 +666,14 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                         Icon(Icons.AutoMirrored.Filled.Logout, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                         Text(stringResource(R.string.vault_leave), Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.error)
                     }
-                } else {
+                } else if (canDelete) {
                     OutlinedButton(onClick = { deleting = true }, modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
                         Icon(Icons.Outlined.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                         Text(stringResource(R.string.vault_delete), Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.error)
                     }
+                } else if (members != null) {
+                    // An explicit Admin (a grant): manages it, can't delete it.
+                    FormHint(stringResource(R.string.vaults_explicit_admin_no_delete))
                 }
             } else {
                 FormHint(stringResource(R.string.vault_personal_hint))
@@ -673,7 +718,7 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
         VaultActivitySheet(handle, vaultId, vaultName(vault), members.orEmpty()) { auditOpen = false }
     }
     if (adding) {
-        AddMemberDialog(app, accountId, onDismiss = { adding = false }) { target, role ->
+        AddMemberDialog(app, accountId, AccessRules.grantableRoles(teamsSecurity), onDismiss = { adding = false }) { target, role ->
             val h = handle ?: return@AddMemberDialog
             h.addVaultMember(vaultId, target, role)
             adding = false
@@ -727,7 +772,13 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
 }
 
 @Composable
-private fun MemberRow(m: VaultMember, canManage: Boolean, onRole: (VaultRole) -> Unit, onRemove: () -> Unit) {
+internal fun MemberRow(
+    m: VaultMember,
+    canManage: Boolean,
+    roles: List<VaultRole> = listOf(VaultRole.USE_ONLY, VaultRole.EDITOR),
+    onRole: (VaultRole) -> Unit,
+    onRemove: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     ListItem(
         leadingContent = {
@@ -751,15 +802,22 @@ private fun MemberRow(m: VaultMember, canManage: Boolean, onRole: (VaultRole) ->
         },
         trailingContent = {
             if (!canManage) {
-                Pill(roleText(m.role), MaterialTheme.colorScheme.onSurfaceVariant)
+                Pill(roleText(m.role), if (m.role == VaultRole.CONNECT_ONLY) Brand.Amber else MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box {
                         TextButton(onClick = { menu = true }) { Text(roleText(m.role)) }
                         DropdownMenu(menu, { menu = false }) {
-                            listOf(VaultRole.EDITOR, VaultRole.USE_ONLY).forEach { r ->
+                            // Lowest first, each with what it allows.
+                            roles.forEach { r ->
                                 DropdownMenuItem(
-                                    { Text(roleText(r)) }, { menu = false; if (r != m.role) onRole(r) },
+                                    {
+                                        Column(Modifier.padding(vertical = 4.dp).widthIn(max = 300.dp)) {
+                                            Text(roleText(r))
+                                            Text(stringResource(roleHint(r)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
+                                    { menu = false; if (r != m.role) onRole(r) },
                                     trailingIcon = { if (r == m.role) Icon(Icons.Outlined.Check, null) },
                                 )
                             }
@@ -778,6 +836,7 @@ private fun MemberRow(m: VaultMember, canManage: Boolean, onRole: (VaultRole) ->
 private fun AddMemberDialog(
     app: TermoakApp,
     accountId: String,
+    roles: List<VaultRole>,
     onDismiss: () -> Unit,
     onAdd: suspend (VaultMemberTarget, VaultRole) -> Unit,
 ) {
@@ -813,18 +872,7 @@ private fun AddMemberDialog(
                     }
                 }
                 Text(stringResource(R.string.vault_role), style = MaterialTheme.typography.titleSmall)
-                listOf(VaultRole.EDITOR to R.string.vault_role_editor_hint, VaultRole.USE_ONLY to R.string.vault_role_use_only_hint).forEach { (r, hint) ->
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { role = r },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(role == r, { role = r })
-                        Column {
-                            Text(roleText(r))
-                            Text(stringResource(hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
+                RolePicker(roles, role) { role = it }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
@@ -849,6 +897,25 @@ private fun AddMemberDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+/** The roles a vault Admin can give, lowest first, each with what it allows (radio buttons). */
+@Composable
+internal fun RolePicker(roles: List<VaultRole>, selected: VaultRole, onSelect: (VaultRole) -> Unit) {
+    Column {
+        roles.forEach { r ->
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onSelect(r) }.padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected == r, { onSelect(r) })
+                Column {
+                    Text(roleText(r))
+                    Text(stringResource(roleHint(r)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
 }
 
 /** Deleting a vault: what goes with it, and its name typed to confirm. */

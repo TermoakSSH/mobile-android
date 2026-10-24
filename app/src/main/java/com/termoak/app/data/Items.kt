@@ -23,9 +23,14 @@ val Snippet.uid get() = uidOf(accountId, id)
 val PortForward.uid get() = uidOf(accountId, id)
 val KnownHost.uid get() = uidOf(accountId, id)
 
-/** Use-only item: it can be used (connect, run) but its secrets are never shown and it can't be changed. */
-fun ItemAccess?.useOnly(): Boolean = this == ItemAccess.USE_ONLY
-fun ItemAccess?.canWrite(): Boolean = this != ItemAccess.USE_ONLY && this != ItemAccess.UNKNOWN
+/**
+ * Use-only item: it can be used (connect, run) but its secrets are never
+ * shown and it can't be changed. Connect only items (0.7 phase 4d) too:
+ * they also never get just-in-time credentials.
+ */
+fun ItemAccess?.useOnly(): Boolean = this == ItemAccess.USE_ONLY || this == ItemAccess.CONNECT_ONLY
+fun ItemAccess?.connectOnly(): Boolean = this == ItemAccess.CONNECT_ONLY
+fun ItemAccess?.canWrite(): Boolean = this != ItemAccess.USE_ONLY && this != ItemAccess.CONNECT_ONLY && this != ItemAccess.UNKNOWN
 
 /** Where an item lives: This device (`account == null`) or a vault of an account. */
 data class Place(val account: String?, val vault: String?) {

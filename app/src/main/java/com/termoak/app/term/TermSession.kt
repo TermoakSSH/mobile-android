@@ -218,6 +218,26 @@ abstract class TermSession(
 
     protected val _state = MutableStateFlow<TermState>(InitialConnecting)
     val state: StateFlow<TermState> = _state
+
+    protected val _accessNeed = MutableStateFlow<com.termoak.app.data.AccessRules.AccessNeed?>(null)
+    /**
+     * Connecting needs an approved access window (teams security, 0.7 phase
+     * 4d): the terminal shows "Approval needed" with Request access, then
+     * "Waiting for approval", and connects by itself when the window opens.
+     */
+    val accessNeed: StateFlow<com.termoak.app.data.AccessRules.AccessNeed?> = _accessNeed
+
+    /** A connection error: remembers the need for an approval it says (or forgets it). */
+    protected fun noteAccessError(e: Throwable) {
+        _accessNeed.value = com.termoak.app.data.AccessTexts.needOf(e, hostId)
+    }
+
+    /** The window opened (or the host no longer needs one): connect again. */
+    fun accessGranted() {
+        if (_accessNeed.value == null) return
+        _accessNeed.value = null
+        reconnect()
+    }
     /** Since when it is connected (ms), `null` while not (the Connections list's timer, as on iOS). */
     @Volatile var connectedAt: Long? = null
         private set
@@ -305,6 +325,7 @@ abstract class TermSession(
 
     /** Connects again after closing. */
     open fun reconnect() {
+        _accessNeed.value = null
         release()
         screen.reset()
         forgetLine()

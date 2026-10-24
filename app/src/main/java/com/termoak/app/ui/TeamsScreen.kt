@@ -168,7 +168,16 @@ fun TeamsScreen(app: TermoakApp, nav: NavHostController) {
             }
         }
     }
-    open?.let { t -> TeamMembersDialog(app, t, onChanged = { reload() }) { open = null } }
+    open?.let { t ->
+        TeamMembersDialog(
+            app, t, onChanged = { reload() },
+            // Teams security (0.7 phase 4d): the team's CA, policy and 2FA compliance.
+            onSecurity = if (com.termoak.app.data.AccessBook.supported(t.accountId)) ({
+                open = null
+                nav.navigate(Routes.teamSecurity(t.accountId, t.id, t.name, t.role))
+            }) else null,
+        ) { open = null }
+    }
     if (creating) NewTeamDialog(app, active, onDismiss = { creating = false }) { creating = false; reload() }
 }
 
@@ -229,7 +238,7 @@ private fun Note(text: String) {
  * and delete the team; anyone can leave it.
  */
 @Composable
-private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> Unit, onDismiss: () -> Unit) {
+private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> Unit, onSecurity: (() -> Unit)? = null, onDismiss: () -> Unit) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
@@ -343,6 +352,7 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
                     }
                 }
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    onSecurity?.let { TextButton(onClick = it) { Text(stringResource(R.string.teams_security)) } }
                     if (manage) TextButton(onClick = { adding = true }) { Text(stringResource(R.string.teams_add_member)) }
                     if (manage) TextButton(onClick = { renaming = true }) { Text(stringResource(R.string.teams_rename)) }
                 }

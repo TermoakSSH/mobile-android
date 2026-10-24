@@ -281,7 +281,7 @@ private fun account(id: String, email: String, name: String) = AccountInfo(
 private fun vaultInfo(id: String, accountId: String, name: String, kind: VaultKind, color: String?) = VaultInfo(
     id = id, accountId = accountId, name = name, description = "", kind = kind, role = VaultRole.MANAGER,
     teamId = null, teamName = null, ownerName = null, color = color, icon = null, memberCount = 1, hostCount = 4,
-    strict = false, teamMemberRole = null,
+    strict = false, teamMemberRole = null, policy = null,
 )
 
 private val account1 = account("a1", "ane@example.com", "Ane")

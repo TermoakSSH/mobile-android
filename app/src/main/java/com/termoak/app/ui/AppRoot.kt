@@ -160,6 +160,26 @@ object Routes {
     const val FILES = "files/{id}"
     /** Joining a shared session with an invitation link. */
     const val JOIN = "join?server={server}&token={token}"
+    /** Teams security (0.7 phase 4d): temporary access requests (`request`/`action`: from a notification; `mine`: My requests). */
+    const val ACCESS = "access?request={request}&action={action}&mine={mine}"
+    fun access(request: String? = null, action: String? = null, mine: Boolean = false) =
+        "access?mine=$mine" + (request?.let { "&request=$it" } ?: "") + (action?.let { "&action=$it" } ?: "")
+    /** A team's security: CA, policy, 2FA compliance and principals. */
+    const val TEAM_SECURITY = "team-security/{account}/{team}?name={name}&role={role}"
+    fun teamSecurity(account: String, team: String, name: String, role: String?) =
+        "team-security/$account/$team?name=${Uri.encode(name)}" + (role?.let { "&role=$it" } ?: "")
+    /** Settings → SSH certificates: your personal CA and your certificates. */
+    const val CERTIFICATES = "certificates?account={account}"
+    fun certificates(account: String? = null) = "certificates" + (account?.let { "?account=$it" } ?: "")
+    /** The access policy of a host, group or vault (`kind`: host, group, vault). */
+    const val ACCESS_POLICY = "access-policy/{account}/{vault}/{kind}/{target}"
+    fun accessPolicy(account: String, vault: String, kind: String, target: String) = "access-policy/$account/$vault/$kind/$target"
+    /** A vault's access policies. */
+    const val VAULT_ACCESS = "vault-access/{account}/{id}"
+    fun vaultAccess(account: String, id: String) = "vault-access/$account/$id"
+    /** A vault's recorded sessions. */
+    const val VAULT_RECORDINGS = "vault-recordings/{account}/{id}"
+    fun vaultRecordings(account: String, id: String) = "vault-recordings/$account/$id"
 
     fun hostEdit(id: String?, account: String? = null, group: String? = null) =
         "host/${id ?: "new"}" + listOfNotNull(account?.let { "account=$it" }, group?.let { "group=$it" })
@@ -204,13 +224,15 @@ private val Unframed = setOf(Routes.WELCOME, Routes.VERIFY_EMAIL, Routes.LOGIN)
 private val Details = setOf(
     Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES, Routes.NETWORKS,
+    Routes.ACCESS, Routes.TEAM_SECURITY, Routes.CERTIFICATES, Routes.ACCESS_POLICY, Routes.VAULT_ACCESS, Routes.VAULT_RECORDINGS,
 )
 
 private fun tabOf(route: String?): Tab? = when (route) {
     in VaultRoutes, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT -> Tab.VAULT
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES -> Tab.AI
-    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS, Routes.NETWORKS -> Tab.SETTINGS
+    Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS, Routes.NETWORKS,
+    Routes.ACCESS, Routes.TEAM_SECURITY, Routes.CERTIFICATES, Routes.ACCESS_POLICY, Routes.VAULT_ACCESS, Routes.VAULT_RECORDINGS -> Tab.SETTINGS
     else -> null
 }
 
@@ -264,6 +286,8 @@ fun AppRoot(app: TermoakApp) {
     fun badge(tab: Tab): Int = when (tab) {
         Tab.CONNECTIONS -> open.size
         Tab.AI -> approvals
+        // Teams security: access requests waiting for your decision.
+        Tab.SETTINGS -> com.termoak.app.data.AccessBook.waitingCount()
         else -> 0
     }
 
@@ -423,6 +447,49 @@ fun AppRoot(app: TermoakApp) {
                         composable(Routes.ACCOUNTS) { ManageAccountsScreen(app, nav) }
                         composable(Routes.VAULTS) { VaultsScreen(app, nav) }
                         composable(Routes.TEAMS) { TeamsScreen(app, nav) }
+                        composable(
+                            Routes.ACCESS,
+                            arguments = listOf(
+                                navArgument("request") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("action") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("mine") { type = NavType.BoolType; defaultValue = false },
+                            ),
+                        ) { e ->
+                            val req = e.arguments?.getString("request")
+                            val act = e.arguments?.getString("action")
+                            AccessScreen(
+                                app, nav, focus = if (req != null || act != null) AccessFocus(req, act) else null,
+                                mineFirst = e.arguments?.getBoolean("mine") == true,
+                            )
+                        }
+                        composable(
+                            Routes.TEAM_SECURITY,
+                            arguments = listOf(
+                                navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                                navArgument("role") { type = NavType.StringType; nullable = true; defaultValue = null },
+                            ),
+                        ) { e ->
+                            TeamSecurityScreen(
+                                app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("team").orEmpty(),
+                                e.arguments?.getString("name").orEmpty(), e.arguments?.getString("role"),
+                            )
+                        }
+                        composable(
+                            Routes.CERTIFICATES,
+                            arguments = listOf(navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                        ) { e -> CertificatesScreen(app, nav, e.arguments?.getString("account")) }
+                        composable(Routes.ACCESS_POLICY) { e ->
+                            AccessPolicyScreen(
+                                app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("vault").orEmpty(),
+                                e.arguments?.getString("kind").orEmpty(), e.arguments?.getString("target").orEmpty(),
+                            )
+                        }
+                        composable(Routes.VAULT_ACCESS) { e ->
+                            VaultAccessScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
+                        }
+                        composable(Routes.VAULT_RECORDINGS) { e ->
+                            VaultRecordingsScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
+                        }
                         composable(Routes.VAULT) { e ->
                             VaultScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
                         }
@@ -666,7 +733,7 @@ fun AppRoot(app: TermoakApp) {
     // A push notification was tapped: its screen (an AI approval is decided there, after the app lock).
     val pushed by app.pendingPush.collectAsState()
     LaunchedEffect(pushed) {
-        val (open, _) = pushed ?: return@LaunchedEffect
+        val (open, action) = pushed ?: return@LaunchedEffect
         app.pendingPush.value = null
         when (open) {
             is PushOpen.AiTask -> {
@@ -690,6 +757,8 @@ fun AppRoot(app: TermoakApp) {
                 }
             }
             is PushOpen.Teams -> nav.navigate(Routes.TEAMS) { launchSingleTop = true }
+            // An access request: the Access screen on it; Approve/Deny only open its confirmation (after the app lock).
+            is PushOpen.Access -> nav.navigate(Routes.access(open.requestId, action?.name, mine = open.mine)) { launchSingleTop = true }
             is PushOpen.SecurityKey -> scope.launch {
                 snackbar.showSnackbar(resources.getString(R.string.push_security_key_waiting), duration = SnackbarDuration.Short)
             }
@@ -701,6 +770,19 @@ fun AppRoot(app: TermoakApp) {
         val n = opened ?: return@LaunchedEffect
         app.shareNotices.openRequest.value = null
         openNotice(n)
+    }
+    // Teams security: what an access_request event means for you (a request to decide, yours decided…).
+    LaunchedEffect(Unit) {
+        app.accounts.accessEvents.collect { (accountId, ev) ->
+            val me = app.accounts.account(accountId)?.userId
+            val n = com.termoak.app.data.AccessRules.noticeOf(me, ev) ?: return@collect
+            if (nav.currentDestination?.route == Routes.ACCESS) return@collect
+            val text = com.termoak.app.data.AccessTexts.notice(resources, n, ev)
+            scope.launch {
+                val r = snackbar.showSnackbar(text, actionLabel = resources.getString(R.string.access_open), withDismissAction = true, duration = SnackbarDuration.Long)
+                if (r == SnackbarResult.ActionPerformed) nav.navigate(Routes.access(mine = n != com.termoak.app.data.AccessRules.Notice.CREATED)) { launchSingleTop = true }
+            }
+        }
     }
     LaunchedEffect(Unit) {
         app.accounts.changes.collect {

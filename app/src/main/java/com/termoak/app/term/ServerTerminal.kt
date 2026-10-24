@@ -91,6 +91,7 @@ class ServerTerminal(
                 sessionId = h.sessionId()
                 syncFromHandle()
             } catch (e: TermoakException) {
+                noteAccessError(e)
                 _state.value = TermState.Closed(e.toUiText(R.string.term_open_session_failed))
             }
         }
@@ -155,6 +156,7 @@ class ServerTerminal(
 
     override fun reconnect() {
         helloSeen = false
+        closeReason = null
         _live.update { it.copy(ended = null, waiting = null) }
         super.reconnect()
     }
@@ -347,8 +349,14 @@ class ServerTerminal(
             // An action that wasn't allowed: the connection stays open.
             is ServerTerminalEvent.Error -> toast(SkErrors.serverText(event.message) ?: UiText.Raw(event.message))
             is ServerTerminalEvent.Ended -> {
-                _live.update { it.copy(ended = ShareEnd(event.code, event.message), waiting = null, canWrite = false) }
-                _state.value = TermState.Closed(endMessage(event.code)?.let { uiText(it) } ?: UiText.Raw(event.message))
+                // The server closed it for an access window (access_expired / access_revoked) and then ends the
+                // shared session (session_ended): the first reason stays.
+                if (com.termoak.app.data.AccessRules.isCloseReason(closeReason) && !com.termoak.app.data.AccessRules.isCloseReason(event.code)) {
+                    _live.update { it.copy(waiting = null, canWrite = false) }
+                } else {
+                    _live.update { it.copy(ended = ShareEnd(event.code, event.message), waiting = null, canWrite = false) }
+                    _state.value = TermState.Closed(endMessage(event.code)?.let { uiText(it) } ?: UiText.Raw(event.message))
+                }
             }
             is ServerTerminalEvent.Closed -> if (_state.value !is TermState.Closed) {
                 _state.value = TermState.Closed(uiText(R.string.term_server_session_closed))
@@ -361,16 +369,33 @@ class ServerTerminal(
         onShareNotice(ShareNotice(kind, id, sessionId, _title.value ?: label, name, participantId))
     }
 
+    /** The teams security reason the server closed it with (`access_expired`, `access_revoked`…), kept over a later `session_ended`. */
+    @Volatile var closeReason: String? = null
+        private set
+
     private fun applyState(state: ServerSessionState) {
         // The end screen stays once the server has sent you away.
         if (_live.value.ended != null) return
+        if (state is ServerSessionState.Closed) {
+            state.reason?.let { closeReason = com.termoak.app.data.AccessRules.keptReason(closeReason, it) }
+            // A server session refused for lack of a window carries only the text: ask the server about the host.
+            if (com.termoak.app.data.AccessTexts.serverText(state.reason)?.let { it == UiText.Res(R.string.error_access_approval_required) } == true) {
+                val acc = accountId
+                val host = hostId
+                if (acc != null && host != null) scope.launch {
+                    com.termoak.app.data.AccessBook.ask(acc, host, force = true)?.takeIf { !it.allowed }?.let {
+                        _accessNeed.value = com.termoak.app.data.AccessRules.needOf(it)
+                    }
+                }
+            }
+        }
         _state.value = when (state) {
             // "Touch your security key (X) on one of your devices…" in the app's language.
             is ServerSessionState.Connecting -> TermState.Connecting(SkErrors.sessionMessage(state.message) ?: UiText.Raw(state.message))
             is ServerSessionState.Running -> TermState.Running
             is ServerSessionState.HostOffline -> TermState.Connecting(uiText(R.string.term_host_offline_waiting))
             is ServerSessionState.Closed -> TermState.Closed(
-                state.reason?.let { SkErrors.serverText(it) ?: UiText.Raw(it) }
+                (closeReason ?: state.reason)?.let { com.termoak.app.data.AccessTexts.serverText(it) ?: SkErrors.serverText(it) ?: UiText.Raw(it) }
                     ?: state.exitCode?.let { uiText(R.string.term_session_ended_code, it.toString()) }
                     ?: uiText(R.string.term_session_closed),
             )

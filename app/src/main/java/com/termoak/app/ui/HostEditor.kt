@@ -246,6 +246,8 @@ fun HostEditor(
     var jumps by remember { mutableStateOf(s0.jumpHostIds ?: emptyList()) }
     // Private network (0.7): its own (`null`: its group's, or direct). Only networks of its vault.
     var networkId by remember { mutableStateOf(s0.networkId) }
+    // Teams security (0.7 phase 4d): "Team certificate" (its own, `null`: its group's or password/key; later values kept).
+    var hostAuth by remember { mutableStateOf(s0.auth) }
     val allHosts = remember { runCatching { app.core.listHosts(all) }.getOrDefault(emptyList()).filter { it.uid != original?.uid } }
     val otherHosts = allHosts.filter { place.reaches(it.accountId, it.vaultId) }
     var agentForwarding by remember { mutableStateOf(s0.agentForwarding == true) }
@@ -361,6 +363,7 @@ fun HostEditor(
                 },
                 // This device can't use networks; elsewhere it is kept even when this screen didn't show it.
                 networkId = if (place.device) null else networkId,
+                auth = if (place.device) null else hostAuth,
             ),
         )
     }
@@ -516,7 +519,8 @@ fun HostEditor(
                 }
             }
 
-            if (useOnly) UseOnlyNote()
+            if (original?.access == com.termoak.ffi.ItemAccess.CONNECT_ONLY) FormNote(stringResource(R.string.host_editor_connect_only))
+            else if (useOnly) UseOnlyNote()
 
             // ----- Where it is saved: This device or a vault (with accounts) -----
             if (accountList.isNotEmpty()) {
@@ -624,6 +628,18 @@ fun HostEditor(
                 FormHint(stringResource(if (auth == Auth.IDENTITY) R.string.editor_identity_hint_telnet else R.string.editor_telnet_login_hint))
             }
 
+            // ----- Authentication: team certificates (teams security, servers that have it; SSH only) -----
+            if (!place.device && !telnet && (com.termoak.app.data.AccessBook.supported(place.account) || hostAuth != null)) {
+                FormSection(stringResource(R.string.auth_field_label)) {
+                    AuthField(
+                        own = hostAuth,
+                        inherited = com.termoak.app.data.AccessRules.effectiveAuth(null, groupId, AccessUi.groupAuths(allGroups, place.account, place.vault)),
+                        certificates = AccessUi.gates(app, place.account, place.vault).certificates,
+                        enabled = !useOnly, outlined = false,
+                    ) { hostAuth = it }
+                }
+            }
+
             // ----- Group, tags and color -----
             FormSection(stringResource(R.string.editor_section_group)) {
                 FormPicker(
@@ -729,8 +745,9 @@ fun HostEditor(
                         }
                     }
 
-                    // The private network its first connection goes through (account vaults only).
-                    if (!place.device && (com.termoak.app.data.NetworkBook.supported(place.account) || networkId != null)) {
+                    // The private network its first connection goes through (account vaults only; not where the team forbids it).
+                    val placeGates = AccessUi.gates(app, place.account, place.vault)
+                    if (!place.device && (com.termoak.app.data.NetworkBook.supported(place.account) || networkId != null) && (placeGates.networks || networkId != null)) {
                         FormSection(stringResource(R.string.networks_picker_label)) {
                             NetworkField(
                                 app, place.account, place.vault, groupId, allGroups, networkId, outlined = false,

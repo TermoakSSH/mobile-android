@@ -57,6 +57,8 @@ internal fun GroupEditorDialog(app: TermoakApp, group: HostGroup, onDismiss: () 
     var record by remember(group) { mutableStateOf(s0.recordSessions) }
     // Private network (0.7) for the hosts inside: `null` inherits the parent group's (or direct).
     var networkId by remember(group) { mutableStateOf(s0.networkId) }
+    // Teams security: "Team certificate" for the hosts inside (`null`: the parent group's, or password/key).
+    var groupAuth by remember(group) { mutableStateOf(s0.auth) }
     // Identities and keys a host of the group can use: its vault's and This device's.
     val filter = ItemFilter(accountIds = listOfNotNull(place.account), vaultIds = place.vault?.let { listOf(it) }, includeDevice = true)
     val identities = remember(place) { runCatching { app.core.listIdentities(filter) }.getOrDefault(emptyList()).filter { place.reaches(it.accountId, it.vaultId) } }
@@ -105,7 +107,17 @@ internal fun GroupEditorDialog(app: TermoakApp, group: HostGroup, onDismiss: () 
                 }
                 Picker(stringResource(R.string.editor_agent_forwarding), choices.first { it.first == agent }.second, null, choices) { agent = it }
                 Picker(stringResource(R.string.editor_record), choices.first { it.first == record }.second, null, choices) { record = it }
-                if (place.account != null) {
+                if (place.account != null && (com.termoak.app.data.AccessBook.supported(place.account) || groupAuth != null)) {
+                    AuthField(
+                        own = groupAuth,
+                        inherited = com.termoak.app.data.AccessRules.effectiveAuth(null, group.parentId, AccessUi.groupAuths(groups, place.account, place.vault)),
+                        certificates = AccessUi.gates(app, place.account, place.vault).certificates,
+                        enabled = true, outlined = true,
+                    ) { groupAuth = it }
+                    Text(stringResource(R.string.auth_field_group_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                // Private networks: not where the team forbids them.
+                if (place.account != null && (AccessUi.gates(app, place.account, place.vault).networks || networkId != null)) {
                     NetworkField(app, place.account, place.vault, group.parentId, groups, networkId, outlined = true, onChange = { networkId = it })
                     if (networkId != null) {
                         Text(
@@ -128,6 +140,7 @@ internal fun GroupEditorDialog(app: TermoakApp, group: HostGroup, onDismiss: () 
                     agentForwarding = agent,
                     recordSessions = record,
                     networkId = if (place.account == null) null else networkId,
+                    auth = if (place.account == null) null else groupAuth,
                 )
                 onSave(group.copy(name = name.trim(), color = color, settings = settings), if (topLevel) place else null)
             }) { Text(stringResource(R.string.common_save)) }
