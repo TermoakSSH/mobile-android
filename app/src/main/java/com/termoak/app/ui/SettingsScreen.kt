@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.EnhancedEncryption
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Key
@@ -169,6 +170,14 @@ fun SettingsScreen(app: TermoakApp, nav: NavHostController) {
                 Row0(Icons.Outlined.VerifiedUser, stringResource(R.string.settings_certificates), stringResource(R.string.settings_certificates_hint)) {
                     nav.navigate(Routes.certificates())
                 }
+            }
+            // E2EE vaults, linked identities and your activity (0.7 phase 5c), on servers that have them.
+            if (loggedIn == true && com.termoak.app.data.E2eeBook.anySupported()) {
+                val asking = com.termoak.app.data.E2eeBook.pairingCount()
+                Row0(
+                    Icons.Outlined.EnhancedEncryption, stringResource(R.string.settings_page_security), stringResource(R.string.settings_subtitle_security),
+                    trailing = if (asking > 0) ({ androidx.compose.material3.Badge { Text("$asking") } }) else null,
+                ) { nav.navigate(Routes.security()) }
             }
             if (loggedIn == true) {
                 twoFactor?.let { tf ->

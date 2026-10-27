@@ -1,0 +1,580 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- E2EE vaults, SSO and the extended audit (0.7 phase 5c): generated from the desktop's texts (locales/*.json, 5b) plus the app's own. Same keys in values-es. -->
+<resources>
+    <!-- args: team -->
+    <string name="add_account_sso_available">%1$s can sign you in with single sign-on.</string>
+    <!-- args: team -->
+    <string name="add_account_sso_continue">Continue with %1$s</string>
+    <!-- args: team -->
+    <string name="add_account_sso_enforced">%1$s signs in only through single sign-on: your organization\'s identity provider opens in the browser.</string>
+    <!-- args: error -->
+    <string name="add_account_sso_failed">Single sign-on failed: %1$s</string>
+    <string name="add_account_sso_open_again">Open the browser again</string>
+    <string name="add_account_sso_owner_password">I own this team: use my password</string>
+    <string name="add_account_sso_waiting">Continue in your browser. Termoak signs you in when it comes back.</string>
+    <string name="add_account_sso_your_team">your organization</string>
+    <string name="audit_account_title">Your activity</string>
+    <string name="audit_action_access_approve">Access approved</string>
+    <string name="audit_action_access_cancel">Access request cancelled</string>
+    <string name="audit_action_access_deny">Access denied</string>
+    <string name="audit_action_access_policy_delete">Access policy removed</string>
+    <string name="audit_action_access_policy_set">Access policy changed</string>
+    <string name="audit_action_access_request">Access requested</string>
+    <string name="audit_action_access_revoke">Access ended</string>
+    <string name="audit_action_admin_2fa_reset">Two-step verification removed</string>
+    <string name="audit_action_admin_device_revoked">Device revoked (admin)</string>
+    <string name="audit_action_admin_invite_created">Invitation created</string>
+    <string name="audit_action_admin_invite_revoked">Invitation revoked</string>
+    <string name="audit_action_admin_password_reset">Password reset</string>
+    <string name="audit_action_admin_user_created">User created</string>
+    <string name="audit_action_admin_user_updated">User modified</string>
+    <string name="audit_action_ai_approval_approved">AI: action approved</string>
+    <string name="audit_action_ai_approval_denied">AI: action denied</string>
+    <string name="audit_action_ai_task_mode">AI: mode changed</string>
+    <string name="audit_action_audit_export">Audit exported</string>
+    <string name="audit_action_audit_settings">Audit retention changed</string>
+    <string name="audit_action_audit_sink_create">Audit destination added</string>
+    <string name="audit_action_audit_sink_delete">Audit destination removed</string>
+    <string name="audit_action_audit_sink_update">Audit destination changed</string>
+    <string name="audit_action_audit_test">Audit destination tested</string>
+    <string name="audit_action_auth_2fa_disabled">Two-step verification disabled</string>
+    <string name="audit_action_auth_2fa_enabled">Two-step verification enabled</string>
+    <string name="audit_action_auth_device_revoked">Device revoked</string>
+    <string name="audit_action_auth_devices_revoked">Every device signed out</string>
+    <string name="audit_action_auth_email_changed">Email changed</string>
+    <string name="audit_action_auth_email_verified">Email verified</string>
+    <string name="audit_action_auth_login">Sign-in</string>
+    <string name="audit_action_auth_login_refused">Password sign-in refused (single sign-on required)</string>
+    <string name="audit_action_auth_password_changed">Password changed</string>
+    <string name="audit_action_auth_password_reset">Password reset</string>
+    <string name="audit_action_auth_register">Account created</string>
+    <string name="audit_action_ca_create">SSH CA created</string>
+    <string name="audit_action_ca_disable">SSH CA disabled</string>
+    <string name="audit_action_ca_rotate">SSH CA rotated</string>
+    <string name="audit_action_cert_issue">Certificate issued</string>
+    <string name="audit_action_cert_revoke">Certificate revoked</string>
+    <string name="audit_action_e2ee_disable">End-to-end encryption turned off</string>
+    <string name="audit_action_e2ee_enable">Vault turned end-to-end encrypted</string>
+    <string name="audit_action_e2ee_key_rotate">E2EE key replaced</string>
+    <string name="audit_action_e2ee_pairing_approve">Device unlocked from another device</string>
+    <string name="audit_action_e2ee_pairing_deny">Device unlock denied</string>
+    <string name="audit_action_e2ee_pairing_request">A device asked to unlock E2EE</string>
+    <string name="audit_action_e2ee_passphrase_removed">E2EE passphrase removed</string>
+    <string name="audit_action_e2ee_reset">E2EE key reset</string>
+    <string name="audit_action_e2ee_rotate">Vault key rotated</string>
+    <string name="audit_action_e2ee_seal">E2EE passphrase or recovery phrase changed</string>
+    <string name="audit_action_e2ee_setup">End-to-end encryption set up</string>
+    <string name="audit_action_e2ee_unlock">Credentials sent for one session</string>
+    <string name="audit_action_e2ee_wraps_add">Vault key given to members</string>
+    <string name="audit_action_exec_batch">Command on several hosts</string>
+    <string name="audit_action_key_create">Key created</string>
+    <string name="audit_action_network_down">Private network stopped</string>
+    <string name="audit_action_network_key_generated">Network key made by the server</string>
+    <string name="audit_action_network_up">Private network started</string>
+    <string name="audit_action_secret_reveal">Secret revealed</string>
+    <string name="audit_action_secret_use">Secret used by the server</string>
+    <string name="audit_action_session_attach">Joined a session</string>
+    <string name="audit_action_session_close">Session closed</string>
+    <string name="audit_action_session_open">Session opened</string>
+    <string name="audit_action_session_share">Session shared</string>
+    <string name="audit_action_session_share_revoked">Session invitation revoked</string>
+    <string name="audit_action_sftp_delete">SFTP: delete</string>
+    <string name="audit_action_sftp_download">SFTP: download</string>
+    <string name="audit_action_sftp_rename">SFTP: rename</string>
+    <string name="audit_action_sftp_upload">SFTP: upload</string>
+    <string name="audit_action_sso_config">Single sign-on settings changed</string>
+    <string name="audit_action_sso_domain_add">Domain added</string>
+    <string name="audit_action_sso_domain_check_failed">Domain check failed</string>
+    <string name="audit_action_sso_domain_remove">Domain removed</string>
+    <string name="audit_action_sso_domain_verify">Domain verified</string>
+    <string name="audit_action_sso_link">Identity linked</string>
+    <string name="audit_action_sso_login">Signed in with single sign-on</string>
+    <string name="audit_action_sso_login_failed">Single sign-on failed</string>
+    <string name="audit_action_sso_unlink">Identity unlinked</string>
+    <string name="audit_action_sso_user_created">Account created by single sign-on</string>
+    <string name="audit_action_team_created">Team created</string>
+    <string name="audit_action_team_deleted">Team deleted</string>
+    <string name="audit_action_team_invite_created">Team invitation created</string>
+    <string name="audit_action_team_invite_revoked">Team invitation revoked</string>
+    <string name="audit_action_team_left">Left the team</string>
+    <string name="audit_action_team_member_added">Member added</string>
+    <string name="audit_action_team_member_removed">Member removed</string>
+    <string name="audit_action_team_policy">Team policy changed</string>
+    <string name="audit_action_team_principal_changed">Member\'s certificate principal changed</string>
+    <string name="audit_action_team_role_changed">Role changed</string>
+    <string name="audit_action_vault_create">Vault created</string>
+    <string name="audit_action_vault_delete">Vault deleted</string>
+    <string name="audit_action_vault_member_add">Member added to a vault</string>
+    <string name="audit_action_vault_member_removed">Member removed from a vault</string>
+    <string name="audit_action_vault_role_changed">Vault role changed</string>
+    <string name="audit_action_vault_transfer">Items moved or copied between vaults</string>
+    <string name="audit_action_vault_update">Vault changed</string>
+    <!-- args: count -->
+    <plurals name="audit_count">
+        <item quantity="one">%1$d entry · no more</item>
+        <item quantity="other">%1$d entries · no more</item>
+    </plurals>
+    <string name="audit_empty">Nothing matches.</string>
+    <string name="audit_export">Export</string>
+    <string name="audit_filter_actions">Actions</string>
+    <string name="audit_filter_actions_placeholder">e.g. vault.*, secret.reveal</string>
+    <string name="audit_filter_actor">Who</string>
+    <string name="audit_filter_actor_placeholder">email or user:…</string>
+    <string name="audit_filter_apply">Search</string>
+    <string name="audit_filter_preset">Show</string>
+    <string name="audit_filter_range">When</string>
+    <string name="audit_filter_text">Text</string>
+    <string name="audit_filter_text_placeholder">anywhere</string>
+    <string name="audit_load_more">Load more</string>
+    <string name="audit_preset_access">Access</string>
+    <string name="audit_preset_all">Everything</string>
+    <string name="audit_preset_certificates">Certificates</string>
+    <string name="audit_preset_e2ee">E2EE</string>
+    <string name="audit_preset_policy">Policy</string>
+    <string name="audit_preset_sign_ins">Sign-ins</string>
+    <string name="audit_preset_sso">SSO</string>
+    <string name="audit_range_any">Any time</string>
+    <string name="audit_range_day">Last 24 hours</string>
+    <string name="audit_range_month">Last 30 days</string>
+    <string name="audit_range_quarter">Last 90 days</string>
+    <string name="audit_range_week">Last 7 days</string>
+    <string name="audit_retention_days">days</string>
+    <!-- args: days -->
+    <string name="audit_retention_default">Server default (%1$s)</string>
+    <!-- args: default, max -->
+    <string name="audit_retention_hint">How long the team\'s entries are kept: empty uses the server\'s %1$s days; at most %2$s.</string>
+    <!-- args: max -->
+    <string name="audit_retention_invalid">Retention: a number of days from 1 to %1$s (empty: the server\'s default)</string>
+    <string name="audit_retention_saved">Retention saved</string>
+    <string name="audit_retention_title">Retention</string>
+    <string name="audit_sink_actions">Only these actions (optional)</string>
+    <string name="audit_sink_actions_hint">Comma separated, * at the end matches a prefix. Empty: everything.</string>
+    <string name="audit_sink_add">Add destination</string>
+    <string name="audit_sink_add_title">New audit destination</string>
+    <string name="audit_sink_added">Destination added: new entries go there</string>
+    <string name="audit_sink_ca_pem">CA certificate (optional)</string>
+    <string name="audit_sink_ca_pem_hint">PEM of a private CA to trust instead of the public ones.</string>
+    <string name="audit_sink_delete_message">Entries stop going there. Nothing already delivered is touched.</string>
+    <!-- args: name -->
+    <string name="audit_sink_delete_title">Delete %1$s?</string>
+    <string name="audit_sink_enabled">Delivering</string>
+    <string name="audit_sink_host">Host</string>
+    <string name="audit_sink_host_invalid">The syslog server needs a host name or address</string>
+    <string name="audit_sink_kind">Type</string>
+    <string name="audit_sink_kind_syslog">Syslog (RFC 5424)</string>
+    <string name="audit_sink_kind_webhook">Webhook (HTTPS)</string>
+    <string name="audit_sink_name">Name</string>
+    <string name="audit_sink_name_placeholder">SIEM</string>
+    <string name="audit_sink_name_required">Give the destination a name</string>
+    <string name="audit_sink_port">Port</string>
+    <string name="audit_sink_port_invalid">Port: a number from 1 to 65535</string>
+    <string name="audit_sink_secret_copied">Secret copied</string>
+    <string name="audit_sink_secret_hint">Verify each request: HMAC-SHA256(secret, \"&lt;t&gt;.&lt;body&gt;\") must equal v1 in X-Termoak-Signature, and t must be recent.</string>
+    <string name="audit_sink_secret_message">Copy it into your receiver now: it is shown only once.</string>
+    <!-- args: name -->
+    <string name="audit_sink_secret_title">Signing secret of %1$s</string>
+    <!-- args: date -->
+    <string name="audit_sink_state_delivered">Delivered %1$s</string>
+    <string name="audit_sink_state_disabled">Paused</string>
+    <!-- args: count, error -->
+    <string name="audit_sink_state_failing">%1$s failed attempts: %2$s</string>
+    <string name="audit_sink_state_waiting">Nothing delivered yet</string>
+    <string name="audit_sink_tcp_warning">Plain TCP is not encrypted: the server allows it only for destinations its administrator listed.</string>
+    <string name="audit_sink_test">Test</string>
+    <!-- args: error -->
+    <string name="audit_sink_test_failed">The test event did not arrive: %1$s</string>
+    <string name="audit_sink_test_ok">The test event arrived</string>
+    <string name="audit_sink_tls">TLS</string>
+    <string name="audit_sink_url">URL</string>
+    <string name="audit_sink_url_invalid">The webhook needs an https:// URL</string>
+    <string name="audit_sink_webhook_hint">Each POST carries X-Termoak-Signature (t=…, v1=HMAC-SHA256 of t.body with the secret shown after creating it).</string>
+    <string name="audit_sinks_add_elsewhere">New destinations are added from the desktop app or the web; here you can check, test, pause and delete them.</string>
+    <string name="audit_sinks_hint">Every new entry of the team goes, in order, to these destinations: webhooks (JSON batches signed with HMAC-SHA256) or syslog (RFC 5424 over TLS or TCP).</string>
+    <string name="audit_sinks_none">No destinations.</string>
+    <string name="audit_sinks_title">Send to your SIEM</string>
+    <string name="audit_team_title">Team audit</string>
+    <string name="e2ee_auth_reason">Confirm it\'s you</string>
+    <string name="e2ee_banner_locked_detail">Unlock with your passphrase, your recovery phrase or another device.</string>
+    <string name="e2ee_banner_locked_title">End-to-end encrypted vaults are locked on this device</string>
+    <string name="e2ee_banner_pairing_detail">Approve it only if that device shows the same six-digit code.</string>
+    <!-- args: device -->
+    <string name="e2ee_banner_pairing_title">“%1$s” asks for your end-to-end encryption key</string>
+    <string name="e2ee_banner_pending_detail">Check their fingerprints with them and confirm them.</string>
+    <!-- args: count, vault -->
+    <plurals name="e2ee_banner_pending_title">
+        <item quantity="one">%1$d member waits for the key of %2$s</item>
+        <item quantity="other">%1$d members wait for the key of %2$s</item>
+    </plurals>
+    <string name="e2ee_banner_setup_detail">Set up your end-to-end encryption key to get its key from a member who holds it.</string>
+    <!-- args: vault -->
+    <string name="e2ee_banner_setup_title">%1$s is end-to-end encrypted</string>
+    <string name="e2ee_confirm_back">Show the phrase</string>
+    <string name="e2ee_confirm_close_anyway">Close</string>
+    <string name="e2ee_confirm_close_message">The phrase will not be shown again. If you did not write it down, make a new one from Settings → Security.</string>
+    <string name="e2ee_confirm_close_title">Close without checking?</string>
+    <string name="e2ee_confirm_done">Done</string>
+    <string name="e2ee_confirm_message">Type these words of your phrase to check you wrote it down correctly (the first four letters are enough).</string>
+    <!-- args: n -->
+    <string name="e2ee_confirm_word">Word %1$s</string>
+    <string name="e2ee_confirm_wrong">Those are not the words of your phrase: look at it again</string>
+    <string name="e2ee_fingerprint">Key fingerprint</string>
+    <string name="e2ee_intro">End-to-end encrypted vaults keep their passwords and keys encrypted with keys that only your devices have: the server, its operator or a stolen backup cannot read them. Set up your key once; then turn it on per vault (vault settings → Encryption).</string>
+    <string name="e2ee_intro_secrets_only">Only secrets are end-to-end encrypted: names, addresses, users and notes stay readable by the server so search and server features keep working.</string>
+    <string name="e2ee_lock">Lock this device</string>
+    <!-- args: count -->
+    <plurals name="e2ee_locked_secrets">
+        <item quantity="one">%1$d secret is locked on this device</item>
+        <item quantity="other">%1$d secrets are locked on this device</item>
+    </plurals>
+    <string name="e2ee_locked_toast">Locked: this device forgot your key and the opened secrets</string>
+    <string name="e2ee_methods_both">New devices unlock with your passphrase, your recovery phrase or another device.</string>
+    <string name="e2ee_methods_none">Only another device of yours can unlock new ones.</string>
+    <string name="e2ee_methods_passphrase">New devices unlock with your passphrase or another device (no recovery phrase).</string>
+    <string name="e2ee_methods_recovery">New devices unlock with your recovery phrase or another device.</string>
+    <!-- args: count -->
+    <plurals name="e2ee_notice_waiting">
+        <item quantity="one">%1$d change waits until you unlock end-to-end encryption on this device</item>
+        <item quantity="other">%1$d changes wait until you unlock end-to-end encryption on this device</item>
+    </plurals>
+    <string name="e2ee_pairing_approve">Approve</string>
+    <string name="e2ee_pairing_approved">Approved: the other device is unlocking</string>
+    <string name="e2ee_pairing_compare">Approve only if that device shows exactly this code. If you did not ask, deny it.</string>
+    <string name="e2ee_pairing_denied">Denied</string>
+    <string name="e2ee_pairing_deny">Deny</string>
+    <!-- args: left -->
+    <string name="e2ee_pairing_expires">Expires in %1$s</string>
+    <!-- args: device -->
+    <string name="e2ee_pairing_message">“%1$s” asks for your end-to-end encryption key.</string>
+    <!-- args: device -->
+    <string name="e2ee_pairing_notice_body">“%1$s” wants to unlock your end-to-end encrypted vaults: compare the code in Termoak</string>
+    <string name="e2ee_pairing_notice_title">A device asks for your E2EE key</string>
+    <string name="e2ee_pairing_review">Review</string>
+    <string name="e2ee_pairing_title">Unlock another device?</string>
+    <!-- args: device, code -->
+    <string name="e2ee_pairing_toast">“%1$s” asks for your end-to-end encryption key (code %2$s)</string>
+    <string name="e2ee_pairing_waiting_title">Devices asking for your key</string>
+    <string name="e2ee_passphrase_change">Change passphrase</string>
+    <string name="e2ee_passphrase_hint">Use several words you will remember (8 characters at least). It is not your login password and Termoak cannot reset it.</string>
+    <string name="e2ee_passphrase_mismatch">The passphrases do not match</string>
+    <string name="e2ee_passphrase_optional">E2EE passphrase (optional)</string>
+    <string name="e2ee_passphrase_placeholder">Passphrase</string>
+    <string name="e2ee_passphrase_remove">Remove passphrase</string>
+    <string name="e2ee_passphrase_remove_message">New devices will unlock only with the recovery phrase or from another device of yours.</string>
+    <string name="e2ee_passphrase_remove_title">Remove the passphrase?</string>
+    <string name="e2ee_passphrase_removed">Passphrase removed</string>
+    <string name="e2ee_passphrase_repeat">Repeat the passphrase</string>
+    <string name="e2ee_passphrase_saved">Passphrase saved</string>
+    <string name="e2ee_passphrase_set">Set a passphrase</string>
+    <string name="e2ee_passphrase_strength_fair">Fair: a few more words would help</string>
+    <string name="e2ee_passphrase_strength_good">Good</string>
+    <string name="e2ee_passphrase_strength_strong">Strong</string>
+    <string name="e2ee_passphrase_strength_too_short">Too short (8 characters at least)</string>
+    <string name="e2ee_passphrase_strength_weak">Weak</string>
+    <string name="e2ee_passphrase_title">E2EE passphrase</string>
+    <string name="e2ee_recovery_copied">Recovery phrase copied: paste it somewhere safe and clear the clipboard</string>
+    <!-- args: account, server -->
+    <string name="e2ee_recovery_doc_account">Account: %1$s on %2$s</string>
+    <!-- args: date -->
+    <string name="e2ee_recovery_doc_date">Made on %1$s</string>
+    <string name="e2ee_recovery_doc_keep">Keep it offline and private. Anyone with these 24 words and your password can read your end-to-end encrypted vaults; without them, a lost device can mean lost secrets. Termoak cannot recover it for you.</string>
+    <string name="e2ee_recovery_doc_title">Termoak recovery phrase</string>
+    <string name="e2ee_recovery_keep_hint">A password manager, a printed copy in a drawer or a safe are good places. Anyone with these words and your password can read your end-to-end encrypted vaults.</string>
+    <string name="e2ee_recovery_new">New recovery phrase</string>
+    <string name="e2ee_recovery_new_confirm">Make a new phrase</string>
+    <string name="e2ee_recovery_new_done">Your new recovery phrase is in place</string>
+    <string name="e2ee_recovery_new_message">A new 24-word phrase replaces the old one, which stops working at once.</string>
+    <string name="e2ee_recovery_new_title">New recovery phrase</string>
+    <string name="e2ee_recovery_print">Print…</string>
+    <string name="e2ee_recovery_reason_checksum">The words do not form a valid phrase: a word is mistyped or two are swapped</string>
+    <string name="e2ee_recovery_reason_old_format">This is a recovery key of the old format (56 characters): recovery keys are now 24 words. Use your passphrase or another device, or make a new recovery phrase</string>
+    <!-- args: n -->
+    <string name="e2ee_recovery_reason_unknown_word">Word %1$s is not a recovery phrase word: check its spelling</string>
+    <!-- args: expected, count -->
+    <string name="e2ee_recovery_reason_word_count">A recovery phrase has %1$s words (%2$s typed)</string>
+    <string name="e2ee_recovery_save">Save…</string>
+    <string name="e2ee_recovery_saved_here">Saved: move it somewhere safe and delete other copies</string>
+    <string name="e2ee_recovery_show_message">Write these 24 words down, in order, and keep them offline. They are shown only now: with them you get your key back if you lose every device.</string>
+    <string name="e2ee_recovery_stored">I have stored my recovery phrase</string>
+    <string name="e2ee_reset_button">Reset…</string>
+    <string name="e2ee_reset_confirm">Reset</string>
+    <string name="e2ee_reset_done">End-to-end encryption was reset: set it up again when you are ready</string>
+    <string name="e2ee_reset_message">Only if you lost every device and your recovery phrase. Your key, its copies and pairings are deleted, and you lose the keys of every end-to-end encrypted vault: ask someone who holds them to give them to you again after you set up a new key.</string>
+    <string name="e2ee_reset_mismatch">That is not the account\'s email</string>
+    <string name="e2ee_reset_no_vaults">No vault depends only on your key.</string>
+    <string name="e2ee_reset_title">Reset end-to-end encryption</string>
+    <!-- args: email -->
+    <string name="e2ee_reset_type_email">Type %1$s to confirm</string>
+    <!-- args: count -->
+    <plurals name="e2ee_reset_vaults_lost">
+        <item quantity="one">%1$d vault depends only on your key: its secrets will be lost for good</item>
+        <item quantity="other">%1$d vaults depend only on your key: their secrets will be lost for good</item>
+    </plurals>
+    <string name="e2ee_rotate_button">Replace key…</string>
+    <string name="e2ee_rotate_confirm">Replace the key</string>
+    <string name="e2ee_rotate_done">Your key was replaced</string>
+    <string name="e2ee_rotate_message">Do this if you lost a device that was unlocked. This device makes a new key, gives it every vault key you hold and a new recovery phrase; your other devices lock and must be unlocked again. Remove the lost device in Settings → Accounts → Devices too.</string>
+    <string name="e2ee_rotate_title">Replace your end-to-end encryption key</string>
+    <string name="e2ee_setup_button">Set up end-to-end encryption</string>
+    <string name="e2ee_setup_create">Create my key</string>
+    <string name="e2ee_setup_done">End-to-end encryption is set up on this device</string>
+    <string name="e2ee_setup_message">Termoak makes your key on this device and a 24-word recovery phrase you will write down next. A passphrase is optional: with it you can unlock new devices without the phrase. Never use your login password: the server sees that one.</string>
+    <string name="e2ee_setup_title">Set up end-to-end encryption</string>
+    <string name="e2ee_state_locked">Locked here</string>
+    <string name="e2ee_state_locked_hint">Your account has a key, but this device does not hold it: unlock it to open your end-to-end encrypted vaults here.</string>
+    <string name="e2ee_state_unlocked">Unlocked here</string>
+    <string name="e2ee_state_unlocked_hint">This device holds your key: it opens the end-to-end encrypted vaults you belong to.</string>
+    <string name="e2ee_title">End-to-end encryption</string>
+    <string name="e2ee_unlock_button">Unlock</string>
+    <string name="e2ee_unlock_device_code">Code</string>
+    <string name="e2ee_unlock_device_message">Ask a device where you are unlocked (another computer, your phone): it shows a request with a six-digit code. Approve it only if the code is the one shown here.</string>
+    <string name="e2ee_unlock_device_start">Ask my other devices</string>
+    <string name="e2ee_unlock_device_waiting">Waiting for the approval…</string>
+    <!-- args: count -->
+    <plurals name="e2ee_unlock_done">
+        <item quantity="one">Unlocked: %1$d secret opened</item>
+        <item quantity="other">Unlocked: %1$d secrets opened</item>
+    </plurals>
+    <string name="e2ee_unlock_passphrase_message">Your E2EE passphrase (not your login password).</string>
+    <string name="e2ee_unlock_recovery_message">Type or paste your 24 words. Case, numbers and line breaks do not matter, and the first four letters of each word are enough.</string>
+    <string name="e2ee_unlock_recovery_placeholder">abandon ability able about …</string>
+    <!-- args: count -->
+    <string name="e2ee_unlock_recovery_typing">%1$s of 24 words</string>
+    <string name="e2ee_unlock_recovery_valid">A valid recovery phrase</string>
+    <string name="e2ee_unlock_title">Unlock end-to-end encryption</string>
+    <string name="e2ee_unlock_way_device">Another device</string>
+    <string name="e2ee_unlock_way_passphrase">Passphrase</string>
+    <string name="e2ee_unlock_way_recovery">Recovery phrase</string>
+    <string name="error_audit_sink_invalid">The destination is not valid or not allowed by the server</string>
+    <string name="error_e2ee_already_enabled">This vault is already end-to-end encrypted</string>
+    <string name="error_e2ee_client_required">This vault is end-to-end encrypted and needs a newer Termoak app</string>
+    <string name="error_e2ee_decrypt_failed">Could not decrypt (wrong key or damaged data)</string>
+    <string name="error_e2ee_incomplete">Something changed in the vault meanwhile (an item or a member): sync and try again</string>
+    <string name="error_e2ee_key_exists">Your account already has an end-to-end encryption key: unlock it instead</string>
+    <string name="error_e2ee_key_mismatch">The key does not match the one your account published: do not continue and check your devices</string>
+    <string name="error_e2ee_key_outdated">The vault\'s key changed: syncing again with the new key</string>
+    <string name="error_e2ee_locked">These secrets are end-to-end encrypted and locked on this device: unlock end-to-end encryption first</string>
+    <string name="error_e2ee_not_enabled">This vault is not end-to-end encrypted</string>
+    <string name="error_e2ee_not_set_up">Set up end-to-end encryption for your account first</string>
+    <string name="error_e2ee_pairing_closed">The request was denied, expired, or too many are waiting: start again</string>
+    <string name="error_e2ee_passphrase_invalid">Wrong passphrase</string>
+    <string name="error_e2ee_passphrase_too_short">The passphrase needs at least 8 characters</string>
+    <string name="error_e2ee_plaintext_rejected">This vault is end-to-end encrypted: the secret has to be encrypted on this device first</string>
+    <string name="error_e2ee_recovery_key_invalid">That recovery phrase does not open your key</string>
+    <string name="error_e2ee_stale">Someone changed the vault\'s key meanwhile: sync and try again</string>
+    <string name="error_e2ee_unlock_required">This host\'s credentials are end-to-end encrypted: the server can only use them if this device sends them for this connection</string>
+    <string name="error_e2ee_vault">The server cannot do this for an end-to-end encrypted vault (it cannot read its secrets)</string>
+    <string name="error_e2ee_wrap_invalid">That person cannot hold this vault\'s key (their role or their key changed)</string>
+    <string name="error_invalid_format">Unknown export format</string>
+    <string name="error_invalid_retention">Retention out of range</string>
+    <string name="error_sso_account_not_found">There is no account for that email and this team does not create them</string>
+    <string name="error_sso_account_not_linked">That identity is not linked to an account: sign in with your password and link it in Settings → Security</string>
+    <string name="error_sso_code_invalid">The sign-in expired or was already used: start again</string>
+    <string name="error_sso_domain_taken">Another team verified (or recently claimed) that domain</string>
+    <string name="error_sso_domain_unverified">Verify a domain first</string>
+    <string name="error_sso_email_missing">The identity provider did not send an email address</string>
+    <string name="error_sso_email_unverified">The identity provider says that email is not verified</string>
+    <string name="error_sso_failed">The identity provider refused the sign-in</string>
+    <string name="error_sso_identity_taken">That identity is linked to another account</string>
+    <string name="error_sso_issuer_invalid">The identity provider could not be reached or its settings do not match the issuer</string>
+    <string name="error_sso_not_configured">Single sign-on is not set up (or is off) for this team</string>
+    <string name="error_sso_only_account">This account signs in only through single sign-on: set a password before unlinking</string>
+    <string name="error_sso_pkce_invalid">The sign-in could not be checked: start again</string>
+    <string name="error_sso_redirect_invalid">The sign-in cannot come back to this app (redirect not allowed)</string>
+    <string name="error_sso_required">Your organization signs in through single sign-on: use “Continue with single sign-on”</string>
+    <!-- args: team -->
+    <string name="error_sso_required_team">%1$s signs in through single sign-on: use “Continue with %1$s”</string>
+    <string name="error_sso_state_invalid">The browser came back for another sign-in: start again</string>
+    <string name="settings_activity_none">No activity log here</string>
+    <string name="settings_activity_none_hint">Sign in to an account whose server has the extended audit.</string>
+    <string name="settings_page_activity">Activity</string>
+    <string name="settings_page_security">Security</string>
+    <string name="settings_security_no_e2ee">This account\'s server has no end-to-end encrypted vaults.</string>
+    <string name="settings_security_signed_out">Not signed in</string>
+    <string name="settings_security_signed_out_hint">Sign in to an account to manage its end-to-end encryption, linked identities and activity.</string>
+    <string name="settings_subtitle_activity">What happened in your account: sign-ins, vaults, keys, sessions</string>
+    <string name="settings_subtitle_security">End-to-end encryption and single sign-on</string>
+    <string name="sso_browser_opened">Continue in your browser: Termoak waits for it to come back</string>
+    <string name="sso_copied">Copied</string>
+    <string name="sso_domain_add">Add domain</string>
+    <string name="sso_domain_added">Domain added: publish its TXT record and verify it</string>
+    <!-- args: error -->
+    <string name="sso_domain_failed">Not verified yet: %1$s</string>
+    <string name="sso_domain_invalid">That is not a domain name</string>
+    <!-- args: domain, error -->
+    <string name="sso_domain_not_yet">%1$s is not verified yet (%2$s). DNS changes can take a while: try again later.</string>
+    <string name="sso_domain_pending">Waiting for the TXT record</string>
+    <string name="sso_domain_remove">Remove domain</string>
+    <string name="sso_domain_remove_last">It is the last verified domain: requiring single sign-on turns off too.</string>
+    <string name="sso_domain_remove_message">Its accounts are no longer linked or required to use single sign-on.</string>
+    <!-- args: domain -->
+    <string name="sso_domain_remove_title">Remove %1$s?</string>
+    <string name="sso_domain_txt_hint">Publish this TXT record in the domain\'s DNS, then Verify:</string>
+    <string name="sso_domain_txt_name">Name</string>
+    <string name="sso_domain_txt_value">Value</string>
+    <string name="sso_domain_txt_zone">Zone file</string>
+    <string name="sso_domain_verified">Verified</string>
+    <!-- args: domain -->
+    <string name="sso_domain_verified_toast">%1$s is verified</string>
+    <string name="sso_domain_verify">Verify</string>
+    <string name="sso_domain_vouched">Verified by a server administrator</string>
+    <string name="sso_domains_hint">Prove each email domain with a DNS TXT record. Accounts of verified domains are linked to their identity, and only they can be required to use single sign-on.</string>
+    <string name="sso_domains_none">No domains yet.</string>
+    <string name="sso_domains_title">Domains</string>
+    <string name="sso_field_client_id">Client ID</string>
+    <string name="sso_field_client_id_placeholder">From the provider</string>
+    <string name="sso_field_client_secret">Client secret</string>
+    <string name="sso_field_client_secret_hint">Stored encrypted on the server and never shown again. Public clients with PKCE only may leave it empty.</string>
+    <string name="sso_field_client_secret_placeholder">Paste it here</string>
+    <string name="sso_field_client_secret_stored">A secret is stored (never shown again): leave it empty to keep it, or paste a new one.</string>
+    <string name="sso_field_email_claim">Email claim</string>
+    <string name="sso_field_email_claim_hint">The ID token claim with the email (empty: email; Entra may need preferred_username).</string>
+    <string name="sso_field_issuer">Issuer URL</string>
+    <string name="sso_field_preset">Provider</string>
+    <string name="sso_field_redirect_uri">Redirect URI to register at the provider</string>
+    <string name="sso_field_scopes">Extra scopes</string>
+    <string name="sso_field_scopes_hint">openid, email and profile are always asked for.</string>
+    <string name="sso_field_tenant">Directory (tenant) ID</string>
+    <string name="sso_form_client_id_required">The client ID is required</string>
+    <string name="sso_form_issuer_required">The issuer URL is required</string>
+    <string name="sso_form_secret_required_google">Google needs the client secret</string>
+    <string name="sso_form_tenant_required">Microsoft Entra needs the directory (tenant) ID</string>
+    <string name="sso_help_authentik">Authentik → Applications → Create with provider (OAuth2/OpenID, confidential). Redirect URI: the one below. Issuer: https://&lt;host&gt;/application/o/&lt;slug&gt;/ (with the final slash).</string>
+    <string name="sso_help_generic">Any provider with OpenID Connect discovery (/.well-known/openid-configuration) and the authorization code flow with PKCE. Register the redirect URI below.</string>
+    <string name="sso_help_google">Google Cloud console → APIs &amp; Services → Credentials → Create OAuth client ID (Web application). Add the redirect URI below. Only accounts of your verified domains are accepted.</string>
+    <string name="sso_help_keycloak">Keycloak → your realm → Clients → Create client (OpenID Connect, client authentication on, standard flow). Valid redirect URI: the one below. Issuer: https://&lt;host&gt;/realms/&lt;realm&gt;.</string>
+    <string name="sso_help_microsoft">Entra admin center → App registrations → New registration (Web). Add the redirect URI below, create a client secret, and copy the Directory (tenant) ID and the Application (client) ID.</string>
+    <string name="sso_identities_hint">Sign in to this account through a team\'s identity provider.</string>
+    <!-- args: issuer, date -->
+    <string name="sso_identities_last_login">%1$s · last sign-in %2$s</string>
+    <string name="sso_identities_none">No identities linked.</string>
+    <string name="sso_identities_title">Linked identities</string>
+    <string name="sso_intro">People of your verified domains sign in with your identity provider (OpenID Connect). Their end-to-end encryption still needs their own recovery phrase or another device: an identity provider never gets their keys.</string>
+    <!-- args: team -->
+    <string name="sso_link_with">Link with %1$s</string>
+    <string name="sso_linked">Identity linked</string>
+    <string name="sso_member_enforced">password sign-in is not allowed for its domains.</string>
+    <string name="sso_member_none">This team has no single sign-on.</string>
+    <string name="sso_member_optional">passwords still work.</string>
+    <!-- args: provider, enforced -->
+    <string name="sso_member_summary">This team signs in with %1$s; %2$s</string>
+    <string name="sso_no_public_url">This server has no public URL: single sign-on cannot be used until its administrator sets one.</string>
+    <string name="sso_preset_authentik">Authentik</string>
+    <string name="sso_preset_generic">Other OpenID Connect provider</string>
+    <string name="sso_preset_google">Google Workspace</string>
+    <string name="sso_preset_keycloak">Keycloak</string>
+    <string name="sso_preset_microsoft">Microsoft Entra ID</string>
+    <string name="sso_provider_title">Identity provider</string>
+    <string name="sso_remove">Remove single sign-on</string>
+    <!-- args: team -->
+    <string name="sso_remove_message">%1$s\'s provider settings and its stored secret are deleted; people sign in with passwords again (accounts created by single sign-on must set one).</string>
+    <string name="sso_remove_title">Remove single sign-on?</string>
+    <string name="sso_removed">Single sign-on removed</string>
+    <string name="sso_rule_auto_create">Create accounts</string>
+    <string name="sso_rule_auto_create_hint">Someone of a verified domain without an account gets one at the first sign-in (without a password).</string>
+    <string name="sso_rule_auto_join">Add them to the team</string>
+    <string name="sso_rule_auto_join_hint">People who sign in through single sign-on become members of this team.</string>
+    <string name="sso_rule_email_verified">Require a verified email</string>
+    <string name="sso_rule_email_verified_hint">Refuse sign-ins whose email the provider does not mark as verified (Entra does not send it: the verified domain is the proof).</string>
+    <string name="sso_rule_enabled">Single sign-on on</string>
+    <string name="sso_rule_enabled_hint">Off keeps the settings but offers nothing.</string>
+    <string name="sso_rule_enforce">Require single sign-on</string>
+    <string name="sso_rule_enforce_hint">Accounts of the verified domains cannot sign in, sign up or reset their password with a password (server administrators keep it).</string>
+    <string name="sso_rule_enforce_needs_domain">Verify a domain first.</string>
+    <string name="sso_rule_owner_password">The team owner keeps a password (break glass)</string>
+    <string name="sso_rule_owner_password_hint">So someone can still get in if the identity provider fails.</string>
+    <string name="sso_rule_satisfies_2fa">Single sign-on counts as two-step verification</string>
+    <string name="sso_rule_satisfies_2fa_hint">Turn it on only if your provider enforces MFA: then the team\'s 2FA policy accepts linked identities and Termoak does not ask for its own code.</string>
+    <string name="sso_rules_title">Sign-in rules</string>
+    <string name="sso_save">Save and check</string>
+    <string name="sso_saved">Saved</string>
+    <string name="sso_saved_on">Saved: the provider answered and its settings match</string>
+    <string name="sso_state_enforced">Required</string>
+    <string name="sso_state_not_set_up">Not set up</string>
+    <string name="sso_state_off">Off</string>
+    <string name="sso_state_on">On</string>
+    <string name="sso_title">Single sign-on</string>
+    <string name="sso_unlink">Unlink</string>
+    <!-- args: team -->
+    <string name="sso_unlink_message">You will no longer sign in through %1$s\'s provider (your password keeps working).</string>
+    <string name="sso_unlink_title">Unlink this identity?</string>
+    <string name="sso_unlinked">Identity unlinked</string>
+    <string name="teams_audit">Audit</string>
+    <string name="teams_sso">Single sign-on</string>
+    <!-- args: vault, version -->
+    <string name="vault_e2ee_auto_rotated">Someone lost access to %1$s: its key was rotated (version %2$s)</string>
+    <string name="vault_e2ee_badge">End-to-end encrypted</string>
+    <string name="vault_e2ee_badge_locked">End-to-end encrypted · locked</string>
+    <string name="vault_e2ee_confirm">Confirm</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_confirmed">
+        <item quantity="one">%1$d member got the key</item>
+        <item quantity="other">%1$d members got the key</item>
+    </plurals>
+    <string name="vault_e2ee_consequence_ai">The server\'s AI, /exec and server SFTP leave out hosts whose credentials are locked (the AI on your device keeps working).</string>
+    <string name="vault_e2ee_consequence_certificates">Team certificates, access policies and recordings keep working (recordings are not end-to-end encrypted).</string>
+    <string name="vault_e2ee_consequence_jit">Use-only and Connect-only members get no just-in-time credentials: they connect with team certificates or a key holder\'s session.</string>
+    <string name="vault_e2ee_consequence_metadata">Names, addresses, users and notes stay readable by the server.</string>
+    <string name="vault_e2ee_consequence_moves">Moves and copies to other vaults are done by your device (encrypted for the target).</string>
+    <string name="vault_e2ee_consequence_reveal">The server and the web cannot reveal secrets; your devices open them once unlocked.</string>
+    <string name="vault_e2ee_consequence_server_sessions">Server sessions and host tests ask before sending a host\'s credentials, for that connection only.</string>
+    <string name="vault_e2ee_consequences_title">What changes</string>
+    <string name="vault_e2ee_disabled">End-to-end encryption is off for this vault</string>
+    <string name="vault_e2ee_enabled">The vault is end-to-end encrypted</string>
+    <string name="vault_e2ee_item_locked">Locked</string>
+    <string name="vault_e2ee_item_locked_tip">Its credentials are end-to-end encrypted and this device cannot open them yet: unlock end-to-end encryption.</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_items">
+        <item quantity="one">%1$d secret will be encrypted on this device.</item>
+        <item quantity="other">%1$d secrets will be encrypted on this device.</item>
+    </plurals>
+    <string name="vault_e2ee_key_changed">Their key changed since this device gave them the key: it may be a new device of theirs, or someone else. Check the fingerprint with them.</string>
+    <!-- args: version -->
+    <string name="vault_e2ee_key_version">Key version %1$s</string>
+    <string name="vault_e2ee_locked_card_title">End-to-end encrypted</string>
+    <string name="vault_e2ee_managers_only">Only the vault\'s Admins can turn it on.</string>
+    <string name="vault_e2ee_network_form_warning">This vault is end-to-end encrypted, but a private network\'s key stays readable by the server: it needs it to join the network.</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_networks_warning">
+        <item quantity="one">This vault has %1$d private network: its key stays readable by the server, which needs it to join the network.</item>
+        <item quantity="other">This vault has %1$d private networks: their keys stay readable by the server, which needs them to join the networks.</item>
+    </plurals>
+    <string name="vault_e2ee_no_key_role">Your role does not get this vault\'s key: you connect with team certificates or through a key holder\'s server session.</string>
+    <string name="vault_e2ee_off_intro">Turn on end-to-end encryption to keep this vault\'s passwords and keys encrypted with a key only its members\' devices have. The server keeps blobs it cannot open, and its own copy of the vault key is deleted.</string>
+    <string name="vault_e2ee_off_message">This device sends every secret to the server (over TLS), which encrypts them with its own key again: the server can read them again and older apps see the vault.</string>
+    <string name="vault_e2ee_off_mismatch">That is not the vault\'s name</string>
+    <string name="vault_e2ee_off_title">Turn off end-to-end encryption</string>
+    <!-- args: name -->
+    <string name="vault_e2ee_off_type">Type %1$s to confirm</string>
+    <string name="vault_e2ee_on_consequences_title">While it is on</string>
+    <string name="vault_e2ee_pending_hint">Confirm someone only after checking their fingerprint with them (in person or on a call).</string>
+    <string name="vault_e2ee_pending_title">Waiting for the key</string>
+    <string name="vault_e2ee_recipients_hint">Compare each fingerprint with the one the person sees in their Settings → Security before giving them the key. Unchecked members wait and can be confirmed later.</string>
+    <string name="vault_e2ee_recipients_title">Who gets the key now</string>
+    <string name="vault_e2ee_rekey_needed">Someone lost access to this vault: rotate its key so they cannot open new secrets.</string>
+    <string name="vault_e2ee_rotate">Rotate the key</string>
+    <!-- args: version -->
+    <string name="vault_e2ee_rotated">Key rotated (version %1$s)</string>
+    <string name="vault_e2ee_session_hint">The audit records it (e2ee.unlock). Prefer a local connection to keep them on this device.</string>
+    <string name="vault_e2ee_session_send">Send and connect</string>
+    <string name="vault_e2ee_session_text">Its vault is end-to-end encrypted, so the server cannot open them. This device can send them for this server session only: the server uses them to connect and then forgets them.</string>
+    <string name="vault_e2ee_session_title">Send this host\'s credentials for this session?</string>
+    <string name="vault_e2ee_setup_first">Set up end-to-end encryption for your account first.</string>
+    <string name="vault_e2ee_setup_to_get_key">Set up end-to-end encryption to get this vault\'s key.</string>
+    <!-- args: host -->
+    <string name="vault_e2ee_test_message">%1$s is in an end-to-end encrypted vault: the server can only test it if this device sends its credentials, for this test only.</string>
+    <string name="vault_e2ee_test_send">Send and test</string>
+    <string name="vault_e2ee_test_title">Send the credentials for this test?</string>
+    <string name="vault_e2ee_turn_off">Turn off</string>
+    <string name="vault_e2ee_turn_on">Turn on end-to-end encryption</string>
+    <string name="vault_e2ee_unlock_first">Unlock end-to-end encryption on this device first.</string>
+    <!-- args: fingerprint -->
+    <string name="vault_e2ee_waiting_for_key">Waiting for a key holder to confirm you. Your key\'s fingerprint, to compare with them: %1$s</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_without_key">
+        <item quantity="one">%1$d member who may hold the key has not set up end-to-end encryption yet: they will wait for a key holder.</item>
+        <item quantity="other">%1$d members who may hold the key have not set up end-to-end encryption yet: they will wait for a key holder.</item>
+    </plurals>
+    <!-- args: email -->
+    <string name="vault_e2ee_you">You (%1$s)</string>
+    <string name="vaults_tab_encryption">Encryption</string>
+</resources>

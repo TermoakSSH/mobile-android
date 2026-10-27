@@ -37,6 +37,14 @@ sealed interface PushOpen {
      */
     data class Access(override val accountId: String, val requestId: String?, val mine: Boolean) : PushOpen
 
+    /**
+     * Another device of yours asks for your E2EE key (0.7 phase 5c). The
+     * server sends no push for it: the events socket brings it and, with the
+     * app in the background, the app posts this notification itself; it opens
+     * Settings → Security on that request (compare the code, then decide).
+     */
+    data class E2eePairing(override val accountId: String, val pairingId: String) : PushOpen
+
     /** Just the app (a test, an unknown kind...). */
     data class Home(override val accountId: String, val kind: String) : PushOpen
 }
@@ -116,6 +124,20 @@ object PushRoutes {
         } ?: PushOpen.Home(accountId, ev.kind)
     }
 
+    /** The notification of a pairing request (the app's own, posted from the events socket in the background). */
+    fun pairingPlan(accountId: String, p: com.termoak.ffi.E2eePairingRequest, res: android.content.res.Resources, now: Long): PushPlan =
+        PushPlan(
+            channel = "approvals",
+            title = res.getString(com.termoak.app.R.string.e2ee_pairing_notice_title),
+            body = res.getString(com.termoak.app.R.string.e2ee_pairing_notice_body, p.deviceName),
+            tag = "e2ee-pairing",
+            id = ("e2ee:" + p.id).hashCode(),
+            open = PushOpen.E2eePairing(accountId, p.id),
+            actions = emptyList(),
+            timeoutMs = (p.expiresAt - now).coerceAtLeast(1_000),
+            urgent = true,
+        )
+
     // ----- Intent extras (the notification's PendingIntents) -----
 
     const val EXTRA_KIND = "push_open"
@@ -151,6 +173,10 @@ object PushRoutes {
                 open.requestId?.let { m[EXTRA_ID] = it }
                 m[EXTRA_TYPE] = if (open.mine) "mine" else "approvals"
             }
+            is PushOpen.E2eePairing -> {
+                m[EXTRA_KIND] = "e2ee_pairing"
+                m[EXTRA_ID] = open.pairingId
+            }
             is PushOpen.Home -> {
                 m[EXTRA_KIND] = "home"
                 m[EXTRA_TYPE] = open.kind
@@ -169,6 +195,7 @@ object PushRoutes {
             "teams" -> PushOpen.Teams(account)
             "security_key" -> PushOpen.SecurityKey(account, get(EXTRA_ID))
             "access" -> PushOpen.Access(account, get(EXTRA_ID), get(EXTRA_TYPE) == "mine")
+            "e2ee_pairing" -> PushOpen.E2eePairing(account, get(EXTRA_ID) ?: return null)
             "home" -> PushOpen.Home(account, get(EXTRA_TYPE).orEmpty())
             else -> return null
         }

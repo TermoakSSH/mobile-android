@@ -1613,6 +1613,14 @@ internal fun NetworkFormPage(
                     ) { vault = it }
                     Text(stringResource(R.string.networks_form_vault_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                // An end-to-end encrypted vault: the network's key stays readable by the server (E2EE-SSO-AUDIT §9.3).
+                val vaultOf = vaults.firstOrNull { it.id == (editing?.vaultId ?: vault) }
+                if (vaultOf?.e2ee != null) {
+                    Text(
+                        stringResource(R.string.vault_e2ee_network_form_warning), Modifier.testTag("network-e2ee-warning"),
+                        style = MaterialTheme.typography.bodySmall, color = Brand.Amber,
+                    )
+                }
                 OutlinedTextField(
                     description, { description = it }, Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.networks_form_description)) },

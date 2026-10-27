@@ -140,4 +140,14 @@ class PushRoutesTest {
         assertNull(PushSetup.vapid("short"))
         assertNull(PushSetup.vapid(null))
     }
+
+    @Test
+    fun e2eePairingNotificationOpensSecurity() {
+        // The server sends no push for a pairing: the app posts its own from the events socket (background).
+        val open = PushOpen.E2eePairing("acc", "p1")
+        val extras = PushRoutes.extras(open, null)
+        assertEquals(open to null, PushRoutes.fromExtras { extras[it] })
+        // Without the request id it is not ours.
+        assertNull(PushRoutes.fromExtras { (extras - "push_item")[it] })
+    }
 }

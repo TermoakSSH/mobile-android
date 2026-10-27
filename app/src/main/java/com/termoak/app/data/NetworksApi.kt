@@ -17,8 +17,13 @@ class NetworksApi(
     private val request: suspend (HttpMethod, String, String?) -> String,
     /** The wait between the polls of [test] (tests give a stand-in). */
     private val pause: suspend (Long) -> Unit = { delay(it) },
+    /** The engine's host test with this device's credentials (`test_host_unlocked`, core v0.7.0-next.13). */
+    private val unlockedTest: (suspend (String, Boolean) -> String)? = null,
 ) {
-    constructor(handle: AccountHandle) : this({ method, path, body -> handle.apiRequest(method, path, body) })
+    constructor(handle: AccountHandle) : this(
+        { method, path, body -> handle.apiRequest(method, path, body) },
+        unlockedTest = { id, trust -> handle.testHostUnlocked(id, trust) },
+    )
 
     /** `features.networks` of the account's server, read again (it can change while the app runs). */
     suspend fun supported(): Boolean = Networks.supported(request(HttpMethod.GET, "$BASE/info", null))
@@ -119,6 +124,14 @@ class NetworksApi(
     suspend fun testHost(hostId: String, trust: Boolean): HostTest =
         Networks.hostTest(request(HttpMethod.POST, "$BASE/hosts/$hostId/test" + (if (trust) "?trust=true" else ""), "{}"))
             ?: HostTest(ok = false)
+
+    /**
+     * The same test for a host of an end-to-end encrypted vault: the engine
+     * resolves its credentials on this device and sends them for this test
+     * only (after asking the person; audited `e2ee.unlock`).
+     */
+    suspend fun testHostUnlocked(hostId: String, trust: Boolean): HostTest =
+        Networks.hostTest(unlockedTest?.invoke(hostId, trust) ?: error("no engine")) ?: HostTest(ok = false)
 
     /** Adds a host at an address of a network (in the network's vault). */
     suspend fun addHost(body: String): String = JSONObject(request(HttpMethod.POST, "$BASE/hosts", body)).optString("label", "")

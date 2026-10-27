@@ -108,6 +108,30 @@ What it does:
   team forbids them; "Recorded"; vault recordings with download and a
   player; 2FA banner. Code in `data/Access*.kt` and `ui/Access*.kt`,
   `ui/CaPanel.kt`, `ui/TeamSecurityScreen.kt`; opt-in `LiveAccessTest`.
+- **End-to-end encrypted vaults, SSO and the audit** (0.7, servers with
+  `features.e2ee`, `sso`, `audit_v2`): Settings → Security sets up your E2EE
+  key (optional passphrase, the 24-word recovery phrase shown once in a
+  numbered grid, kept out of screenshots and the app switcher, with copy,
+  save and print, then three words typed back), unlocks this phone with the
+  passphrase, the recovery phrase (live feedback and word suggestions) or
+  another device (the same six-digit code on both), approves your other
+  devices, locks, changes or removes the passphrase, makes a new phrase,
+  replaces the key or resets it; the engine keeps the key in the account
+  store sealed with the Keystore-protected device key. Vault → Encryption:
+  turn on with each member's fingerprint, confirm members waiting for the
+  key, rotate (also by itself when someone lost access), turn off; badges
+  and Home banners; the private networks warning. Server sessions and host
+  tests of an E2EE host ask before sending its credentials for that
+  connection. Sign-in offers "Continue with <team>" (Custom Tab, back to
+  `termoak://sso`, PKCE, the 2FA step), `sso_required` switches to it;
+  linked identities; Teams → Single sign-on (presets, redirect URI, domains
+  with the TXT record to copy or share, enforcement). Audit of your account,
+  teams and vaults with filters, export (share sheet), team retention and
+  sinks (state, test, pause, delete). Code in `data/E2ee*.kt`,
+  `data/Sso*.kt`, `data/AuditRules.kt`, `ui/E2eeUi.kt`,
+  `ui/SecurityScreen.kt`, `ui/VaultE2eeScreen.kt`, `ui/TeamSsoScreen.kt`,
+  `ui/AuditScreen.kt`; opt-in `LiveE2eeTest` and the shared vectors in
+  `E2eeVectorsTest`.
 - **Updates**: on startup, at most once a day (Settings → "Check for
   updates"), the app asks the server it is signed in to, or termoak.com,
   for the latest Android release (`GET /api/v1/downloads`). A newer version

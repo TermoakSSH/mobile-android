@@ -1,0 +1,580 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- E2EE vaults, SSO and the extended audit (0.7 phase 5c): generated from the desktop's texts (locales/*.json, 5b) plus the app's own. Same keys in values-es. -->
+<resources>
+    <!-- args: team -->
+    <string name="add_account_sso_available">%1$s puede iniciar tu sesión con inicio de sesión único.</string>
+    <!-- args: team -->
+    <string name="add_account_sso_continue">Continuar con %1$s</string>
+    <!-- args: team -->
+    <string name="add_account_sso_enforced">%1$s solo inicia sesión con inicio de sesión único: el proveedor de identidad de tu organización se abre en el navegador.</string>
+    <!-- args: error -->
+    <string name="add_account_sso_failed">Falló el inicio de sesión único: %1$s</string>
+    <string name="add_account_sso_open_again">Abrir el navegador otra vez</string>
+    <string name="add_account_sso_owner_password">Soy el propietario del equipo: usar mi contraseña</string>
+    <string name="add_account_sso_waiting">Sigue en el navegador. Termoak iniciará tu sesión cuando vuelva.</string>
+    <string name="add_account_sso_your_team">tu organización</string>
+    <string name="audit_account_title">Tu actividad</string>
+    <string name="audit_action_access_approve">Acceso aprobado</string>
+    <string name="audit_action_access_cancel">Solicitud de acceso cancelada</string>
+    <string name="audit_action_access_deny">Acceso denegado</string>
+    <string name="audit_action_access_policy_delete">Política de acceso quitada</string>
+    <string name="audit_action_access_policy_set">Política de acceso cambiada</string>
+    <string name="audit_action_access_request">Acceso solicitado</string>
+    <string name="audit_action_access_revoke">Acceso terminado</string>
+    <string name="audit_action_admin_2fa_reset">Verificación en dos pasos quitada</string>
+    <string name="audit_action_admin_device_revoked">Dispositivo revocado (admin.)</string>
+    <string name="audit_action_admin_invite_created">Invitación creada</string>
+    <string name="audit_action_admin_invite_revoked">Invitación revocada</string>
+    <string name="audit_action_admin_password_reset">Contraseña restablecida</string>
+    <string name="audit_action_admin_user_created">Usuario creado</string>
+    <string name="audit_action_admin_user_updated">Usuario modificado</string>
+    <string name="audit_action_ai_approval_approved">IA: acción aprobada</string>
+    <string name="audit_action_ai_approval_denied">IA: acción denegada</string>
+    <string name="audit_action_ai_task_mode">IA: modo cambiado</string>
+    <string name="audit_action_audit_export">Auditoría exportada</string>
+    <string name="audit_action_audit_settings">Retención de la auditoría cambiada</string>
+    <string name="audit_action_audit_sink_create">Destino de auditoría añadido</string>
+    <string name="audit_action_audit_sink_delete">Destino de auditoría quitado</string>
+    <string name="audit_action_audit_sink_update">Destino de auditoría cambiado</string>
+    <string name="audit_action_audit_test">Destino de auditoría probado</string>
+    <string name="audit_action_auth_2fa_disabled">Verificación en dos pasos desactivada</string>
+    <string name="audit_action_auth_2fa_enabled">Verificación en dos pasos activada</string>
+    <string name="audit_action_auth_device_revoked">Dispositivo revocado</string>
+    <string name="audit_action_auth_devices_revoked">Todos los dispositivos desconectados</string>
+    <string name="audit_action_auth_email_changed">Correo cambiado</string>
+    <string name="audit_action_auth_email_verified">Correo verificado</string>
+    <string name="audit_action_auth_login">Inicio de sesión</string>
+    <string name="audit_action_auth_login_refused">Inicio con contraseña rechazado (se exige inicio de sesión único)</string>
+    <string name="audit_action_auth_password_changed">Contraseña cambiada</string>
+    <string name="audit_action_auth_password_reset">Contraseña restablecida</string>
+    <string name="audit_action_auth_register">Cuenta creada</string>
+    <string name="audit_action_ca_create">CA SSH creada</string>
+    <string name="audit_action_ca_disable">CA SSH desactivada</string>
+    <string name="audit_action_ca_rotate">CA SSH rotada</string>
+    <string name="audit_action_cert_issue">Certificado emitido</string>
+    <string name="audit_action_cert_revoke">Certificado revocado</string>
+    <string name="audit_action_e2ee_disable">Cifrado de extremo a extremo desactivado</string>
+    <string name="audit_action_e2ee_enable">Bóveda cifrada de extremo a extremo</string>
+    <string name="audit_action_e2ee_key_rotate">Clave E2EE sustituida</string>
+    <string name="audit_action_e2ee_pairing_approve">Dispositivo desbloqueado desde otro</string>
+    <string name="audit_action_e2ee_pairing_deny">Desbloqueo de dispositivo denegado</string>
+    <string name="audit_action_e2ee_pairing_request">Un dispositivo pidió desbloquear E2EE</string>
+    <string name="audit_action_e2ee_passphrase_removed">Frase de paso E2EE quitada</string>
+    <string name="audit_action_e2ee_reset">Clave E2EE restablecida</string>
+    <string name="audit_action_e2ee_rotate">Clave de la bóveda rotada</string>
+    <string name="audit_action_e2ee_seal">Frase de paso o de recuperación E2EE cambiada</string>
+    <string name="audit_action_e2ee_setup">Cifrado de extremo a extremo configurado</string>
+    <string name="audit_action_e2ee_unlock">Credenciales enviadas para una sesión</string>
+    <string name="audit_action_e2ee_wraps_add">Clave de la bóveda dada a miembros</string>
+    <string name="audit_action_exec_batch">Comando en varios hosts</string>
+    <string name="audit_action_key_create">Clave creada</string>
+    <string name="audit_action_network_down">Red privada parada</string>
+    <string name="audit_action_network_key_generated">Clave de red creada por el servidor</string>
+    <string name="audit_action_network_up">Red privada iniciada</string>
+    <string name="audit_action_secret_reveal">Secreto revelado</string>
+    <string name="audit_action_secret_use">Secreto usado por el servidor</string>
+    <string name="audit_action_session_attach">Entró en una sesión</string>
+    <string name="audit_action_session_close">Sesión cerrada</string>
+    <string name="audit_action_session_open">Sesión abierta</string>
+    <string name="audit_action_session_share">Sesión compartida</string>
+    <string name="audit_action_session_share_revoked">Invitación a sesión revocada</string>
+    <string name="audit_action_sftp_delete">SFTP: borrado</string>
+    <string name="audit_action_sftp_download">SFTP: descarga</string>
+    <string name="audit_action_sftp_rename">SFTP: renombrado</string>
+    <string name="audit_action_sftp_upload">SFTP: subida</string>
+    <string name="audit_action_sso_config">Ajustes del inicio de sesión único cambiados</string>
+    <string name="audit_action_sso_domain_add">Dominio añadido</string>
+    <string name="audit_action_sso_domain_check_failed">Falló la comprobación del dominio</string>
+    <string name="audit_action_sso_domain_remove">Dominio quitado</string>
+    <string name="audit_action_sso_domain_verify">Dominio verificado</string>
+    <string name="audit_action_sso_link">Identidad vinculada</string>
+    <string name="audit_action_sso_login">Inicio de sesión único</string>
+    <string name="audit_action_sso_login_failed">Falló el inicio de sesión único</string>
+    <string name="audit_action_sso_unlink">Identidad desvinculada</string>
+    <string name="audit_action_sso_user_created">Cuenta creada por inicio de sesión único</string>
+    <string name="audit_action_team_created">Equipo creado</string>
+    <string name="audit_action_team_deleted">Equipo eliminado</string>
+    <string name="audit_action_team_invite_created">Invitación al equipo creada</string>
+    <string name="audit_action_team_invite_revoked">Invitación al equipo revocada</string>
+    <string name="audit_action_team_left">Salió del equipo</string>
+    <string name="audit_action_team_member_added">Miembro añadido</string>
+    <string name="audit_action_team_member_removed">Miembro quitado</string>
+    <string name="audit_action_team_policy">Política del equipo cambiada</string>
+    <string name="audit_action_team_principal_changed">Principal del certificado de un miembro cambiado</string>
+    <string name="audit_action_team_role_changed">Rol cambiado</string>
+    <string name="audit_action_vault_create">Bóveda creada</string>
+    <string name="audit_action_vault_delete">Bóveda borrada</string>
+    <string name="audit_action_vault_member_add">Miembro añadido a una bóveda</string>
+    <string name="audit_action_vault_member_removed">Miembro quitado de una bóveda</string>
+    <string name="audit_action_vault_role_changed">Rol en la bóveda cambiado</string>
+    <string name="audit_action_vault_transfer">Elementos movidos o copiados entre bóvedas</string>
+    <string name="audit_action_vault_update">Bóveda cambiada</string>
+    <!-- args: count -->
+    <plurals name="audit_count">
+        <item quantity="one">%1$d entrada · no hay más</item>
+        <item quantity="other">%1$d entradas · no hay más</item>
+    </plurals>
+    <string name="audit_empty">No hay coincidencias.</string>
+    <string name="audit_export">Exportar</string>
+    <string name="audit_filter_actions">Acciones</string>
+    <string name="audit_filter_actions_placeholder">p. ej. vault.*, secret.reveal</string>
+    <string name="audit_filter_actor">Quién</string>
+    <string name="audit_filter_actor_placeholder">correo o user:…</string>
+    <string name="audit_filter_apply">Buscar</string>
+    <string name="audit_filter_preset">Mostrar</string>
+    <string name="audit_filter_range">Cuándo</string>
+    <string name="audit_filter_text">Texto</string>
+    <string name="audit_filter_text_placeholder">en cualquier parte</string>
+    <string name="audit_load_more">Cargar más</string>
+    <string name="audit_preset_access">Acceso</string>
+    <string name="audit_preset_all">Todo</string>
+    <string name="audit_preset_certificates">Certificados</string>
+    <string name="audit_preset_e2ee">E2EE</string>
+    <string name="audit_preset_policy">Políticas</string>
+    <string name="audit_preset_sign_ins">Inicios de sesión</string>
+    <string name="audit_preset_sso">SSO</string>
+    <string name="audit_range_any">Siempre</string>
+    <string name="audit_range_day">Últimas 24 horas</string>
+    <string name="audit_range_month">Últimos 30 días</string>
+    <string name="audit_range_quarter">Últimos 90 días</string>
+    <string name="audit_range_week">Últimos 7 días</string>
+    <string name="audit_retention_days">días</string>
+    <!-- args: days -->
+    <string name="audit_retention_default">Lo del servidor (%1$s)</string>
+    <!-- args: default, max -->
+    <string name="audit_retention_hint">Cuánto se guardan las entradas del equipo: vacío usa los %1$s días del servidor; como máximo %2$s.</string>
+    <!-- args: max -->
+    <string name="audit_retention_invalid">Retención: un número de días de 1 a %1$s (vacío: lo que diga el servidor)</string>
+    <string name="audit_retention_saved">Retención guardada</string>
+    <string name="audit_retention_title">Retención</string>
+    <string name="audit_sink_actions">Solo estas acciones (opcional)</string>
+    <string name="audit_sink_actions_hint">Separadas por comas; * al final vale como prefijo. Vacío: todo.</string>
+    <string name="audit_sink_add">Añadir destino</string>
+    <string name="audit_sink_add_title">Nuevo destino de auditoría</string>
+    <string name="audit_sink_added">Destino añadido: las entradas nuevas irán allí</string>
+    <string name="audit_sink_ca_pem">Certificado de la CA (opcional)</string>
+    <string name="audit_sink_ca_pem_hint">PEM de una CA privada en la que confiar en lugar de las públicas.</string>
+    <string name="audit_sink_delete_message">Las entradas dejan de ir allí. No se toca nada de lo ya entregado.</string>
+    <!-- args: name -->
+    <string name="audit_sink_delete_title">¿Borrar %1$s?</string>
+    <string name="audit_sink_enabled">Entregando</string>
+    <string name="audit_sink_host">Host</string>
+    <string name="audit_sink_host_invalid">El servidor syslog necesita un nombre o una dirección</string>
+    <string name="audit_sink_kind">Tipo</string>
+    <string name="audit_sink_kind_syslog">Syslog (RFC 5424)</string>
+    <string name="audit_sink_kind_webhook">Webhook (HTTPS)</string>
+    <string name="audit_sink_name">Nombre</string>
+    <string name="audit_sink_name_placeholder">SIEM</string>
+    <string name="audit_sink_name_required">Ponle un nombre al destino</string>
+    <string name="audit_sink_port">Puerto</string>
+    <string name="audit_sink_port_invalid">Puerto: un número de 1 a 65535</string>
+    <string name="audit_sink_secret_copied">Secreto copiado</string>
+    <string name="audit_sink_secret_hint">Verifica cada petición: HMAC-SHA256(secreto, \"&lt;t&gt;.&lt;cuerpo&gt;\") debe ser igual a v1 de X-Termoak-Signature, y t debe ser reciente.</string>
+    <string name="audit_sink_secret_message">Cópialo ahora en tu receptor: solo se muestra una vez.</string>
+    <!-- args: name -->
+    <string name="audit_sink_secret_title">Secreto de firma de %1$s</string>
+    <!-- args: date -->
+    <string name="audit_sink_state_delivered">Entregado %1$s</string>
+    <string name="audit_sink_state_disabled">En pausa</string>
+    <!-- args: count, error -->
+    <string name="audit_sink_state_failing">%1$s intentos fallidos: %2$s</string>
+    <string name="audit_sink_state_waiting">Nada entregado todavía</string>
+    <string name="audit_sink_tcp_warning">TCP sin TLS no va cifrado: el servidor solo lo permite a destinos que su administrador haya listado.</string>
+    <string name="audit_sink_test">Probar</string>
+    <!-- args: error -->
+    <string name="audit_sink_test_failed">El evento de prueba no llegó: %1$s</string>
+    <string name="audit_sink_test_ok">El evento de prueba llegó</string>
+    <string name="audit_sink_tls">TLS</string>
+    <string name="audit_sink_url">URL</string>
+    <string name="audit_sink_url_invalid">El webhook necesita una URL https://</string>
+    <string name="audit_sink_webhook_hint">Cada POST lleva X-Termoak-Signature (t=…, v1=HMAC-SHA256 de t.cuerpo con el secreto que se muestra al crearlo).</string>
+    <string name="audit_sinks_add_elsewhere">Los destinos nuevos se añaden desde la app de escritorio o la web; aquí puedes revisarlos, probarlos, pausarlos y borrarlos.</string>
+    <string name="audit_sinks_hint">Cada entrada nueva del equipo va, en orden, a estos destinos: webhooks (lotes JSON firmados con HMAC-SHA256) o syslog (RFC 5424 por TLS o TCP).</string>
+    <string name="audit_sinks_none">Sin destinos.</string>
+    <string name="audit_sinks_title">Enviar a tu SIEM</string>
+    <string name="audit_team_title">Auditoría del equipo</string>
+    <string name="e2ee_auth_reason">Confirma que eres tú</string>
+    <string name="e2ee_banner_locked_detail">Desbloquéalas con tu frase de paso, tu frase de recuperación u otro dispositivo.</string>
+    <string name="e2ee_banner_locked_title">Las bóvedas cifradas de extremo a extremo están bloqueadas en este dispositivo</string>
+    <string name="e2ee_banner_pairing_detail">Apruébalo solo si ese dispositivo muestra el mismo código de seis cifras.</string>
+    <!-- args: device -->
+    <string name="e2ee_banner_pairing_title">«%1$s» pide tu clave de cifrado de extremo a extremo</string>
+    <string name="e2ee_banner_pending_detail">Comprueba sus huellas con esas personas y confírmalas.</string>
+    <!-- args: count, vault -->
+    <plurals name="e2ee_banner_pending_title">
+        <item quantity="one">%1$d miembro espera la clave de %2$s</item>
+        <item quantity="other">%1$d miembros esperan la clave de %2$s</item>
+    </plurals>
+    <string name="e2ee_banner_setup_detail">Configura tu clave de cifrado de extremo a extremo para recibir la de la bóveda de un miembro que la tenga.</string>
+    <!-- args: vault -->
+    <string name="e2ee_banner_setup_title">%1$s está cifrada de extremo a extremo</string>
+    <string name="e2ee_confirm_back">Ver la frase</string>
+    <string name="e2ee_confirm_close_anyway">Cerrar</string>
+    <string name="e2ee_confirm_close_message">La frase no se volverá a mostrar. Si no la apuntaste, crea una nueva desde Ajustes → Seguridad.</string>
+    <string name="e2ee_confirm_close_title">¿Cerrar sin comprobarla?</string>
+    <string name="e2ee_confirm_done">Hecho</string>
+    <string name="e2ee_confirm_message">Escribe estas palabras de tu frase para comprobar que la apuntaste bien (bastan las cuatro primeras letras).</string>
+    <!-- args: n -->
+    <string name="e2ee_confirm_word">Palabra %1$s</string>
+    <string name="e2ee_confirm_wrong">Esas no son las palabras de tu frase: vuelve a mirarla</string>
+    <string name="e2ee_fingerprint">Huella de la clave</string>
+    <string name="e2ee_intro">Las bóvedas cifradas de extremo a extremo guardan sus contraseñas y claves cifradas con claves que solo tienen tus dispositivos: ni el servidor, ni quien lo administre, ni una copia robada pueden leerlas. Configura tu clave una vez y luego actívalo por bóveda (ajustes de la bóveda → Cifrado).</string>
+    <string name="e2ee_intro_secrets_only">Solo se cifran de extremo a extremo los secretos: nombres, direcciones, usuarios y notas siguen siendo legibles por el servidor para que la búsqueda y las funciones del servidor sigan funcionando.</string>
+    <string name="e2ee_lock">Bloquear este dispositivo</string>
+    <!-- args: count -->
+    <plurals name="e2ee_locked_secrets">
+        <item quantity="one">%1$d secreto está bloqueado en este dispositivo</item>
+        <item quantity="other">%1$d secretos están bloqueados en este dispositivo</item>
+    </plurals>
+    <string name="e2ee_locked_toast">Bloqueado: este dispositivo ha olvidado tu clave y los secretos abiertos</string>
+    <string name="e2ee_methods_both">Los dispositivos nuevos se desbloquean con tu frase de paso, tu frase de recuperación u otro dispositivo.</string>
+    <string name="e2ee_methods_none">Solo otro dispositivo tuyo puede desbloquear los nuevos.</string>
+    <string name="e2ee_methods_passphrase">Los dispositivos nuevos se desbloquean con tu frase de paso u otro dispositivo (sin frase de recuperación).</string>
+    <string name="e2ee_methods_recovery">Los dispositivos nuevos se desbloquean con tu frase de recuperación u otro dispositivo.</string>
+    <!-- args: count -->
+    <plurals name="e2ee_notice_waiting">
+        <item quantity="one">%1$d cambio espera a que desbloquees el cifrado de extremo a extremo en este dispositivo</item>
+        <item quantity="other">%1$d cambios esperan a que desbloquees el cifrado de extremo a extremo en este dispositivo</item>
+    </plurals>
+    <string name="e2ee_pairing_approve">Aprobar</string>
+    <string name="e2ee_pairing_approved">Aprobado: el otro dispositivo se está desbloqueando</string>
+    <string name="e2ee_pairing_compare">Apruébalo solo si ese dispositivo muestra exactamente este código. Si no lo has pedido tú, deniégalo.</string>
+    <string name="e2ee_pairing_denied">Denegado</string>
+    <string name="e2ee_pairing_deny">Denegar</string>
+    <!-- args: left -->
+    <string name="e2ee_pairing_expires">Caduca en %1$s</string>
+    <!-- args: device -->
+    <string name="e2ee_pairing_message">«%1$s» pide tu clave de cifrado de extremo a extremo.</string>
+    <!-- args: device -->
+    <string name="e2ee_pairing_notice_body">«%1$s» quiere desbloquear tus bóvedas cifradas de extremo a extremo: compara el código en Termoak</string>
+    <string name="e2ee_pairing_notice_title">Un dispositivo pide tu clave E2EE</string>
+    <string name="e2ee_pairing_review">Revisar</string>
+    <string name="e2ee_pairing_title">¿Desbloquear otro dispositivo?</string>
+    <!-- args: device, code -->
+    <string name="e2ee_pairing_toast">«%1$s» pide tu clave de cifrado de extremo a extremo (código %2$s)</string>
+    <string name="e2ee_pairing_waiting_title">Dispositivos que piden tu clave</string>
+    <string name="e2ee_passphrase_change">Cambiar la frase de paso</string>
+    <string name="e2ee_passphrase_hint">Usa varias palabras que vayas a recordar (8 caracteres como mínimo). No es tu contraseña de inicio de sesión y Termoak no puede restablecerla.</string>
+    <string name="e2ee_passphrase_mismatch">Las frases de paso no coinciden</string>
+    <string name="e2ee_passphrase_optional">Frase de paso E2EE (opcional)</string>
+    <string name="e2ee_passphrase_placeholder">Frase de paso</string>
+    <string name="e2ee_passphrase_remove">Quitar la frase de paso</string>
+    <string name="e2ee_passphrase_remove_message">Los dispositivos nuevos solo podrán desbloquearse con la frase de recuperación o desde otro dispositivo tuyo.</string>
+    <string name="e2ee_passphrase_remove_title">¿Quitar la frase de paso?</string>
+    <string name="e2ee_passphrase_removed">Frase de paso quitada</string>
+    <string name="e2ee_passphrase_repeat">Repite la frase de paso</string>
+    <string name="e2ee_passphrase_saved">Frase de paso guardada</string>
+    <string name="e2ee_passphrase_set">Poner una frase de paso</string>
+    <string name="e2ee_passphrase_strength_fair">Aceptable: unas palabras más ayudarían</string>
+    <string name="e2ee_passphrase_strength_good">Buena</string>
+    <string name="e2ee_passphrase_strength_strong">Muy buena</string>
+    <string name="e2ee_passphrase_strength_too_short">Demasiado corta (8 caracteres como mínimo)</string>
+    <string name="e2ee_passphrase_strength_weak">Débil</string>
+    <string name="e2ee_passphrase_title">Frase de paso E2EE</string>
+    <string name="e2ee_recovery_copied">Frase de recuperación copiada: pégala en un sitio seguro y vacía el portapapeles</string>
+    <!-- args: account, server -->
+    <string name="e2ee_recovery_doc_account">Cuenta: %1$s en %2$s</string>
+    <!-- args: date -->
+    <string name="e2ee_recovery_doc_date">Creada el %1$s</string>
+    <string name="e2ee_recovery_doc_keep">Guárdala sin conexión y en privado. Quien tenga estas 24 palabras y tu contraseña puede leer tus bóvedas cifradas de extremo a extremo; sin ellas, perder un dispositivo puede significar perder secretos. Termoak no puede recuperarla por ti.</string>
+    <string name="e2ee_recovery_doc_title">Frase de recuperación de Termoak</string>
+    <string name="e2ee_recovery_keep_hint">Un gestor de contraseñas, una copia impresa en un cajón o una caja fuerte son buenos sitios. Quien tenga estas palabras y tu contraseña puede leer tus bóvedas cifradas de extremo a extremo.</string>
+    <string name="e2ee_recovery_new">Nueva frase de recuperación</string>
+    <string name="e2ee_recovery_new_confirm">Crear una frase nueva</string>
+    <string name="e2ee_recovery_new_done">Tu nueva frase de recuperación ya está activa</string>
+    <string name="e2ee_recovery_new_message">Una frase nueva de 24 palabras sustituye a la anterior, que deja de funcionar al momento.</string>
+    <string name="e2ee_recovery_new_title">Nueva frase de recuperación</string>
+    <string name="e2ee_recovery_print">Imprimir…</string>
+    <string name="e2ee_recovery_reason_checksum">Las palabras no forman una frase válida: hay una palabra mal escrita o dos cambiadas de orden</string>
+    <string name="e2ee_recovery_reason_old_format">Es una clave de recuperación del formato antiguo (56 caracteres): ahora son 24 palabras. Usa tu frase de paso u otro dispositivo, o crea una frase de recuperación nueva</string>
+    <!-- args: n -->
+    <string name="e2ee_recovery_reason_unknown_word">La palabra %1$s no es una palabra de la frase de recuperación: revisa cómo se escribe</string>
+    <!-- args: expected, count -->
+    <string name="e2ee_recovery_reason_word_count">Una frase de recuperación tiene %1$s palabras (llevas %2$s)</string>
+    <string name="e2ee_recovery_save">Guardar…</string>
+    <string name="e2ee_recovery_saved_here">Guardada: llévala a un sitio seguro y borra otras copias</string>
+    <string name="e2ee_recovery_show_message">Apunta estas 24 palabras, en orden, y guárdalas sin conexión. Solo se muestran ahora: con ellas recuperas tu clave si pierdes todos tus dispositivos.</string>
+    <string name="e2ee_recovery_stored">He guardado mi frase de recuperación</string>
+    <string name="e2ee_reset_button">Restablecer…</string>
+    <string name="e2ee_reset_confirm">Restablecer</string>
+    <string name="e2ee_reset_done">Se ha restablecido el cifrado de extremo a extremo: vuelve a configurarlo cuando quieras</string>
+    <string name="e2ee_reset_message">Solo si perdiste todos tus dispositivos y tu frase de recuperación. Se borran tu clave, sus copias y emparejamientos, y pierdes las claves de todas las bóvedas cifradas de extremo a extremo: pide a quien las tenga que te las vuelva a dar cuando configures una clave nueva.</string>
+    <string name="e2ee_reset_mismatch">Ese no es el correo de la cuenta</string>
+    <string name="e2ee_reset_no_vaults">Ninguna bóveda depende solo de tu clave.</string>
+    <string name="e2ee_reset_title">Restablecer el cifrado de extremo a extremo</string>
+    <!-- args: email -->
+    <string name="e2ee_reset_type_email">Escribe %1$s para confirmar</string>
+    <!-- args: count -->
+    <plurals name="e2ee_reset_vaults_lost">
+        <item quantity="one">%1$d bóveda depende solo de tu clave: sus secretos se perderán para siempre</item>
+        <item quantity="other">%1$d bóvedas dependen solo de tu clave: sus secretos se perderán para siempre</item>
+    </plurals>
+    <string name="e2ee_rotate_button">Sustituir la clave…</string>
+    <string name="e2ee_rotate_confirm">Sustituir la clave</string>
+    <string name="e2ee_rotate_done">Tu clave se ha sustituido</string>
+    <string name="e2ee_rotate_message">Hazlo si perdiste un dispositivo que estaba desbloqueado. Este dispositivo crea una clave nueva, le pasa todas las claves de bóveda que tienes y una frase de recuperación nueva; tus otros dispositivos se bloquean y hay que desbloquearlos otra vez. Quita también el dispositivo perdido en Ajustes → Cuentas → Dispositivos.</string>
+    <string name="e2ee_rotate_title">Sustituir tu clave de cifrado de extremo a extremo</string>
+    <string name="e2ee_setup_button">Configurar el cifrado de extremo a extremo</string>
+    <string name="e2ee_setup_create">Crear mi clave</string>
+    <string name="e2ee_setup_done">El cifrado de extremo a extremo está configurado en este dispositivo</string>
+    <string name="e2ee_setup_message">Termoak crea tu clave en este dispositivo y una frase de recuperación de 24 palabras que apuntarás a continuación. La frase de paso es opcional: con ella puedes desbloquear dispositivos nuevos sin la frase de recuperación. No uses nunca tu contraseña de inicio de sesión: esa la ve el servidor.</string>
+    <string name="e2ee_setup_title">Configurar el cifrado de extremo a extremo</string>
+    <string name="e2ee_state_locked">Bloqueado aquí</string>
+    <string name="e2ee_state_locked_hint">Tu cuenta tiene una clave, pero este dispositivo no la tiene: desbloquéalo para abrir aquí tus bóvedas cifradas de extremo a extremo.</string>
+    <string name="e2ee_state_unlocked">Desbloqueado aquí</string>
+    <string name="e2ee_state_unlocked_hint">Este dispositivo tiene tu clave: abre las bóvedas cifradas de extremo a extremo de las que formas parte.</string>
+    <string name="e2ee_title">Cifrado de extremo a extremo</string>
+    <string name="e2ee_unlock_button">Desbloquear</string>
+    <string name="e2ee_unlock_device_code">Código</string>
+    <string name="e2ee_unlock_device_message">Pídeselo a un dispositivo donde estés desbloqueado (otro ordenador, tu móvil): mostrará una solicitud con un código de seis cifras. Apruébala solo si el código es el que ves aquí.</string>
+    <string name="e2ee_unlock_device_start">Pedírselo a mis otros dispositivos</string>
+    <string name="e2ee_unlock_device_waiting">Esperando la aprobación…</string>
+    <!-- args: count -->
+    <plurals name="e2ee_unlock_done">
+        <item quantity="one">Desbloqueado: %1$d secreto abierto</item>
+        <item quantity="other">Desbloqueado: %1$d secretos abiertos</item>
+    </plurals>
+    <string name="e2ee_unlock_passphrase_message">Tu frase de paso E2EE (no tu contraseña de inicio de sesión).</string>
+    <string name="e2ee_unlock_recovery_message">Escribe o pega tus 24 palabras. Da igual mayúsculas, números o saltos de línea, y bastan las cuatro primeras letras de cada palabra.</string>
+    <string name="e2ee_unlock_recovery_placeholder">abandon ability able about …</string>
+    <!-- args: count -->
+    <string name="e2ee_unlock_recovery_typing">%1$s de 24 palabras</string>
+    <string name="e2ee_unlock_recovery_valid">Frase de recuperación válida</string>
+    <string name="e2ee_unlock_title">Desbloquear el cifrado de extremo a extremo</string>
+    <string name="e2ee_unlock_way_device">Otro dispositivo</string>
+    <string name="e2ee_unlock_way_passphrase">Frase de paso</string>
+    <string name="e2ee_unlock_way_recovery">Frase de recuperación</string>
+    <string name="error_audit_sink_invalid">El destino no es válido o el servidor no lo permite</string>
+    <string name="error_e2ee_already_enabled">Esta bóveda ya está cifrada de extremo a extremo</string>
+    <string name="error_e2ee_client_required">Esta bóveda está cifrada de extremo a extremo y necesita una app de Termoak más reciente</string>
+    <string name="error_e2ee_decrypt_failed">No se pudo descifrar (clave incorrecta o datos dañados)</string>
+    <string name="error_e2ee_incomplete">Algo ha cambiado en la bóveda mientras tanto (un elemento o un miembro): sincroniza y vuelve a intentarlo</string>
+    <string name="error_e2ee_key_exists">Tu cuenta ya tiene una clave de cifrado de extremo a extremo: desbloquéala</string>
+    <string name="error_e2ee_key_mismatch">La clave no coincide con la que publicó tu cuenta: no sigas y revisa tus dispositivos</string>
+    <string name="error_e2ee_key_outdated">La clave de la bóveda ha cambiado: se sincroniza de nuevo con la clave nueva</string>
+    <string name="error_e2ee_locked">Estos secretos están cifrados de extremo a extremo y bloqueados en este dispositivo: desbloquea primero el cifrado de extremo a extremo</string>
+    <string name="error_e2ee_not_enabled">Esta bóveda no está cifrada de extremo a extremo</string>
+    <string name="error_e2ee_not_set_up">Configura primero el cifrado de extremo a extremo de tu cuenta</string>
+    <string name="error_e2ee_pairing_closed">La solicitud se denegó, caducó o hay demasiadas esperando: empieza de nuevo</string>
+    <string name="error_e2ee_passphrase_invalid">Frase de paso incorrecta</string>
+    <string name="error_e2ee_passphrase_too_short">La frase de paso necesita al menos 8 caracteres</string>
+    <string name="error_e2ee_plaintext_rejected">Esta bóveda está cifrada de extremo a extremo: el secreto tiene que cifrarse antes en este dispositivo</string>
+    <string name="error_e2ee_recovery_key_invalid">Esa frase de recuperación no abre tu clave</string>
+    <string name="error_e2ee_stale">Alguien ha cambiado la clave de la bóveda mientras tanto: sincroniza y vuelve a intentarlo</string>
+    <string name="error_e2ee_unlock_required">Las credenciales de este host están cifradas de extremo a extremo: el servidor solo puede usarlas si este dispositivo se las envía para esta conexión</string>
+    <string name="error_e2ee_vault">El servidor no puede hacer esto con una bóveda cifrada de extremo a extremo (no puede leer sus secretos)</string>
+    <string name="error_e2ee_wrap_invalid">Esa persona no puede tener la clave de esta bóveda (ha cambiado su rol o su clave)</string>
+    <string name="error_invalid_format">Formato de exportación desconocido</string>
+    <string name="error_invalid_retention">Retención fuera de rango</string>
+    <string name="error_sso_account_not_found">No hay ninguna cuenta con ese correo y este equipo no las crea</string>
+    <string name="error_sso_account_not_linked">Esa identidad no está vinculada a ninguna cuenta: entra con tu contraseña y vincúlala en Ajustes → Seguridad</string>
+    <string name="error_sso_code_invalid">El inicio de sesión caducó o ya se usó: empieza de nuevo</string>
+    <string name="error_sso_domain_taken">Otro equipo verificó (o reclamó hace poco) ese dominio</string>
+    <string name="error_sso_domain_unverified">Verifica antes un dominio</string>
+    <string name="error_sso_email_missing">El proveedor de identidad no envió una dirección de correo</string>
+    <string name="error_sso_email_unverified">El proveedor de identidad dice que ese correo no está verificado</string>
+    <string name="error_sso_failed">El proveedor de identidad rechazó el inicio de sesión</string>
+    <string name="error_sso_identity_taken">Esa identidad está vinculada a otra cuenta</string>
+    <string name="error_sso_issuer_invalid">No se pudo contactar con el proveedor de identidad o su configuración no coincide con el emisor</string>
+    <string name="error_sso_not_configured">El inicio de sesión único no está configurado (o está apagado) en este equipo</string>
+    <string name="error_sso_only_account">Esta cuenta solo entra con inicio de sesión único: pon una contraseña antes de desvincular</string>
+    <string name="error_sso_pkce_invalid">No se pudo comprobar el inicio de sesión: empieza de nuevo</string>
+    <string name="error_sso_redirect_invalid">El inicio de sesión no puede volver a esta app (redirección no permitida)</string>
+    <string name="error_sso_required">Tu organización inicia sesión con inicio de sesión único: usa «Continuar con inicio de sesión único»</string>
+    <!-- args: team -->
+    <string name="error_sso_required_team">%1$s inicia sesión con inicio de sesión único: usa «Continuar con %1$s»</string>
+    <string name="error_sso_state_invalid">El navegador volvió de otro inicio de sesión: empieza de nuevo</string>
+    <string name="settings_activity_none">Sin registro de actividad</string>
+    <string name="settings_activity_none_hint">Inicia sesión en una cuenta cuyo servidor tenga la auditoría ampliada.</string>
+    <string name="settings_page_activity">Actividad</string>
+    <string name="settings_page_security">Seguridad</string>
+    <string name="settings_security_no_e2ee">El servidor de esta cuenta no tiene bóvedas cifradas de extremo a extremo.</string>
+    <string name="settings_security_signed_out">Sin sesión iniciada</string>
+    <string name="settings_security_signed_out_hint">Inicia sesión en una cuenta para gestionar su cifrado de extremo a extremo, sus identidades vinculadas y su actividad.</string>
+    <string name="settings_subtitle_activity">Lo que ha pasado en tu cuenta: inicios de sesión, bóvedas, claves, sesiones</string>
+    <string name="settings_subtitle_security">Cifrado de extremo a extremo e inicio de sesión único</string>
+    <string name="sso_browser_opened">Sigue en el navegador: Termoak espera a que vuelva</string>
+    <string name="sso_copied">Copiado</string>
+    <string name="sso_domain_add">Añadir dominio</string>
+    <string name="sso_domain_added">Dominio añadido: publica su registro TXT y verifícalo</string>
+    <!-- args: error -->
+    <string name="sso_domain_failed">Aún sin verificar: %1$s</string>
+    <string name="sso_domain_invalid">Eso no es un nombre de dominio</string>
+    <!-- args: domain, error -->
+    <string name="sso_domain_not_yet">%1$s aún no está verificado (%2$s). Los cambios de DNS pueden tardar: inténtalo más tarde.</string>
+    <string name="sso_domain_pending">Esperando al registro TXT</string>
+    <string name="sso_domain_remove">Quitar el dominio</string>
+    <string name="sso_domain_remove_last">Es el último dominio verificado: también se deja de exigir el inicio de sesión único.</string>
+    <string name="sso_domain_remove_message">Sus cuentas dejan de vincularse y de estar obligadas a usar el inicio de sesión único.</string>
+    <!-- args: domain -->
+    <string name="sso_domain_remove_title">¿Quitar %1$s?</string>
+    <string name="sso_domain_txt_hint">Publica este registro TXT en el DNS del dominio y luego pulsa Verificar:</string>
+    <string name="sso_domain_txt_name">Nombre</string>
+    <string name="sso_domain_txt_value">Valor</string>
+    <string name="sso_domain_txt_zone">Archivo de zona</string>
+    <string name="sso_domain_verified">Verificado</string>
+    <!-- args: domain -->
+    <string name="sso_domain_verified_toast">%1$s está verificado</string>
+    <string name="sso_domain_verify">Verificar</string>
+    <string name="sso_domain_vouched">Verificado por un administrador del servidor</string>
+    <string name="sso_domains_hint">Demuestra cada dominio de correo con un registro DNS TXT. Las cuentas de los dominios verificados se vinculan a su identidad, y solo a ellas se les puede exigir el inicio de sesión único.</string>
+    <string name="sso_domains_none">Aún no hay dominios.</string>
+    <string name="sso_domains_title">Dominios</string>
+    <string name="sso_field_client_id">ID de cliente</string>
+    <string name="sso_field_client_id_placeholder">Del proveedor</string>
+    <string name="sso_field_client_secret">Secreto de cliente</string>
+    <string name="sso_field_client_secret_hint">Se guarda cifrado en el servidor y no se vuelve a mostrar. Solo los clientes públicos con PKCE pueden dejarlo vacío.</string>
+    <string name="sso_field_client_secret_placeholder">Pégalo aquí</string>
+    <string name="sso_field_client_secret_stored">Hay un secreto guardado (no se vuelve a mostrar): déjalo vacío para conservarlo o pega uno nuevo.</string>
+    <string name="sso_field_email_claim">Claim del correo</string>
+    <string name="sso_field_email_claim_hint">El claim del ID token con el correo (vacío: email; Entra puede necesitar preferred_username).</string>
+    <string name="sso_field_issuer">URL del emisor</string>
+    <string name="sso_field_preset">Proveedor</string>
+    <string name="sso_field_redirect_uri">URI de redirección que registrar en el proveedor</string>
+    <string name="sso_field_scopes">Ámbitos adicionales</string>
+    <string name="sso_field_scopes_hint">openid, email y profile se piden siempre.</string>
+    <string name="sso_field_tenant">ID de directorio (inquilino)</string>
+    <string name="sso_form_client_id_required">Hace falta el ID de cliente</string>
+    <string name="sso_form_issuer_required">Hace falta la URL del emisor</string>
+    <string name="sso_form_secret_required_google">Google necesita el secreto de cliente</string>
+    <string name="sso_form_tenant_required">Microsoft Entra necesita el ID de directorio (inquilino)</string>
+    <string name="sso_help_authentik">Authentik → Applications → Create with provider (OAuth2/OpenID, confidencial). URI de redirección: la de abajo. Emisor: https://&lt;host&gt;/application/o/&lt;slug&gt;/ (con la barra final).</string>
+    <string name="sso_help_generic">Cualquier proveedor con descubrimiento OpenID Connect (/.well-known/openid-configuration) y el flujo de código de autorización con PKCE. Registra la URI de redirección de abajo.</string>
+    <string name="sso_help_google">Consola de Google Cloud → APIs y servicios → Credenciales → Crear ID de cliente OAuth (Aplicación web). Añade la URI de redirección de abajo. Solo se aceptan cuentas de tus dominios verificados.</string>
+    <string name="sso_help_keycloak">Keycloak → tu realm → Clients → Create client (OpenID Connect, autenticación de cliente activada, flujo estándar). URI de redirección válida: la de abajo. Emisor: https://&lt;host&gt;/realms/&lt;realm&gt;.</string>
+    <string name="sso_help_microsoft">Centro de administración de Entra → Registros de aplicaciones → Nuevo registro (Web). Añade la URI de redirección de abajo, crea un secreto de cliente y copia el ID de directorio (inquilino) y el ID de aplicación (cliente).</string>
+    <string name="sso_identities_hint">Entra en esta cuenta con el proveedor de identidad de un equipo.</string>
+    <!-- args: issuer, date -->
+    <string name="sso_identities_last_login">%1$s · último inicio %2$s</string>
+    <string name="sso_identities_none">No hay identidades vinculadas.</string>
+    <string name="sso_identities_title">Identidades vinculadas</string>
+    <string name="sso_intro">Las personas de tus dominios verificados inician sesión con tu proveedor de identidad (OpenID Connect). Su cifrado de extremo a extremo sigue necesitando su propia frase de recuperación u otro dispositivo: el proveedor de identidad nunca recibe sus claves.</string>
+    <!-- args: team -->
+    <string name="sso_link_with">Vincular con %1$s</string>
+    <string name="sso_linked">Identidad vinculada</string>
+    <string name="sso_member_enforced">no se permite entrar con contraseña en sus dominios.</string>
+    <string name="sso_member_none">Este equipo no tiene inicio de sesión único.</string>
+    <string name="sso_member_optional">las contraseñas siguen funcionando.</string>
+    <!-- args: provider, enforced -->
+    <string name="sso_member_summary">Este equipo inicia sesión con %1$s; %2$s</string>
+    <string name="sso_no_public_url">Este servidor no tiene URL pública: no se puede usar el inicio de sesión único hasta que su administrador la configure.</string>
+    <string name="sso_preset_authentik">Authentik</string>
+    <string name="sso_preset_generic">Otro proveedor OpenID Connect</string>
+    <string name="sso_preset_google">Google Workspace</string>
+    <string name="sso_preset_keycloak">Keycloak</string>
+    <string name="sso_preset_microsoft">Microsoft Entra ID</string>
+    <string name="sso_provider_title">Proveedor de identidad</string>
+    <string name="sso_remove">Quitar el inicio de sesión único</string>
+    <!-- args: team -->
+    <string name="sso_remove_message">Se borran la configuración del proveedor de %1$s y su secreto; se vuelve a entrar con contraseña (las cuentas creadas por el inicio de sesión único tendrán que poner una).</string>
+    <string name="sso_remove_title">¿Quitar el inicio de sesión único?</string>
+    <string name="sso_removed">Inicio de sesión único quitado</string>
+    <string name="sso_rule_auto_create">Crear cuentas</string>
+    <string name="sso_rule_auto_create_hint">Quien sea de un dominio verificado y no tenga cuenta recibe una al entrar por primera vez (sin contraseña).</string>
+    <string name="sso_rule_auto_join">Añadirlas al equipo</string>
+    <string name="sso_rule_auto_join_hint">Quien entra con el inicio de sesión único pasa a ser miembro de este equipo.</string>
+    <string name="sso_rule_email_verified">Exigir correo verificado</string>
+    <string name="sso_rule_email_verified_hint">Rechaza los inicios cuyo correo el proveedor no marque como verificado (Entra no lo envía: la prueba es el dominio verificado).</string>
+    <string name="sso_rule_enabled">Inicio de sesión único activado</string>
+    <string name="sso_rule_enabled_hint">Apagado conserva los ajustes pero no ofrece nada.</string>
+    <string name="sso_rule_enforce">Exigir el inicio de sesión único</string>
+    <string name="sso_rule_enforce_hint">Las cuentas de los dominios verificados no pueden entrar, registrarse ni restablecer la contraseña con contraseña (los administradores del servidor la conservan).</string>
+    <string name="sso_rule_enforce_needs_domain">Verifica antes un dominio.</string>
+    <string name="sso_rule_owner_password">El propietario del equipo conserva la contraseña (emergencia)</string>
+    <string name="sso_rule_owner_password_hint">Para que alguien pueda entrar si el proveedor de identidad falla.</string>
+    <string name="sso_rule_satisfies_2fa">El inicio de sesión único cuenta como verificación en dos pasos</string>
+    <string name="sso_rule_satisfies_2fa_hint">Actívalo solo si tu proveedor exige MFA: así la política 2FA del equipo acepta las identidades vinculadas y Termoak no pide su propio código.</string>
+    <string name="sso_rules_title">Reglas de inicio de sesión</string>
+    <string name="sso_save">Guardar y comprobar</string>
+    <string name="sso_saved">Guardado</string>
+    <string name="sso_saved_on">Guardado: el proveedor respondió y su configuración coincide</string>
+    <string name="sso_state_enforced">Obligatorio</string>
+    <string name="sso_state_not_set_up">Sin configurar</string>
+    <string name="sso_state_off">Apagado</string>
+    <string name="sso_state_on">Activado</string>
+    <string name="sso_title">Inicio de sesión único</string>
+    <string name="sso_unlink">Desvincular</string>
+    <!-- args: team -->
+    <string name="sso_unlink_message">Ya no entrarás con el proveedor de %1$s (tu contraseña sigue funcionando).</string>
+    <string name="sso_unlink_title">¿Desvincular esta identidad?</string>
+    <string name="sso_unlinked">Identidad desvinculada</string>
+    <string name="teams_audit">Auditoría</string>
+    <string name="teams_sso">Inicio de sesión único</string>
+    <!-- args: vault, version -->
+    <string name="vault_e2ee_auto_rotated">Alguien perdió el acceso a %1$s: se ha rotado su clave (versión %2$s)</string>
+    <string name="vault_e2ee_badge">Cifrada de extremo a extremo</string>
+    <string name="vault_e2ee_badge_locked">Cifrada de extremo a extremo · bloqueada</string>
+    <string name="vault_e2ee_confirm">Confirmar</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_confirmed">
+        <item quantity="one">%1$d miembro ha recibido la clave</item>
+        <item quantity="other">%1$d miembros han recibido la clave</item>
+    </plurals>
+    <string name="vault_e2ee_consequence_ai">La IA del servidor, /exec y el SFTP del servidor dejan fuera los hosts con credenciales bloqueadas (la IA de tu dispositivo sigue funcionando).</string>
+    <string name="vault_e2ee_consequence_certificates">Los certificados del equipo, las políticas de acceso y las grabaciones siguen funcionando (las grabaciones no se cifran de extremo a extremo).</string>
+    <string name="vault_e2ee_consequence_jit">Los miembros Usar y Solo conectar no reciben credenciales justo a tiempo: se conectan con certificados del equipo o con la sesión de quien tiene la clave.</string>
+    <string name="vault_e2ee_consequence_metadata">Nombres, direcciones, usuarios y notas siguen siendo legibles por el servidor.</string>
+    <string name="vault_e2ee_consequence_moves">Los movimientos y copias a otras bóvedas los hace tu dispositivo (cifrados para el destino).</string>
+    <string name="vault_e2ee_consequence_reveal">El servidor y la web no pueden revelar secretos; tus dispositivos los abren una vez desbloqueados.</string>
+    <string name="vault_e2ee_consequence_server_sessions">Las sesiones del servidor y los tests de host preguntan antes de enviar las credenciales de un host, solo para esa conexión.</string>
+    <string name="vault_e2ee_consequences_title">Qué cambia</string>
+    <string name="vault_e2ee_disabled">El cifrado de extremo a extremo está desactivado en esta bóveda</string>
+    <string name="vault_e2ee_enabled">La bóveda está cifrada de extremo a extremo</string>
+    <string name="vault_e2ee_item_locked">Bloqueado</string>
+    <string name="vault_e2ee_item_locked_tip">Sus credenciales están cifradas de extremo a extremo y este dispositivo aún no puede abrirlas: desbloquea el cifrado de extremo a extremo.</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_items">
+        <item quantity="one">Se cifrará %1$d secreto en este dispositivo.</item>
+        <item quantity="other">Se cifrarán %1$d secretos en este dispositivo.</item>
+    </plurals>
+    <string name="vault_e2ee_key_changed">Su clave ha cambiado desde que este dispositivo le dio la clave: puede ser un dispositivo nuevo suyo o alguien más. Comprueba la huella con esa persona.</string>
+    <!-- args: version -->
+    <string name="vault_e2ee_key_version">Versión de la clave %1$s</string>
+    <string name="vault_e2ee_locked_card_title">Cifrado de extremo a extremo</string>
+    <string name="vault_e2ee_managers_only">Solo los Admin de la bóveda pueden activarlo.</string>
+    <string name="vault_e2ee_network_form_warning">Esta bóveda está cifrada de extremo a extremo, pero la clave de una red privada sigue siendo legible por el servidor: la necesita para unirse a la red.</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_networks_warning">
+        <item quantity="one">Esta bóveda tiene %1$d red privada: su clave sigue siendo legible por el servidor, que la necesita para unirse a la red.</item>
+        <item quantity="other">Esta bóveda tiene %1$d redes privadas: sus claves siguen siendo legibles por el servidor, que las necesita para unirse a las redes.</item>
+    </plurals>
+    <string name="vault_e2ee_no_key_role">Tu rol no recibe la clave de esta bóveda: te conectas con certificados del equipo o mediante la sesión del servidor de quien tiene la clave.</string>
+    <string name="vault_e2ee_off_intro">Activa el cifrado de extremo a extremo para guardar las contraseñas y claves de esta bóveda cifradas con una clave que solo tienen los dispositivos de sus miembros. El servidor guarda datos que no puede abrir y se borra su propia copia de la clave de la bóveda.</string>
+    <string name="vault_e2ee_off_message">Este dispositivo envía todos los secretos al servidor (por TLS), que los vuelve a cifrar con su propia clave: el servidor puede volver a leerlos y las apps antiguas ven la bóveda.</string>
+    <string name="vault_e2ee_off_mismatch">Ese no es el nombre de la bóveda</string>
+    <string name="vault_e2ee_off_title">Desactivar el cifrado de extremo a extremo</string>
+    <!-- args: name -->
+    <string name="vault_e2ee_off_type">Escribe %1$s para confirmar</string>
+    <string name="vault_e2ee_on_consequences_title">Mientras esté activado</string>
+    <string name="vault_e2ee_pending_hint">Confirma a alguien solo después de comprobar su huella con esa persona (en persona o en una llamada).</string>
+    <string name="vault_e2ee_pending_title">Esperando la clave</string>
+    <string name="vault_e2ee_recipients_hint">Compara cada huella con la que la persona ve en sus Ajustes → Seguridad antes de darle la clave. Los miembros sin marcar esperan y se pueden confirmar después.</string>
+    <string name="vault_e2ee_recipients_title">Quién recibe la clave ahora</string>
+    <string name="vault_e2ee_rekey_needed">Alguien ha perdido el acceso a esta bóveda: rota su clave para que no pueda abrir secretos nuevos.</string>
+    <string name="vault_e2ee_rotate">Rotar la clave</string>
+    <!-- args: version -->
+    <string name="vault_e2ee_rotated">Clave rotada (versión %1$s)</string>
+    <string name="vault_e2ee_session_hint">La auditoría lo registra (e2ee.unlock). Prefiere una conexión local para que no salgan de este dispositivo.</string>
+    <string name="vault_e2ee_session_send">Enviar y conectar</string>
+    <string name="vault_e2ee_session_text">Su bóveda está cifrada de extremo a extremo, así que el servidor no puede abrirlas. Este dispositivo puede enviarlas solo para esta sesión del servidor: el servidor las usa para conectar y después las olvida.</string>
+    <string name="vault_e2ee_session_title">¿Enviar las credenciales de este host para esta sesión?</string>
+    <string name="vault_e2ee_setup_first">Configura antes el cifrado de extremo a extremo de tu cuenta.</string>
+    <string name="vault_e2ee_setup_to_get_key">Configura el cifrado de extremo a extremo para recibir la clave de esta bóveda.</string>
+    <!-- args: host -->
+    <string name="vault_e2ee_test_message">%1$s está en una bóveda cifrada de extremo a extremo: el servidor solo puede probarlo si este dispositivo envía sus credenciales, solo para esta prueba.</string>
+    <string name="vault_e2ee_test_send">Enviar y probar</string>
+    <string name="vault_e2ee_test_title">¿Enviar las credenciales para esta prueba?</string>
+    <string name="vault_e2ee_turn_off">Desactivar</string>
+    <string name="vault_e2ee_turn_on">Activar el cifrado de extremo a extremo</string>
+    <string name="vault_e2ee_unlock_first">Desbloquea antes el cifrado de extremo a extremo en este dispositivo.</string>
+    <!-- args: fingerprint -->
+    <string name="vault_e2ee_waiting_for_key">Esperando a que alguien con la clave te confirme. La huella de tu clave, para compararla con esa persona: %1$s</string>
+    <!-- args: count -->
+    <plurals name="vault_e2ee_without_key">
+        <item quantity="one">%1$d miembro que puede tener la clave aún no ha configurado el cifrado de extremo a extremo: esperará a que alguien con la clave le confirme.</item>
+        <item quantity="other">%1$d miembros que pueden tener la clave aún no han configurado el cifrado de extremo a extremo: esperarán a que alguien con la clave les confirme.</item>
+    </plurals>
+    <!-- args: email -->
+    <string name="vault_e2ee_you">Tú (%1$s)</string>
+    <string name="vaults_tab_encryption">Cifrado</string>
+</resources>

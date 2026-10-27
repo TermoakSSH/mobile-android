@@ -162,12 +162,15 @@ fun HostAccessChips(app: TermoakApp, host: SshHost) {
     w?.let { AccessWindowChip(it) }
     if (recorded) RecordedChip()
     if (host.access == com.termoak.ffi.ItemAccess.CONNECT_ONLY) ConnectOnlyBadge()
+    // End-to-end encrypted and still sealed on this device (0.7 phase 5c).
+    if (host.e2eeLocked) E2eeLockedChip()
 }
 
 /** Whether [HostAccessChips] has something to show. */
 fun hasAccessChips(app: TermoakApp, host: SshHost): Boolean =
     AccessBook.windowOf(host.accountId, host.id) != null || AccessUi.gates(app, host).recorded ||
-        AccessBook.host(host.accountId, host.id)?.recordRequired == true || host.access == com.termoak.ffi.ItemAccess.CONNECT_ONLY
+        AccessBook.host(host.accountId, host.id)?.recordRequired == true || host.access == com.termoak.ffi.ItemAccess.CONNECT_ONLY ||
+        host.e2eeLocked
 
 /**
  * The teams that require two-step verification from you (`team_2fa` of

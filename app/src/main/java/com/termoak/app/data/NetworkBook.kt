@@ -140,10 +140,11 @@ object NetworkBook {
     fun isTesting(host: SshHost): Boolean = testing[host.uid] == true
 
     /** Tests [host] from the server; the result stays for the lists. */
-    suspend fun testHost(api: NetworksApi, host: SshHost, trust: Boolean): HostTest {
+    suspend fun testHost(api: NetworksApi, host: SshHost, trust: Boolean, unlock: Boolean = false): HostTest {
         testing[host.uid] = true
         try {
-            val t = api.testHost(host.id, trust)
+            // An end-to-end encrypted host: with this device's credentials, for this test only (asked first).
+            val t = if (unlock) api.testHostUnlocked(host.id, trust) else api.testHost(host.id, trust)
             tests[host.uid] = t
             return t
         } finally {

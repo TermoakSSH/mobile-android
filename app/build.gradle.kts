@@ -177,6 +177,8 @@ dependencies {
     // delivers the server's Web Push messages; the connector makes the Web Push keys and decrypts
     // (with Tink, Apache-2.0). No Play Services or Firebase in any build.
     implementation("org.unifiedpush.android:connector:3.3.5")
+    // Single sign-on in a Custom Tab (the system browser, RFC 8252), Apache-2.0.
+    implementation("androidx.browser:browser:1.9.0")
 
     // JVM unit tests (app/src/test) of the code without Android: keys, paths...
     testImplementation("junit:junit:4.13.2")

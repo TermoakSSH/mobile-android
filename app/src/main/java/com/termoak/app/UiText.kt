@@ -38,6 +38,8 @@ fun Throwable.toUiText(@StringRes fallback: Int): UiText =
     com.termoak.app.sk.SkErrors.textOf(this)
         // Teams security codes (0.7 phase 4d): always the app's text.
         ?: com.termoak.app.data.AccessTexts.of(this)
+        // E2EE, SSO and audit codes (0.7 phase 5c): always the app's text.
+        ?: com.termoak.app.data.E2eeTexts.of(this)
         ?: networkError(this)
         ?: knownError(this)?.let { UiText.Res(it) }
         ?: message?.takeIf { it.isNotBlank() }?.let { UiText.Raw(it) }

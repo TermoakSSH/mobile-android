@@ -1225,9 +1225,13 @@ private fun TerminalPane(
         val waiting = live.waiting
         val ended = live.ended
         val accessNeed by session.accessNeed.collectAsState()
+        val e2eeNeed by session.e2eeNeed.collectAsState()
         if (accessNeed != null && state is TermState.Closed) {
             // Teams security: "Approval needed" / "Waiting for approval" instead of the error; connects by itself.
             TerminalAccessCard(app, session, host)
+        } else if (e2eeNeed != null && state is TermState.Closed) {
+            // An end-to-end encrypted host: Unlock here, or send its credentials for this server session.
+            TerminalE2eeCard(app, session, host)
         } else if (ended != null) {
             EndPanel(ended) { app.sessions.close(session.id) }
         } else if (waiting != null && session is ServerTerminal) {

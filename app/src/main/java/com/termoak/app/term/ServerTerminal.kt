@@ -63,6 +63,20 @@ class ServerTerminal(
         if (!owner) _live.value = LiveShare(isOwner = false, access = SessionAccess.VIEW, canWrite = false)
     }
 
+    /**
+     * The person agreed to send this host's credentials for the next session
+     * (an end-to-end encrypted host, 0.7 phase 5c): the engine resolves them
+     * on this device and the server uses them for this session only.
+     */
+    @Volatile private var sendCredentials = false
+
+    /** "Send and connect": open the session with this host's credentials. */
+    fun sendCredentialsAndConnect() {
+        sendCredentials = true
+        _e2eeNeed.value = null
+        reconnect()
+    }
+
     /** Joined with an invitation link without an account (a guest with a display name). */
     val asGuest: Boolean get() = link != null && !link.asAccount
 
@@ -76,12 +90,18 @@ class ServerTerminal(
                     link == null && accountId != null -> {
                         val acc = core.account(accountId)
                         val id = sessionId
-                            ?: acc.openServerSession(hostId!!, screen.cols(), screen.rows(), label, record).id
+                            ?: (
+                                if (sendCredentials) acc.openServerSessionUnlocked(hostId!!, screen.cols(), screen.rows(), label, record)
+                                else acc.openServerSession(hostId!!, screen.cols(), screen.rows(), label, record)
+                                ).id
                         acc.attachServerSession(id, this@ServerTerminal)
                     }
                     link == null -> {
                         val id = sessionId
-                            ?: core.openServerSession(hostId!!, screen.cols(), screen.rows(), label, record).id
+                            ?: (
+                                if (sendCredentials) core.openServerSessionUnlocked(hostId!!, screen.cols(), screen.rows(), label, record)
+                                else core.openServerSession(hostId!!, screen.cols(), screen.rows(), label, record)
+                                ).id
                         core.attachServerSession(id, this@ServerTerminal)
                     }
                     link.asAccount -> core.joinLink(link.token, this@ServerTerminal)
@@ -92,7 +112,11 @@ class ServerTerminal(
                 syncFromHandle()
             } catch (e: TermoakException) {
                 noteAccessError(e)
+                noteE2eeError(e)
                 _state.value = TermState.Closed(e.toUiText(R.string.term_open_session_failed))
+            } finally {
+                // Asked for this one session only.
+                sendCredentials = false
             }
         }
     }

@@ -232,6 +232,34 @@ abstract class TermSession(
         _accessNeed.value = com.termoak.app.data.AccessTexts.needOf(e, hostId)
     }
 
+    /** What an end-to-end encrypted host needs before it connects (0.7 phase 5c). */
+    enum class E2eeNeed {
+        /** This device can't open the host's credentials yet: unlock E2EE here. */
+        UNLOCK,
+        /** A server session: the server can only use the credentials this device sends for it (ask first). */
+        SEND,
+    }
+
+    protected val _e2eeNeed = MutableStateFlow<E2eeNeed?>(null)
+    /** The terminal shows a card with Unlock, or "Send this host's credentials for this session?". */
+    val e2eeNeed: StateFlow<E2eeNeed?> = _e2eeNeed
+
+    /** A connection error: remembers what an E2EE host needs (or forgets it). */
+    protected fun noteE2eeError(e: Throwable) {
+        _e2eeNeed.value = when {
+            com.termoak.app.data.E2eeTexts.needsUnlock(e) -> E2eeNeed.SEND
+            com.termoak.app.data.E2eeTexts.isLocked(e) -> E2eeNeed.UNLOCK
+            else -> null
+        }
+    }
+
+    /** This device was unlocked: connect again. */
+    fun e2eeUnlocked() {
+        if (_e2eeNeed.value == null) return
+        _e2eeNeed.value = null
+        reconnect()
+    }
+
     /** The window opened (or the host no longer needs one): connect again. */
     fun accessGranted() {
         if (_accessNeed.value == null) return
@@ -326,6 +354,7 @@ abstract class TermSession(
     /** Connects again after closing. */
     open fun reconnect() {
         _accessNeed.value = null
+        _e2eeNeed.value = null
         release()
         screen.reset()
         forgetLine()

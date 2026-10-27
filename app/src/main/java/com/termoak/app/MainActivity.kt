@@ -174,6 +174,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
         if (intent?.action == Intent.ACTION_VIEW) {
+            // Single sign-on: the browser came back (termoak://sso, RFC 8252 §7.1).
+            if (com.termoak.app.data.SsoBrowser.deliver(intent.dataString)) return
             JoinLinkRef.parse(intent.dataString)?.let { app.pendingLink.value = it }
                 ?: InviteLinkRef.parse(intent.dataString)?.let { app.pendingInvite.value = it }
         }

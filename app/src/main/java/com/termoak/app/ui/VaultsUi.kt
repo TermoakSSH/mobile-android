@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.EnhancedEncryption
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Folder
@@ -90,6 +91,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -289,6 +291,8 @@ fun VaultsScreen(app: TermoakApp, nav: NavHostController) {
                         trailingContent = {
                             Column(horizontalAlignment = Alignment.End) {
                                 Pill(roleText(v.role), if (v.role.noSecrets()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
+                                // End-to-end encrypted (0.7 phase 5c), "locked" until this device can open it.
+                                E2eeBadge(com.termoak.app.data.E2eeRules.badge(v, com.termoak.app.data.E2eeBook.unlocked(v.accountId)), Modifier.padding(top = 2.dp))
                                 if (v.strict) {
                                     Text(
                                         stringResource(R.string.vault_strict), Modifier.padding(top = 2.dp),
@@ -582,6 +586,33 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
             }
             if (v.role == VaultRole.USE_ONLY) UseOnlyNote()
             if (v.role == VaultRole.CONNECT_ONLY) FormNote(stringResource(R.string.vaults_you_connect_only))
+            // End-to-end encryption (0.7 phase 5c): its state and, for Admins, turning it on or off.
+            if (com.termoak.app.data.E2eeBook.supported(accountId) && handle != null) {
+                val badge = com.termoak.app.data.E2eeRules.badge(v, com.termoak.app.data.E2eeBook.unlocked(accountId))
+                ListItem(
+                    modifier = Modifier.clickable { nav.navigate(Routes.vaultE2ee(accountId, vaultId)) }.testTag("vault-encryption"),
+                    headlineContent = { Text(stringResource(R.string.vaults_tab_encryption)) },
+                    supportingContent = {
+                        Text(
+                            stringResource(
+                                when {
+                                    v.e2ee == null -> R.string.vault_e2ee_disabled
+                                    v.e2ee?.rekeyNeeded == true -> R.string.vault_e2ee_rekey_needed
+                                    else -> R.string.vault_e2ee_enabled
+                                },
+                            ),
+                        )
+                    },
+                    leadingContent = { Icon(Icons.Outlined.EnhancedEncryption, null) },
+                    trailingContent = {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                            E2eeBadge(badge)
+                            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null)
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+            }
 
             if (!personal) {
                 SectionLabel(stringResource(R.string.vault_members)) {
@@ -652,7 +683,11 @@ fun VaultScreen(app: TermoakApp, nav: NavHostController, accountId: String, vaul
                 if (manager && handle != null) {
                     // What happened in it (the server's audit log).
                     ListItem(
-                        modifier = Modifier.clickable { auditOpen = true },
+                        // The extended audit (filters, export) where the server has it (0.7 phase 5c).
+                        modifier = Modifier.clickable {
+                            if (com.termoak.app.data.E2eeBook.audit(accountId) != null) nav.navigate(Routes.audit(accountId, "vault", vaultId, v.name))
+                            else auditOpen = true
+                        },
                         headlineContent = { Text(stringResource(R.string.vault_activity)) },
                         leadingContent = { Icon(Icons.Outlined.History, null) },
                         trailingContent = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null) },

@@ -198,6 +198,21 @@ object Routes {
     fun files(sourceId: String) = "files/$sourceId"
     fun keys(action: String? = null) = if (action == null) "keys" else "keys?action=$action"
     fun key(id: String, account: String?) = "key/$id" + (account?.let { "?account=$it" } ?: "")
+    /** Settings → Security (0.7 phase 5c): end-to-end encryption and linked identities (`pairing`: a request to review). */
+    const val SECURITY = "security?account={account}&pairing={pairing}"
+    fun security(account: String? = null, pairing: String? = null) =
+        "security" + listOfNotNull(account?.let { "account=$it" }, pairing?.let { "pairing=$it" }).joinToString("&").let { if (it.isEmpty()) "" else "?$it" }
+    /** The extended audit: `scope` me, team or vault (`id`: the team or vault). */
+    const val AUDIT = "audit/{account}/{scope}?id={id}&name={name}"
+    fun audit(account: String, scope: String, id: String?, name: String?) =
+        "audit/$account/$scope" + listOfNotNull(id?.let { "id=$it" }, name?.let { "name=${Uri.encode(it)}" }).joinToString("&").let { if (it.isEmpty()) "" else "?$it" }
+    /** A vault's end-to-end encryption. */
+    const val VAULT_E2EE = "vault-e2ee/{account}/{id}"
+    fun vaultE2ee(account: String, id: String) = "vault-e2ee/$account/$id"
+    /** A team's single sign-on and domains. */
+    const val TEAM_SSO = "team-sso/{account}/{team}?name={name}&role={role}"
+    fun teamSso(account: String, team: String, name: String, role: String?) =
+        "team-sso/$account/$team?name=${Uri.encode(name)}" + (role?.let { "&role=$it" } ?: "")
 }
 
 /** The app's main destinations: bottom bar on phones, navigation rail on tablets. */
@@ -225,6 +240,7 @@ private val Details = setOf(
     Routes.GROUP, Routes.HOST_EDIT, Routes.KEY, Routes.IMPORT, Routes.EXPORT, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.LOGIN, Routes.JOIN,
     Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.FILES, Routes.NETWORKS,
     Routes.ACCESS, Routes.TEAM_SECURITY, Routes.CERTIFICATES, Routes.ACCESS_POLICY, Routes.VAULT_ACCESS, Routes.VAULT_RECORDINGS,
+    Routes.SECURITY, Routes.AUDIT, Routes.VAULT_E2EE, Routes.TEAM_SSO,
 )
 
 private fun tabOf(route: String?): Tab? = when (route) {
@@ -232,7 +248,8 @@ private fun tabOf(route: String?): Tab? = when (route) {
     Routes.CONNECTIONS -> Tab.CONNECTIONS
     Routes.AI, Routes.AI_TASK, Routes.AI_NEW, Routes.AI_MEMORIES -> Tab.AI
     Routes.SETTINGS, Routes.AI_KEYS, Routes.KEYBOARD, Routes.NOTIFICATIONS, Routes.TWO_FACTOR, Routes.ACCOUNTS, Routes.VAULTS, Routes.VAULT, Routes.TEAMS, Routes.NETWORKS,
-    Routes.ACCESS, Routes.TEAM_SECURITY, Routes.CERTIFICATES, Routes.ACCESS_POLICY, Routes.VAULT_ACCESS, Routes.VAULT_RECORDINGS -> Tab.SETTINGS
+    Routes.ACCESS, Routes.TEAM_SECURITY, Routes.CERTIFICATES, Routes.ACCESS_POLICY, Routes.VAULT_ACCESS, Routes.VAULT_RECORDINGS,
+    Routes.SECURITY, Routes.AUDIT, Routes.VAULT_E2EE, Routes.TEAM_SSO -> Tab.SETTINGS
     else -> null
 }
 
@@ -286,8 +303,8 @@ fun AppRoot(app: TermoakApp) {
     fun badge(tab: Tab): Int = when (tab) {
         Tab.CONNECTIONS -> open.size
         Tab.AI -> approvals
-        // Teams security: access requests waiting for your decision.
-        Tab.SETTINGS -> com.termoak.app.data.AccessBook.waitingCount()
+        // Teams security: access requests waiting for your decision; E2EE: your devices asking for the key.
+        Tab.SETTINGS -> com.termoak.app.data.AccessBook.waitingCount() + com.termoak.app.data.E2eeBook.pairingCount()
         else -> 0
     }
 
@@ -489,6 +506,40 @@ fun AppRoot(app: TermoakApp) {
                         }
                         composable(Routes.VAULT_RECORDINGS) { e ->
                             VaultRecordingsScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
+                        }
+                        composable(
+                            Routes.SECURITY,
+                            arguments = listOf(
+                                navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("pairing") { type = NavType.StringType; nullable = true; defaultValue = null },
+                            ),
+                        ) { e -> SecurityScreen(app, nav, e.arguments?.getString("account"), e.arguments?.getString("pairing")) }
+                        composable(
+                            Routes.AUDIT,
+                            arguments = listOf(
+                                navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null },
+                                navArgument("name") { type = NavType.StringType; nullable = true; defaultValue = null },
+                            ),
+                        ) { e ->
+                            AuditScreen(
+                                app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("scope").orEmpty(),
+                                e.arguments?.getString("id"), e.arguments?.getString("name"),
+                            )
+                        }
+                        composable(Routes.VAULT_E2EE) { e ->
+                            VaultE2eeScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
+                        }
+                        composable(
+                            Routes.TEAM_SSO,
+                            arguments = listOf(
+                                navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                                navArgument("role") { type = NavType.StringType; nullable = true; defaultValue = null },
+                            ),
+                        ) { e ->
+                            TeamSsoScreen(
+                                app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("team").orEmpty(),
+                                e.arguments?.getString("name").orEmpty(), e.arguments?.getString("role"),
+                            )
                         }
                         composable(Routes.VAULT) { e ->
                             VaultScreen(app, nav, e.arguments?.getString("account").orEmpty(), e.arguments?.getString("id").orEmpty())
@@ -762,7 +813,31 @@ fun AppRoot(app: TermoakApp) {
             is PushOpen.SecurityKey -> scope.launch {
                 snackbar.showSnackbar(resources.getString(R.string.push_security_key_waiting), duration = SnackbarDuration.Short)
             }
+            // Another device asks for your E2EE key: its review on Settings → Security.
+            is PushOpen.E2eePairing -> nav.navigate(Routes.security(open.accountId, open.pairingId)) { launchSingleTop = true }
             is PushOpen.Home -> Unit
+        }
+    }
+    // E2EE (0.7 phase 5c): another device of yours asks for the key (a dialog in front, a notification in
+    // the background: the server sends no push for it), edits waiting for an unlock, a key rotated by itself.
+    var pairingAsk by remember { mutableStateOf<Pair<String, com.termoak.ffi.E2eePairingRequest>?>(null) }
+    LaunchedEffect(Unit) {
+        com.termoak.app.data.E2eeBook.newPairings.collect { (acc, p) ->
+            if (app.shareNotices.inForeground) {
+                if (nav.currentDestination?.route != Routes.SECURITY) pairingAsk = acc to p
+            } else {
+                app.pushNotifier.show(com.termoak.app.push.PushRoutes.pairingPlan(acc, p, resources, System.currentTimeMillis()))
+            }
+        }
+    }
+    pairingAsk?.let { (acc, p) -> CompositionLocalProvider(LocalSnackbar provides snackbar) { PairingDialog(app, acc, p) { pairingAsk = null } } }
+    LaunchedEffect(Unit) {
+        com.termoak.app.data.E2eeBook.notices.collect { n ->
+            val text = when (n) {
+                is com.termoak.app.data.E2eeBook.Notice.Waiting -> resources.getQuantityString(R.plurals.e2ee_notice_waiting, n.count, n.count)
+                is com.termoak.app.data.E2eeBook.Notice.Rotated -> resources.getString(R.string.vault_e2ee_auto_rotated, n.vault, n.version.toString())
+            }
+            scope.launch { snackbar.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Long) }
         }
     }
     val opened by app.shareNotices.openRequest.collectAsState()

@@ -211,6 +211,8 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
             scope.launch { NetworkBook.refreshFeatures(id, handle(id)) }
             // Teams security (0.7 phase 4d): the server's feature, the requests and the 2FA requirements.
             scope.launch { AccessBook.start(id) }
+            // E2EE vaults, SSO and the extended audit (0.7 phase 5c): features and the account's key.
+            scope.launch { E2eeBook.start(id) }
         }
         featuresRead.retainAll(activeIds)
         featuresRead += activeIds
@@ -366,6 +368,20 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         return info
     }
 
+    /**
+     * Finishes a single sign-on with the URL the browser came back to
+     * (`termoak://sso?code=…&state=…`): the account is signed in and becomes
+     * current. Fails with `TotpRequired` when the account has two-step
+     * verification the team's SSO does not replace: call again with [totp].
+     */
+    suspend fun ssoComplete(flow: com.termoak.ffi.SsoFlow, callbackUrl: String, totp: String?): AccountInfo {
+        val before = _list.value.map { it.id }.toSet()
+        val info = core.ssoComplete(flow, callbackUrl, totp?.trim()?.ifEmpty { null })
+        prefs.lastEmail = info.email
+        added(info, before)
+        return info
+    }
+
     /** Creates an account (official server, or your own with open registration or an invitation). */
     suspend fun signUp(server: ServerChoice, email: String, name: String, password: String, invite: String?, acceptTerms: Boolean = false): AccountInfo {
         val before = _list.value.map { it.id }.toSet()
@@ -477,6 +493,7 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         stopEvents(id)
         NetworkBook.forget(id)
         AccessBook.forget(id)
+        E2eeBook.forget(id)
         handles.remove(id)?.close()
         approvals.remove(id)
         if (_verification.value?.accountId == id) _verification.value = null
@@ -516,8 +533,10 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
         if (id in _syncingIds.value || _verification.value?.accountId == id) return
         val handle = handle(id) ?: return
         setSyncing(id, true)
+        var synced: SyncReport? = null
         try {
             val report = handle.syncNow()
+            synced = report
             failed(id, null)
             notify(report)
         } catch (_: TermoakException.NotLoggedIn) {
@@ -534,6 +553,17 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
             refreshNow()
             _itemsChanged.tryEmit(Unit)
         }
+        e2eeSynced(id, synced)
+    }
+
+    /**
+     * After a sync (E2EE servers): edits waiting for an unlock are said, and
+     * this unlocked device rotates the vault keys the server flags (someone
+     * lost access), then syncs again.
+     */
+    private suspend fun e2eeSynced(id: String, report: SyncReport?) {
+        if (report == null || !E2eeBook.supported(id)) return
+        if (E2eeBook.synced(id, report, _vaults.value)) scope.launch { syncOne(id) }
     }
 
     /** "Sync now" of the sign-out dialog: one round, errors to the caller. */
@@ -661,6 +691,8 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
             "hello" -> {
                 approvals[accountId] = event.optInt("pending_approvals", approvals[accountId] ?: 0)
                 _pendingApprovals.value = approvals.values.sum()
+                // A pairing may have been asked while the socket was closed.
+                if (E2eeBook.supported(accountId)) E2eeBook.refresh(accountId)
                 // Events may have been missed while the socket was closed.
                 if (AccessBook.supported(accountId)) {
                     AccessBook.refresh(accountId)
@@ -695,6 +727,8 @@ class Accounts(private val context: Context, private val core: TermoakCore, priv
                 }
                 _changes.tryEmit(type)
             }
+            // E2EE (0.7 phase 5c): another device of yours asks for the key, or a request was decided.
+            "e2ee" -> E2eeBook.refresh(accountId)
             // A vault changed, was shared with you or lost: sync that account.
             "vault" -> {
                 syncOne(accountId)

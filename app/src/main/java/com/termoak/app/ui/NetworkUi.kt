@@ -179,6 +179,9 @@ internal fun HostNetworkTest(app: TermoakApp, host: SshHost, onDone: () -> Unit)
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     var trustAsk by remember { mutableStateOf<HostTest?>(null) }
+    // An end-to-end encrypted host: send its credentials for this test? (then they go with every retry of it)
+    var sendAsk by remember { mutableStateOf<Boolean?>(null) }
+    var unlock by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     fun run(trust: Boolean) {
         val handle = host.accountId?.let { app.accounts.handle(it) }
@@ -188,7 +191,7 @@ internal fun HostNetworkTest(app: TermoakApp, host: SshHost, onDone: () -> Unit)
         }
         scope.launch {
             try {
-                val t = NetworkBook.testHost(NetworksApi(handle), host, trust)
+                val t = NetworkBook.testHost(NetworksApi(handle), host, trust, unlock)
                 val name = t.networkName ?: NetworkBook.networkOf(host)?.let { NetworkBook.name(host.accountId, it) } ?: ""
                 when {
                     t.ok -> {
@@ -202,12 +205,23 @@ internal fun HostNetworkTest(app: TermoakApp, host: SshHost, onDone: () -> Unit)
                     }
                 }
             } catch (e: Exception) {
+                if (!unlock && com.termoak.app.data.E2eeTexts.needsUnlock(e)) {
+                    sendAsk = trust
+                    return@launch
+                }
                 snackbar.showSnackbar(e.toUiText(R.string.networks_test_failed).resolve(resources))
                 onDone()
             }
         }
     }
     LaunchedEffect(host.uid) { run(false) }
+    sendAsk?.let { trust ->
+        SendForTestDialog(host.label, onDismiss = { sendAsk = null; onDone() }) {
+            sendAsk = null
+            unlock = true
+            run(trust)
+        }
+    }
     trustAsk?.let { t ->
         AlertDialog(
             onDismissRequest = { trustAsk = null; onDone() },

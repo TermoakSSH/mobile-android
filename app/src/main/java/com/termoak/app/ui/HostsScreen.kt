@@ -584,6 +584,8 @@ fun HostsScreen(app: TermoakApp, nav: NavHostController, groupId: String?, group
                     full { ServerSessionsNotice(onServer.size) { openServerSessions() } }
                 }
                 if (groupId == null && com.termoak.app.data.AccessBook.team2faAll().isNotEmpty()) full { Team2faBanner(app, nav) }
+                // E2EE (0.7 phase 5c): locked here, another device asking for the key, members waiting for a vault key.
+                if (groupId == null && loggedIn == true && com.termoak.app.data.E2eeBook.anySupported()) full { E2eeHomeBanners(app, nav) }
                 full { SearchField(query, searchFocus) { query = it } }
                 if (hosts.isEmpty() && groups.isEmpty()) {
                     full {

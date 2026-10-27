@@ -41,6 +41,14 @@
                 <data android:host="join" />
                 <data android:host="invite" />
             </intent-filter>
+            <!-- Single sign-on: the identity provider's page (a Custom Tab) comes back here
+                 (docs-next/E2EE-SSO-AUDIT.md §3.4, RFC 8252 §7.1); PKCE makes an intercepted code useless. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="termoak" android:host="sso" />
+            </intent-filter>
             <!-- Android App Links: verified with /.well-known/assetlinks.json on each
                  host (TermoakSSH/public-web), so these links open the app directly. -->
             <intent-filter android:autoVerify="true">

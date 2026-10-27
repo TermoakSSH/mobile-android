@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,6 +177,15 @@ fun TeamsScreen(app: TermoakApp, nav: NavHostController) {
                 open = null
                 nav.navigate(Routes.teamSecurity(t.accountId, t.id, t.name, t.role))
             }) else null,
+            // Single sign-on and its domains; the team's audit (0.7 phase 5c).
+            onSso = if (com.termoak.app.data.E2eeBook.ssoSupported(t.accountId)) ({
+                open = null
+                nav.navigate(Routes.teamSso(t.accountId, t.id, t.name, t.role))
+            }) else null,
+            onAudit = if (com.termoak.app.data.E2eeBook.audit(t.accountId) != null && com.termoak.app.data.AccountTeams.canManage(t.role)) ({
+                open = null
+                nav.navigate(Routes.audit(t.accountId, "team", t.id, t.name))
+            }) else null,
         ) { open = null }
     }
     if (creating) NewTeamDialog(app, active, onDismiss = { creating = false }) { creating = false; reload() }
@@ -238,7 +248,15 @@ private fun Note(text: String) {
  * and delete the team; anyone can leave it.
  */
 @Composable
-private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> Unit, onSecurity: (() -> Unit)? = null, onDismiss: () -> Unit) {
+private fun TeamMembersDialog(
+    app: TermoakApp,
+    team: TeamInfo,
+    onChanged: () -> Unit,
+    onSecurity: (() -> Unit)? = null,
+    onSso: (() -> Unit)? = null,
+    onAudit: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
+) {
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
@@ -353,6 +371,10 @@ private fun TeamMembersDialog(app: TermoakApp, team: TeamInfo, onChanged: () -> 
                 }
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     onSecurity?.let { TextButton(onClick = it) { Text(stringResource(R.string.teams_security)) } }
+                    onSso?.let { TextButton(onClick = it, modifier = Modifier.testTag("team-sso")) { Text(stringResource(R.string.teams_sso)) } }
+                    onAudit?.let { TextButton(onClick = it, modifier = Modifier.testTag("team-audit")) { Text(stringResource(R.string.teams_audit)) } }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (manage) TextButton(onClick = { adding = true }) { Text(stringResource(R.string.teams_add_member)) }
                     if (manage) TextButton(onClick = { renaming = true }) { Text(stringResource(R.string.teams_rename)) }
                 }

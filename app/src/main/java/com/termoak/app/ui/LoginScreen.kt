@@ -81,6 +81,9 @@ import com.termoak.app.userMessage
 import com.termoak.ffi.AccountStatus
 import com.termoak.ffi.InviteInfo
 import com.termoak.ffi.ServerChoice
+import com.termoak.ffi.SsoHint
+import com.termoak.app.data.E2eeTexts
+import com.termoak.app.data.SsoBrowser
 import com.termoak.ffi.TermoakException
 import com.termoak.ffi.canonicalServerUrl
 import com.termoak.ffi.inviteInfo
@@ -101,6 +104,8 @@ data class ServerDetails(
     val privacyUrl: String?,
     /** The server has vaults (`features.vaults`); without them everything syncs to the account. */
     val vaults: Boolean = true,
+    /** Teams can sign in through their identity provider (`features.sso`, 0.7 phase 5c). */
+    val sso: Boolean = false,
 ) {
     val insecure get() = url.startsWith("http://")
 
@@ -118,6 +123,7 @@ data class ServerDetails(
                 termsUrl = str("terms_url"),
                 privacyUrl = str("privacy_url"),
                 vaults = v.optJSONObject("features")?.optBoolean("vaults", false) ?: false,
+                sso = v.optJSONObject("features")?.optBoolean("sso", false) ?: false,
             )
         }
     }
@@ -182,6 +188,12 @@ fun LoginScreen(
     var invitation by remember { mutableStateOf<InviteInfo?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Single sign-on (0.7 phase 5c): what the server said about the typed email, the flow in the browser, its 2FA step.
+    var ssoHint by remember { mutableStateOf<SsoHint?>(null) }
+    var ssoFor by remember { mutableStateOf("") }
+    var ssoWaiting by remember { mutableStateOf(false) }
+    var ssoTotp by remember { mutableStateOf<String?>(null) }
+    var ownerPassword by remember { mutableStateOf(false) }
     val official = serverUrl == officialServer
     // A server with closed registration still takes new accounts with an invitation code.
     val needsInvite = !official && details?.url == serverUrl && details?.registrationOpen == false
@@ -201,16 +213,83 @@ fun LoginScreen(
         details = runCatching { ServerDetails.parse(serverUrl, serverInfo(serverUrl)) }.getOrNull()
     }
 
+    // The typed email: does its team sign in through single sign-on? (asked once it looks like an email)
+    LaunchedEffect(email, serverUrl, step, details?.sso) {
+        val e = email.trim().lowercase()
+        if (e == ssoFor) return@LaunchedEffect
+        if (step != Step.SIGN_IN || details?.url != serverUrl || details?.sso != true || !SsoUi.looksLikeEmail(e)) {
+            if (!ssoWaiting) ssoHint = null
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(500)
+        ssoFor = e
+        ssoHint = runCatching { app.core.ssoDiscover(choice(), e) }.getOrNull()?.takeIf { it.sso }
+        ownerPassword = false
+    }
+
+    /** Opens the team's identity provider in a Custom Tab; it comes back to termoak://sso. */
+    fun startSso() {
+        if (busy) return
+        busy = true
+        error = null
+        ssoTotp = null
+        scope.launch {
+            try {
+                val flow = app.core.ssoStart(choice(), email.trim().ifEmpty { null }, ssoHint?.teamId, null)
+                SsoBrowser.begin(SsoBrowser.Pending.SignIn(flow))
+                ssoWaiting = SsoBrowser.open(context, flow.authorizeUrl)
+                if (!ssoWaiting) SsoBrowser.clear()
+            } catch (e: TermoakException) {
+                error = resources.getString(R.string.add_account_sso_failed, e.userMessage(resources, R.string.login_failed))
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /** The browser came back (or the 2FA code was typed): finish the sign-in. */
+    fun completeSso(url: String, code: String?) {
+        val p = SsoBrowser.pending.value as? SsoBrowser.Pending.SignIn ?: return
+        busy = true
+        error = null
+        scope.launch {
+            try {
+                val info = app.accounts.ssoComplete(p.flow, url, code)
+                SsoBrowser.clear()
+                ssoWaiting = false
+                ssoTotp = null
+                // An account that must verify its email: AppRoot opens the code screen.
+                if (info.status != AccountStatus.UNVERIFIED) onDone()
+            } catch (e: TermoakException.TotpRequired) {
+                ssoTotp = url
+            } catch (e: TermoakException.TotpInvalid) {
+                ssoTotp = url
+                error = resources.getString(R.string.login_code_invalid)
+            } catch (e: TermoakException) {
+                SsoBrowser.clear()
+                ssoWaiting = false
+                ssoTotp = null
+                error = resources.getString(R.string.add_account_sso_failed, e.userMessage(resources, R.string.login_failed))
+            } finally {
+                busy = false
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        SsoBrowser.callbacks.collect { url -> if (SsoBrowser.pending.value is SsoBrowser.Pending.SignIn) completeSso(url, null) }
+    }
+
     fun back() {
         error = null
         when {
+            ssoWaiting || ssoTotp != null -> { ssoWaiting = false; ssoTotp = null; SsoBrowser.clear() }
             needsCode -> { needsCode = false; code = "" }
             step == first -> onBack?.invoke()
             step == Step.SIGN_IN || step == Step.SIGN_UP -> step = if (official) Step.CHOICE else Step.CUSTOM
             else -> step = Step.CHOICE
         }
     }
-    BackHandler(enabled = onBack != null || step != first || needsCode) { back() }
+    BackHandler(enabled = onBack != null || step != first || needsCode || ssoWaiting || ssoTotp != null) { back() }
 
     /** Checks the address of your own server with `/info`. */
     fun checkServer() {
@@ -256,6 +335,13 @@ fun LoginScreen(
             } catch (e: TermoakException.TotpInvalid) {
                 error = resources.getString(R.string.login_code_invalid)
             } catch (e: TermoakException) {
+                // The team requires single sign-on: switch to it.
+                E2eeTexts.ssoRequired(e)?.let { (team, name) ->
+                    ssoHint = SsoHint(sso = true, enforced = true, teamId = team, teamName = name)
+                    ssoFor = email.trim().lowercase()
+                    ownerPassword = false
+                    password = ""
+                }
                 error = e.userMessage(resources, R.string.login_failed)
             } finally {
                 busy = false
@@ -278,6 +364,11 @@ fun LoginScreen(
                 )
                 finished(info.status)
             } catch (e: TermoakException) {
+                E2eeTexts.ssoRequired(e)?.let { (team, name) ->
+                    ssoHint = SsoHint(sso = true, enforced = true, teamId = team, teamName = name)
+                    ssoFor = email.trim().lowercase()
+                    step = Step.SIGN_IN
+                }
                 error = e.userMessage(resources, R.string.signup_failed)
             } finally {
                 busy = false
@@ -380,8 +471,25 @@ fun LoginScreen(
                 }
                 Step.SIGN_IN -> {
                     details?.environment?.let { EnvironmentBanner(it) }
+                    // Single sign-on: waiting for the browser, its 2FA step, or the team's card (enforced: only that).
+                    val ssoOnly = (ssoHint?.enforced == true && !ownerPassword) || ssoWaiting || ssoTotp != null
+                    if (ssoWaiting || ssoTotp != null) {
+                        SsoWaitingCard(
+                            totp = ssoTotp != null, code = code, onCode = { code = it.filter { c -> c.isLetterOrDigit() || c == '-' } }, busy = busy,
+                            onSubmit = { ssoTotp?.let { completeSso(it, code.trim()) } }, onCancel = { back() }, onAgain = { startSso() },
+                        )
+                        error?.let { MessageBox(it, isError = true) }
+                        return@Column
+                    }
+                    if (!needsCode) EmailField(email) { email = it }
+                    ssoHint?.let { h ->
+                        SsoCard(h, busy, onContinue = { startSso() }, onOwnerPassword = if (h.enforced && !ownerPassword) ({ ownerPassword = true }) else null)
+                    }
+                    if (ssoOnly) {
+                        error?.let { MessageBox(it, isError = true) }
+                        return@Column
+                    }
                     if (!needsCode) {
-                        EmailField(email) { email = it }
                         PasswordField(password, showPassword, { password = it }, { showPassword = !showPassword }, ImeAction.Go) { signIn() }
                     } else {
                         OutlinedTextField(
